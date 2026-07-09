@@ -28,3 +28,9 @@
 - PRD(Project Requirements Document)
 
 또한 AI(ChatGPT, Claude Code)를 활용하여 문서의 구조를 개선하고, 기술 명세의 일관성을 검토하였습니다.
+
+---
+
+## launch
+
+run_desktop.py를 실행하면 파일 실행 완료입니다. requirements.txt파일에 있는 파일은 반드시 설치해야합니다. pip install -r requirements.txt 실행하면 적용이 됩니다. .env가 없으면 실행이 되지 않습니다. 참고해주세요!
