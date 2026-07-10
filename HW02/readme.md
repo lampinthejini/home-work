@@ -34,3 +34,12 @@
 ## launch
 
 run_desktop.py를 실행하면 파일 실행 완료입니다. requirements.txt파일에 있는 파일은 반드시 설치해야합니다. pip install -r requirements.txt 실행하면 적용이 됩니다. .env가 없으면 실행이 되지 않습니다. 참고해주세요!
+
+docker에서 다음과 같은 명령을 해서 컨테이너를 생성해주세요. 패치 바로 하도록 하겠습니다. 
+docker run -d `
+  --name hw02-postgres `
+  -e POSTGRES_USER=user `
+  -e POSTGRES_PASSWORD=password `
+  -e POSTGRES_DB=contact_db `
+  -p 5432:5432 `
+  postgres:16
