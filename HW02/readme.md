@@ -73,5 +73,3 @@ python run_desktop.py
 - PRD(Project Requirements Document)
 
 또한 AI(ChatGPT, Claude Code)를 활용하여 문서의 구조를 개선하고, 기술 명세의 일관성을 검토하였습니다.
-
-
