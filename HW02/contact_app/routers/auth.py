@@ -1,3 +1,4 @@
+import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
@@ -8,8 +9,11 @@ from ..database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+SESSION_EXPIRY_HEADER = "X-Session-Expires-At"
+
 
 def get_current_user(
+    response: Response,
     session_id: Optional[str] = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> models.User:
@@ -19,6 +23,13 @@ def get_current_user(
     session = crud.get_login_session(db, session_id)
     if session is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 필요합니다.")
+
+    if session.expires_at < datetime.datetime.utcnow():
+        crud.delete_login_session(db, session_id)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="세션이 만료되었습니다. 다시 로그인해 주세요.")
+
+    session = crud.refresh_login_session(db, session)
+    response.headers[SESSION_EXPIRY_HEADER] = session.expires_at.isoformat() + "Z"
 
     user = crud.get_user(db, session.user_id)
     if user is None:
@@ -50,6 +61,7 @@ def login(data: schemas.LoginRequest, response: Response, db: Session = Depends(
         secure=False,
         samesite="lax",
     )
+    response.headers[SESSION_EXPIRY_HEADER] = session.expires_at.isoformat() + "Z"
     return {"message": "로그인 성공"}
 
 

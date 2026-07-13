@@ -1,12 +1,18 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SignupRequest(BaseModel):
     username: str = Field(pattern=r"^[a-z0-9]{4,20}$")
     password: str = Field(min_length=4, max_length=20)
     password_confirm: str
+
+    @model_validator(mode="after")
+    def check_passwords_match(self):
+        if self.password != self.password_confirm:
+            raise ValueError("비밀번호와 비밀번호 확인이 일치하지 않습니다.")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +43,11 @@ class ContactResponse(BaseModel):
     category_name: str
 
     model_config = {"from_attributes": True}
+
+
+class ContactListResponse(BaseModel):
+    total: int
+    items: list[ContactResponse]
 
 
 class CategoryCreate(BaseModel):

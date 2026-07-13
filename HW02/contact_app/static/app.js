@@ -12,8 +12,13 @@ const toggleModeLink = document.getElementById("toggleModeLink");
 const toggleModeText = document.getElementById("toggleModeText");
 
 const currentUsernameEl = document.getElementById("currentUsername");
+const sessionExpiryEl = document.getElementById("sessionExpiryEl");
 const logoutButton = document.getElementById("logoutButton");
 const signupSuccessMessage = document.getElementById("signupSuccessMessage");
+
+const SESSION_EXPIRY_HEADER = "X-Session-Expires-At";
+let sessionExpiresAt = null;
+let sessionCountdownInterval = null;
 
 const contactFormTitle = document.getElementById("contactFormTitle");
 const contactFormError = document.getElementById("contactFormError");
@@ -50,6 +55,11 @@ async function apiFetch(url, options) {
         ...options,
     });
 
+    const expiresHeader = response.headers.get(SESSION_EXPIRY_HEADER);
+    if (expiresHeader) {
+        sessionExpiresAt = new Date(expiresHeader).getTime();
+    }
+
     if (response.status === 204) {
         return null;
     }
@@ -66,6 +76,15 @@ async function apiFetch(url, options) {
     }
 
     return body;
+}
+
+async function withErrorHandling(errorEl, action) {
+    errorEl.textContent = "";
+    try {
+        await action();
+    } catch (err) {
+        errorEl.textContent = err.message;
+    }
 }
 
 function showTransientMessage(el, text) {
@@ -87,16 +106,47 @@ function setAuthMode(signup) {
     toggleModeLink.textContent = isSignupMode ? "로그인" : "회원가입";
 }
 
+function updateSessionCountdownDisplay() {
+    if (!sessionExpiresAt) {
+        return;
+    }
+    const remainingMs = sessionExpiresAt - Date.now();
+    if (remainingMs <= 0) {
+        sessionExpiryEl.textContent = "세션 만료됨";
+        return;
+    }
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    sessionExpiryEl.textContent = `${minutes}:${seconds} 후 자동 로그아웃`;
+}
+
+function startSessionCountdown() {
+    stopSessionCountdown();
+    sessionCountdownInterval = setInterval(updateSessionCountdownDisplay, 1000);
+    updateSessionCountdownDisplay();
+}
+
+function stopSessionCountdown() {
+    if (sessionCountdownInterval) {
+        clearInterval(sessionCountdownInterval);
+        sessionCountdownInterval = null;
+    }
+    sessionExpiryEl.textContent = "";
+}
+
 function showAuthSection() {
     authSection.classList.remove("hidden");
     appSection.classList.add("hidden");
     setAuthMode(false);
+    stopSessionCountdown();
 }
 
 function showAppSection(username) {
     authSection.classList.add("hidden");
     appSection.classList.remove("hidden");
     currentUsernameEl.textContent = username;
+    startSessionCountdown();
 }
 
 async function checkAuth() {
@@ -250,8 +300,7 @@ function renderCategoryList() {
 }
 
 async function handleCategorySave(category, newName) {
-    categoryError.textContent = "";
-    try {
+    await withErrorHandling(categoryError, async () => {
         await apiFetch(`/categories/${category.id}`, {
             method: "PATCH",
             body: JSON.stringify({ name: newName }),
@@ -260,29 +309,23 @@ async function handleCategorySave(category, newName) {
         await loadCategories();
         await loadContacts();
         showTransientMessage(categorySuccessMessage, "수정되었습니다.");
-    } catch (err) {
-        categoryError.textContent = err.message;
-    }
+    });
 }
 
 async function handleCategoryDelete(category) {
     if (!confirm("정말 삭제하시겠습니까?")) {
         return;
     }
-    categoryError.textContent = "";
-    try {
+    await withErrorHandling(categoryError, async () => {
         await apiFetch(`/categories/${category.id}`, { method: "DELETE" });
         await loadCategories();
         showTransientMessage(categorySuccessMessage, "삭제되었습니다.");
-    } catch (err) {
-        categoryError.textContent = err.message;
-    }
+    });
 }
 
 newCategoryButton.addEventListener("click", async () => {
-    categoryError.textContent = "";
     newCategoryButton.disabled = true;
-    try {
+    await withErrorHandling(categoryError, async () => {
         await apiFetch("/categories", {
             method: "POST",
             body: JSON.stringify({ name: newCategoryName.value }),
@@ -290,11 +333,8 @@ newCategoryButton.addEventListener("click", async () => {
         newCategoryName.value = "";
         await loadCategories();
         showTransientMessage(categorySuccessMessage, "추가되었습니다.");
-    } catch (err) {
-        categoryError.textContent = err.message;
-    } finally {
-        newCategoryButton.disabled = false;
-    }
+    });
+    newCategoryButton.disabled = false;
 });
 
 async function loadContacts(name) {
@@ -360,7 +400,6 @@ function resetContactForm() {
 contactCancelButton.addEventListener("click", resetContactForm);
 
 contactSubmitButton.addEventListener("click", async () => {
-    contactFormError.textContent = "";
     contactSubmitButton.disabled = true;
 
     const payload = {
@@ -371,7 +410,7 @@ contactSubmitButton.addEventListener("click", async () => {
     };
 
     const isEditing = Boolean(contactEditingId.value);
-    try {
+    await withErrorHandling(contactFormError, async () => {
         if (isEditing) {
             await apiFetch(`/contacts/${contactEditingId.value}`, {
                 method: "PATCH",
@@ -386,31 +425,27 @@ contactSubmitButton.addEventListener("click", async () => {
         resetContactForm();
         await loadContacts(searchName.value);
         showTransientMessage(contactSuccessMessage, isEditing ? "수정되었습니다." : "추가되었습니다.");
-    } catch (err) {
-        contactFormError.textContent = err.message;
-    } finally {
-        contactSubmitButton.disabled = false;
-    }
+    });
+    contactSubmitButton.disabled = false;
 });
 
 async function handleContactDelete(contactId) {
     if (!confirm("정말 삭제하시겠습니까?")) {
         return;
     }
-    contactFormError.textContent = "";
-    try {
+    await withErrorHandling(contactFormError, async () => {
         await apiFetch(`/contacts/${contactId}`, { method: "DELETE" });
         await loadContacts(searchName.value);
         showTransientMessage(contactSuccessMessage, "삭제되었습니다.");
-    } catch (err) {
-        contactFormError.textContent = err.message;
-    }
+    });
 }
 
-searchButton.addEventListener("click", () => loadContacts(searchName.value));
-searchResetButton.addEventListener("click", () => {
+searchButton.addEventListener("click", async () => {
+    await withErrorHandling(contactFormError, () => loadContacts(searchName.value));
+});
+searchResetButton.addEventListener("click", async () => {
     searchName.value = "";
-    loadContacts();
+    await withErrorHandling(contactFormError, () => loadContacts());
 });
 
 checkAuth();

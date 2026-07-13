@@ -64,7 +64,7 @@
             <section class="searchArea">
                 <input id="searchName" type="text" placeholder="이름으로 검색">
                 <button id="searchButton">검색</button>
-                <button id="searchResetButton">전체</button>
+                <button id="searchResetButton">초기화</button>
             </section>
 
             <section class="contactList">
@@ -85,14 +85,18 @@
             </section>
         </div>
 
-        <section class="categoryArea">
-            <h2>카테고리 관리</h2>
-            <div id="categoryError" class="errorText"></div>
-            <div id="categorySuccessMessage" class="hidden successText"></div>
-            <ul id="categoryList"></ul>
-            <input id="newCategoryName" type="text" placeholder="새 카테고리 (1~10자)">
-            <button id="newCategoryButton">추가</button>
-        </section>
+        <div class="rightColumn">
+            <section class="categoryArea">
+                <h2>카테고리 관리</h2>
+                <div id="categoryError" class="errorText"></div>
+                <div id="categorySuccessMessage" class="hidden successText"></div>
+                <ul id="categoryList"></ul>
+                <input id="newCategoryName" type="text" placeholder="새 카테고리 (1~10자)">
+                <button id="newCategoryButton">추가</button>
+            </section>
+
+            <div id="sessionExpiryEl" class="sessionExpiry"></div>
+        </div>
     </div>
 </section>
 

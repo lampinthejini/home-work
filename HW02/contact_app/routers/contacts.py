@@ -31,7 +31,7 @@ def create(
     return _to_response(contact)
 
 
-@router.get("")
+@router.get("", response_model=schemas.ContactListResponse)
 def read(
     name: Optional[str] = None,
     category_id: Optional[int] = None,

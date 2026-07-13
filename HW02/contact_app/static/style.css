@@ -155,10 +155,17 @@ input:focus, select:focus {
     align-items: start;
 }
 
-.leftColumn {
+.leftColumn,
+.rightColumn {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+.sessionExpiry {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85em;
 }
 
 @media (max-width: 800px) {

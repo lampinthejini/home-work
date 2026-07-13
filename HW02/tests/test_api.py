@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from contact_app.main import app
@@ -32,6 +33,15 @@ def test_tc03_invalid_signup_format_returns_422(client, make_username):
     assert res.status_code == 422
 
 
+def test_signup_password_mismatch_returns_422(client, make_username):
+    username = make_username()
+    res = client.post(
+        "/auth/signup",
+        json={"username": username, "password": "pass1234", "password_confirm": "different"},
+    )
+    assert res.status_code == 422
+
+
 def test_tc04_login_success_sets_cookie(client, make_username):
     username = make_username()
     signup(client, username)
@@ -59,6 +69,60 @@ def test_tc05_login_failure_returns_same_message(client, make_username):
 def test_tc06_protected_endpoint_without_login_returns_401(client):
     res = client.get("/auth/me")
     assert res.status_code == 401
+
+
+def test_expired_session_returns_401(client, make_username):
+    import datetime
+
+    from contact_app import models
+    from contact_app.database import SessionLocal
+
+    username = make_username()
+    signup(client, username)
+    login(client, username)
+    session_id = client.cookies.get("session_id")
+
+    db = SessionLocal()
+    session = db.get(models.LoginSession, session_id)
+    session.expires_at = datetime.datetime.utcnow() - datetime.timedelta(seconds=1)
+    db.commit()
+    db.close()
+
+    res = client.get("/auth/me")
+    assert res.status_code == 401
+
+
+def test_session_expiry_extends_on_activity(client, make_username):
+    import datetime
+
+    from contact_app import models
+    from contact_app.database import SessionLocal
+
+    username = make_username()
+    signup(client, username)
+    login(client, username)
+    session_id = client.cookies.get("session_id")
+
+    near_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=1)
+    db = SessionLocal()
+    session = db.get(models.LoginSession, session_id)
+    session.expires_at = near_expiry
+    db.commit()
+    db.close()
+
+    res = client.get("/auth/me")
+    assert res.status_code == 200
+    assert "X-Session-Expires-At" in res.headers
+    # UTC임을 명시하는 접미사가 없으면 브라우저의 `new Date(...)`가 이 값을
+    # 로컬 시간대로 잘못 해석해서(예: KST) 세션이 이미 만료된 것처럼 보인다.
+    assert res.headers["X-Session-Expires-At"].endswith("Z")
+
+    db = SessionLocal()
+    refreshed = db.get(models.LoginSession, session_id)
+    refreshed_expiry = refreshed.expires_at
+    db.close()
+
+    assert refreshed_expiry > near_expiry + datetime.timedelta(minutes=30)
 
 
 def test_tc07_logout_then_reuse_cookie_returns_401(client, make_username):
@@ -113,6 +177,40 @@ def test_tc10_invalid_contact_format_returns_422(registered_user):
         json={"name": "너무긴이름입니다", "phone": "0101234", "addr": "", "category_id": category_id},
     )
     assert res.status_code == 422
+    assert res.json()["detail"] == "입력값이 너무 깁니다. (그 외 1건의 오류가 더 있습니다.)"
+
+
+def test_validation_error_pattern_mismatch_is_korean(registered_user):
+    client, _ = registered_user
+    category_id = client.get("/categories").json()[0]["id"]
+
+    res = client.post(
+        "/contacts",
+        json={"name": "홍길동", "phone": "0101234", "addr": "", "category_id": category_id},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"] == "입력 형식이 올바르지 않습니다."
+
+
+def test_validation_error_shows_extra_error_count_hint(registered_user):
+    client, _ = registered_user
+    category_id = client.get("/categories").json()[0]["id"]
+
+    res = client.post(
+        "/contacts",
+        json={"name": "너무긴이름입니다", "phone": "bad", "addr": "", "category_id": category_id},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"] == "입력값이 너무 깁니다. (그 외 1건의 오류가 더 있습니다.)"
+
+
+def test_signup_password_mismatch_message_has_no_english_prefix(client, make_username):
+    res = client.post(
+        "/auth/signup",
+        json={"username": make_username(), "password": "pass1234", "password_confirm": "different"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"] == "비밀번호와 비밀번호 확인이 일치하지 않습니다."
 
 
 def test_tc11_missing_or_foreign_category_id_returns_404(make_username):
@@ -324,6 +422,20 @@ def test_tc24_delete_category_in_use_returns_409(registered_user):
     assert "건 있어 삭제할 수 없습니다" in res.json()["detail"]
 
 
+def test_cannot_delete_last_remaining_category(registered_user):
+    client, _ = registered_user
+    categories = client.get("/categories").json()
+    assert len(categories) == 3
+
+    for category in categories[:2]:
+        assert client.delete(f"/categories/{category['id']}").status_code == 204
+
+    last = categories[2]
+    res = client.delete(f"/categories/{last['id']}")
+    assert res.status_code == 409
+    assert client.get("/categories").json() == [last]
+
+
 # ---- 15-4. 통합 ----
 
 def test_tc25_full_flow(client, make_username):
@@ -386,6 +498,45 @@ def test_tc27_failure_cases_never_return_500(client, make_username):
         assert res.status_code in (401, 404, 409, 422)
 
 
+def test_list_contacts_avoids_n_plus_1_queries(registered_user):
+    from sqlalchemy import event
+
+    from contact_app import crud
+    from contact_app.database import SessionLocal, engine
+
+    client, _ = registered_user
+    user_id = client.get("/auth/me").json()["id"]
+    category_ids = [c["id"] for c in client.get("/categories").json()]
+    for i in range(6):
+        client.post(
+            "/contacts",
+            json={
+                "name": "n",
+                "phone": f"010000000{i}0",
+                "addr": "",
+                "category_id": category_ids[i % len(category_ids)],
+            },
+        )
+
+    queries = []
+
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+
+    event.listen(engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        db = SessionLocal()
+        contacts = crud.list_contacts(db, user_id)
+        assert len(contacts) >= 5
+        for contact in contacts:
+            contact.category.name
+        db.close()
+    finally:
+        event.remove(engine, "before_cursor_execute", before_cursor_execute)
+
+    assert len(queries) <= 2
+
+
 def test_tc28_double_submit_second_request_is_rejected(registered_user):
     client, _ = registered_user
     category_id = client.get("/categories").json()[0]["id"]
@@ -396,3 +547,66 @@ def test_tc28_double_submit_second_request_is_rejected(registered_user):
 
     assert first.status_code == 201
     assert second.status_code == 409
+
+
+# ---- 동시 요청(TOCTOU) 시 unique 제약 위반이 409로 처리되는지 ----
+# 사전 확인(check)과 실제 insert 사이의 경합을 재현하기 위해, 확인 함수가
+# "존재하지 않음"을 계속 반환하도록 monkeypatch해서 매번 insert까지 도달하게 만든다.
+
+def test_concurrent_signup_returns_409_not_500(monkeypatch, make_username):
+    from contact_app import crud
+    from contact_app.database import SessionLocal
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(crud, "get_user_by_username", lambda db, username: None)
+
+    db = SessionLocal()
+    username = make_username()
+    crud.create_user(db, username, DEFAULT_PASSWORD)
+
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            crud.create_user(db, username, DEFAULT_PASSWORD)
+        assert exc_info.value.status_code == 409
+    finally:
+        db.close()
+
+
+def test_concurrent_category_create_returns_409_not_500(monkeypatch, make_username):
+    from contact_app import crud
+    from contact_app.database import SessionLocal
+    from fastapi import HTTPException
+
+    db = SessionLocal()
+    user = crud.create_user(db, make_username(), DEFAULT_PASSWORD)
+
+    monkeypatch.setattr(crud, "_get_category_by_name", lambda db, user_id, name: None)
+
+    crud.create_category(db, user.id, "중복")
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            crud.create_category(db, user.id, "중복")
+        assert exc_info.value.status_code == 409
+    finally:
+        db.close()
+
+
+def test_concurrent_contact_create_returns_409_not_500(monkeypatch, make_username):
+    from contact_app import crud, schemas
+    from contact_app.database import SessionLocal
+    from fastapi import HTTPException
+
+    db = SessionLocal()
+    user = crud.create_user(db, make_username(), DEFAULT_PASSWORD)
+    category = crud.list_categories(db, user.id)[0]
+
+    monkeypatch.setattr(crud, "_get_contact_by_phone", lambda db, user_id, phone: None)
+
+    data = schemas.ContactCreate(name="a", phone="01099998888", addr="", category_id=category.id)
+    crud.create_contact(db, user.id, data)
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            crud.create_contact(db, user.id, data)
+        assert exc_info.value.status_code == 409
+    finally:
+        db.close()

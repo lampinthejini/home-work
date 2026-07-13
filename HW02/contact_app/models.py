@@ -23,6 +23,7 @@ class LoginSession(Base):
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime.datetime] = mapped_column(nullable=False)
 
 
 class Category(Base):
