@@ -25,6 +25,8 @@
 ## 실행 방법
 
 ### 1. 실행 전 준비
+- `python -m venv .venv` 로 가상환경을 만듭니다.
+- `.venv\Scripts\activate` 로 가상환경을 켭니다. (macOS/Linux: `source .venv/bin/activate`)
 - `pip install -r requirements.txt` 로 필요한 패키지를 설치합니다.
 - `.env.example` 파일을 복사해서 `.env` 파일을 만듭니다. (`cp .env.example .env`)
 - Docker Desktop이 설치되어 실행 중이어야 합니다. (컨테이너 자체는 아래 2번에서 자동으로 만들어집니다)
