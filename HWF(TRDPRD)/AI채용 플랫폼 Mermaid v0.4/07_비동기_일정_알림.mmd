@@ -1,0 +1,12 @@
+flowchart TD
+ A[공고 등록 / 마감일 / 면접 일정] --> B[PostgreSQL 저장]
+ B --> C[Celery Beat 예약 점검]
+ C --> D{알림 조건 충족?}
+ D -->|미완료 + 마감 임박| E[지원자 리마인더 작업]
+ D -->|공고 마감 하루 전| F[관리자 알림 작업]
+ D -->|일정 생성 / 변경| G[일정 통보 / 수락 조율 링크]
+ E --> H[메일 발송 API]
+ F --> H
+ G --> H
+ H --> I[발송 결과 / 실패 재시도 / 중복 방지]
+ I --> J[notifications / email_events / audit_logs]

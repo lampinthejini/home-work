@@ -1,0 +1,31 @@
+flowchart LR
+ subgraph UI[지원자 웹]
+ A[Next.js 코드 에디터] --- B[AI 채팅 패널]
+ end
+ subgraph API[백엔드]
+ C[FastAPI 인증 시험 API]
+ D[세션 및 이벤트 수집]
+ E[LLM 게이트웨이]
+ F[평가 워커]
+ end
+ subgraph ONPREM[사내 인프라]
+ G[온프레미스 LLM 서버]
+ H[격리 코드 실행 워커]
+ end
+ subgraph DATA[저장]
+ I[(PostgreSQL)]
+ J[(오브젝트 스토리지)]
+ K[(Redis 작업 큐)]
+ end
+ A --> C
+ B --> E
+ C --> D
+ E --> G
+ E --> D
+ D --> I
+ D --> J
+ C --> K
+ K --> H
+ H --> F
+ F --> I
+ F --> J
