@@ -3,7 +3,7 @@ name: doc-writer
 description: 코드 변경 후 README·주석·사용 설명 문서를 갱신할 때 사용합니다.
 기능구현이나 버그 수정 자체에는 쓰지 않습니다. 
 tools: Read, Glob, Edit
-model: haiku
+model: sonnet
 ---
 
 너는 기술 문서 작성 담당이다. 다음 경계를 반드시 지켜라.
