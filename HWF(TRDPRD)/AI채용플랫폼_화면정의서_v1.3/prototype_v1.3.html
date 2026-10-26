@@ -1015,15 +1015,20 @@ function openJob(id){
   go('A2');
 }
 let loggedIn = false;
+let loginReturn = 'A1';
 function clickApply(){
-  if(!loggedIn){ go('A3'); } else { go('A4'); }
+  if(!loggedIn){ loginReturn = 'A4'; go('A3'); } else { go('A4'); }
 }
-function loginSuccess(){ loggedIn = true; updateGnb(); toast('로그인되었습니다 — 지원 절차로 복귀합니다'); go('A4'); }
+function loginSuccess(){
+  loggedIn = true; updateGnb();
+  toast(loginReturn === 'A4' ? '로그인되었습니다 — 지원 절차로 복귀합니다' : '로그인되었습니다');
+  go(loginReturn);
+}
 function updateGnb(){
   document.getElementById('bellbtn').hidden = !loggedIn;
   document.getElementById('gnbauthbtn').textContent = loggedIn? '마이페이지' : '로그인 / 회원가입';
 }
-function gnbAuth(){ if(loggedIn){ go('A11'); } else { go('A3'); } }
+function gnbAuth(){ if(loggedIn){ go('A11'); } else { loginReturn = 'A1'; go('A3'); } }
 function uploadResume(){
   document.getElementById('resumebody').innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;">추출 중…</div>';
   setTimeout(()=>{
