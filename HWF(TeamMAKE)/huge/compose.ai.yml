@@ -1,0 +1,96 @@
+# Huge (Team AIIT) — AI 모델 묶음. GPU 6GB: llm-rt + stt 만 그래픽카드에 올린다 (TRD 6-2)
+name: huge-ai
+
+networks:
+  front: { external: true, name: huge-front }
+  internal: { external: true, name: huge-internal }
+
+volumes:
+  hfcache: {}
+
+services:
+  # 면접 중 LLM (Qwen3-4B Instruct Q4_K_M, GPU)
+  llm-rt:
+    restart: unless-stopped
+    image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_TAG:?set in .env}
+    command: ["-m", "/models/llm/Qwen3-4B-Instruct-2507-Q4_K_M.gguf", "--host", "0.0.0.0", "--port", "8080",
+              "-ngl", "99", "-c", "${LLM_RT_CTX:-8192}", "--parallel", "${LLM_RT_PARALLEL:-2}", "--jinja"]
+    volumes: ["./models:/models:ro"]
+    networks: [internal]
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # 결정 LLM (Qwen3-8B Q4_K_M, CPU 전용 -ngl 0). 1차 결과 이유 작성(T10)만 맡는다 (AI 아키텍처 v1.4 3.1)
+  # 일반 메모리 약 6~8GB → Docker(WSL) 메모리 한도 24GB 필요 (%USERPROFILE%\.wslconfig)
+  llm-eval:
+    restart: unless-stopped
+    image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_CPU_TAG:-server@sha256:b32890309c1a33a534a01b0b461e953dc2c5a6bac20213abcf48e22847a19c85}
+    command: ["-m", "/models/llm/Qwen3-8B-Q4_K_M.gguf", "--host", "0.0.0.0", "--port", "8080",
+              "-ngl", "0", "-c", "${LLM_EVAL_CTX:-6144}", "--parallel", "1", "-t", "${LLM_EVAL_THREADS:-6}",
+              "--jinja", "--reasoning-budget", "0"]
+    volumes: ["./models:/models:ro"]
+    networks: [internal]
+    deploy:
+      resources:
+        limits: { memory: 9g }
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+
+  # STT (faster-whisper Large V3 Turbo, int8_float16, GPU). audio:{sid} 스트림 → caption:{sid} 임시 자막
+  # front 망은 모델 파일을 처음 내려받을 때만 필요하다 (internal 망은 밖으로 못 나감)
+  stt:
+    restart: unless-stopped
+    build: ./ai/stt
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+      WHISPER_COMPUTE: ${WHISPER_COMPUTE:-int8_float16}
+      CAPTION_INTERVAL_SEC: ${CAPTION_INTERVAL_SEC:-3}
+      HF_HOME: /hf
+    volumes: [hfcache:/hf]
+    networks: [internal, front]
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+
+  # 임베딩 (BGE-M3, CPU) — 비슷한 질문 찾기·RAG 예시·베낌 확인 (TRD 7-4). 메모리 약 3GB
+  embed:
+    restart: unless-stopped
+    build: ./ai/embed
+    environment:
+      HF_HOME: /hf
+      EMBED_THREADS: ${EMBED_THREADS:-4}
+    volumes: [hfcache:/hf]
+    networks: [internal, front]
+    deploy:
+      resources:
+        limits: { memory: 5g }
+
+  # 한국어 TTS (Supertonic 2, CPU)
+  tts:
+    restart: unless-stopped
+    build: ./ai/tts
+    environment:
+      HF_HOME: /hf
+    volumes: [hfcache:/hf]
+    networks: [internal, front]
+
+  # 이력서 OCR (PaddleOCR 한국어, CPU). 글자 레이어가 없거나 깨진 쪽·사진 이력서만 처리한다 (TRD 7-6)
+  ocr:
+    restart: unless-stopped
+    build: ./ai/ocr
+    environment:
+      OCR_MAX_SIDE: ${OCR_MAX_SIDE:-2400}
+    volumes: [hfcache:/hf]
+    networks: [internal, front]

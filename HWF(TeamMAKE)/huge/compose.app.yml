@@ -1,0 +1,93 @@
+# Huge (Team AIIT) — 서비스 묶음. infra · ai 를 띄운 뒤 올린다
+# 브라우저에 열리는 포트: 127.0.0.1:8080(frontend) · 127.0.0.1:8000(api, WebSocket)
+name: huge-app
+
+networks:
+  front: { external: true, name: huge-front }
+  internal: { external: true, name: huge-internal }
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://huge:${POSTGRES_PASSWORD}@postgres:5432/huge
+  REDIS_URL: redis://redis:6379/0
+  S3_ENDPOINT: http://objectstore:9000
+  LLM_RT_URL: http://llm-rt:8080/v1
+  LLM_EVAL_URL: http://llm-eval:8080/v1
+  STT_URL: http://stt:9000
+  TTS_URL: http://tts:9001
+  OCR_URL: http://ocr:9002
+  EMBED_URL: http://embed:9003
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  TZ: Asia/Seoul
+
+services:
+  api:
+    restart: unless-stopped
+    build: ./backend
+    env_file: [.env]
+    environment: *backend-env
+    volumes:
+      - ../면접_질의응답_한글정리_IT만.xlsx:/data/it_questions.xlsx:ro
+      - ../인성질문_전체.xlsx:/data/personality_questions.xlsx:ro
+    # 코딩 실행 상자는 worker-sandbox 가 만든다. api 는 docker.sock 없이 비루트로 돈다 (ADR-09, R-06)
+    user: "65534:65534"
+    ports: ["127.0.0.1:8000:8000"]
+    networks: [front, internal]
+
+  # 채점 worker (Celery, 큐 evaluate, 동시 1개 — GPU 4B·CPU 8B 를 넘치게 쓰지 않는다. AI 아키텍처 v1.4 7장)
+  worker-eval:
+    restart: unless-stopped
+    build: ./backend
+    image: huge-app-backend
+    env_file: [.env]
+    environment: *backend-env
+    user: "65534:65534"
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "evaluate", "-c", "1", "-n", "eval@%h", "--loglevel", "INFO"]
+    networks: [internal]
+    depends_on: [api]
+
+  # 메일·알림 worker (큐 default)
+  worker:
+    restart: unless-stopped
+    image: huge-app-backend
+    env_file: [.env]
+    environment: *backend-env
+    user: "65534:65534"
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "default", "-c", "2", "-n", "default@%h", "--loglevel", "INFO"]
+    networks: [internal]
+    depends_on: [worker-eval]
+
+  # 코드 실행 상자 worker (큐 sandbox, 동시 2개). docker.sock 은 이 컨테이너만 가진다.
+  # 소켓이 root:root 660 이라 비루트 사용자에 그룹 0 만 더한다. 상자 자체는 인터넷 없음·읽기 전용·비루트 (TRD 9장)
+  worker-sandbox:
+    restart: unless-stopped
+    image: huge-app-backend
+    env_file: [.env]
+    environment: *backend-env
+    user: "65534:65534"
+    group_add: ["0"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "sandbox", "-c", "2", "-n", "sandbox@%h", "--loglevel", "INFO"]
+    networks: [internal]
+    depends_on: [worker-eval]
+
+  # 정해진 시각 작업 (5분 점검·결과 공개, 매시 안내)
+  scheduler:
+    restart: unless-stopped
+    image: huge-app-backend
+    env_file: [.env]
+    environment: *backend-env
+    user: "65534:65534"
+    command: ["celery", "-A", "app.worker", "beat", "-s", "/tmp/celerybeat-schedule", "--loglevel", "INFO"]
+    networks: [internal]
+    depends_on: [worker-eval]
+
+  frontend:
+    restart: unless-stopped
+    build: ./frontend
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports: ["127.0.0.1:8080:3000"]
+    networks: [front]
+    depends_on: [api]

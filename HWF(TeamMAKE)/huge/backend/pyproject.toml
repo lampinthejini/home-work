@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 160
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# 프로젝트 규칙: Python 함수·변수는 camelCase (CLAUDE.md 5.1) → pep8-naming(N) 은 켜지 않는다
+ignore = ["B008"]  # FastAPI Depends() 기본값 관례
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"app/services/sandbox_runner.py" = ["E501"]  # 실행 상자 안에서 도는 HARNESS 문자열

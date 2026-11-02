@@ -1,0 +1,66 @@
+# Huge (Team AIIT) — 데이터 저장소 묶음. 먼저 띄운다: docker compose -f compose.infra.yml up -d
+# 공유 네트워크(huge-front, huge-internal internal:true)는 scripts/networks 로 한 번 만든다.
+name: huge-infra
+
+networks:
+  front: { external: true, name: huge-front }
+  internal: { external: true, name: huge-internal }
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  objectdata: {}
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: pgvector/pgvector:0.8.0-pg16
+    environment:
+      POSTGRES_DB: huge
+      POSTGRES_USER: huge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      TZ: Asia/Seoul
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huge -d huge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 파일 저장소 (S3 호환 RustFS). MinIO 공식 이미지 배포 중단(R-07)으로 2026-10-30 교체.
+  # 파일은 api 가 AES-256-GCM 으로 암호화해 넣는다 (TRD 4-2). 포트는 열지 않는다 (ADR-05)
+  objectstore:
+    restart: unless-stopped
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?set in .env}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?set in .env}
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+    volumes: [objectdata:/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 개발용 메일 서버. 확인 화면만 127.0.0.1:8025 에 연다
+  mailpit:
+    restart: unless-stopped
+    image: axllent/mailpit:v1.24
+    networks: [internal, front]
+    ports: ["127.0.0.1:8025:8025"]
