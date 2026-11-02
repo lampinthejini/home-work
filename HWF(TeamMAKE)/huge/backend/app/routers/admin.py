@@ -111,7 +111,7 @@ async def draftAi(postingId: str, body: DraftAiRequest, db: Session = Depends(ge
     db.commit()
     skills = [s.strip()[:50] for s in body.skills if s.strip()]
     body = body.model_copy(update={"duties": [d.strip()[:50] for d in body.duties if d.strip()], "skills": skills})
-    posting_draft.start(p.id, posting_draft.buildPrompt(body, job.name))
+    posting_draft.start(p.id, posting_draft.buildPrompt(body, job.name), introMemo=body.company_intro)
     return {"job_id": p.id, "status": "running"}
 
 

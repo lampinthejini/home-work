@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
+    "test": "playwright test --grep-invert @slow",
+    "test:full": "playwright test",
+    "test:headed": "playwright test --grep-invert @slow --headed",
     "report": "playwright show-report"
   },
   "devDependencies": {

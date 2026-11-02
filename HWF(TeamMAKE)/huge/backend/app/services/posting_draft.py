@@ -35,6 +35,8 @@ SYSTEM = (
     "규칙: 주어진 정보에 없는 연봉·복지·수치·회사명은 지어내지 않는다. 회사는 '우리 회사' 또는 '저희 팀'으로 부른다. "
     "나이·성별·혼인·외모·출신 지역으로 지원을 제한하는 표현을 쓰지 않는다. "
     "제목은 '직무 (경력 수준)' 형식으로 쓴다. 예: AI/AX 엔지니어 (경력 3년 이상). "
+    "회사·팀 소개는 메모를 그대로 옮기지 말고, 메모에 있는 사실만으로 지원자에게 소개하는 2~4문장으로 풀어 쓴다. "
+    "우대 사항 메모가 없으면 preferred 는 빈 문자열로 둔다. "
     "주요 업무·자격 요건·우대 사항은 '- '로 시작하는 줄 3~6개로 쓴다. JSON 으로만 답한다."
 )
 
@@ -78,18 +80,37 @@ def buildPrompt(body, jobName: str) -> str:
     return "아래 정보로 채용 공고 초안을 써라.\n" + "\n".join(lines)
 
 
+INTRO_MIN_LEN = 10
+
+
 def isUsable(draft: DraftText) -> bool:
-    return (0 < len(draft.title.strip()) <= 200 and len(draft.company_intro.strip()) >= 10
-            and len(draft.duties.strip()) >= 10 and len(draft.requirements.strip()) >= 10)
+    """회사 소개는 보지 않는다 (짧으면 fillGaps 가 관리자 메모로 채운다)."""
+    return 0 < len(draft.title.strip()) <= 200 and len(draft.duties.strip()) >= 10 and len(draft.requirements.strip()) >= 10
 
 
-async def generate(postingId: str, prompt: str) -> None:
+def isDashOnly(text: str) -> bool:
+    return all(line.strip() in ("", "-") for line in text.splitlines())
+
+
+def fillGaps(draft: DraftText, introMemo: str) -> DraftText:
+    """작은 모델이 짧은 메모를 그대로 베끼거나 비우면 실패시키지 않고 관리자 메모로 채운다.
+    회사 소개는 관리자가 준 정보라 메모를 그대로 써도 사실과 어긋나지 않는다 (2026-11-02 사용자 결정).
+    """
+    intro = draft.company_intro.strip()
+    if len(intro) < INTRO_MIN_LEN and introMemo.strip():
+        intro = introMemo.strip()
+    preferred = "" if isDashOnly(draft.preferred) else draft.preferred.strip()
+    return draft.model_copy(update={"company_intro": intro, "preferred": preferred})
+
+
+async def generate(postingId: str, prompt: str, introMemo: str = "") -> None:
     lastError = "unknown"
     for attempt in range(DRAFT_ATTEMPTS):
         try:
             draft = await llm.structured(DraftText, SYSTEM, prompt, timeoutSec=DRAFT_TIMEOUT_SEC, maxTokens=1500, temperature=0.5)
             if not isUsable(draft):
                 raise llm.LlmError("draft_invalid")
+            draft = fillGaps(draft, introMemo)
             break
         except llm.LlmError as exc:
             lastError = str(exc)
@@ -112,9 +133,9 @@ async def generate(postingId: str, prompt: str) -> None:
     drafts[postingId] = {"status": "done", "bias_warnings": warnings, "error": None}
 
 
-def start(postingId: str, prompt: str) -> None:
+def start(postingId: str, prompt: str, introMemo: str = "") -> None:
     drafts[postingId] = {"status": "running", "bias_warnings": [], "error": None}
-    task = asyncio.get_running_loop().create_task(generate(postingId, prompt))
+    task = asyncio.get_running_loop().create_task(generate(postingId, prompt, introMemo))
     tasks.add(task)
     task.add_done_callback(tasks.discard)
 

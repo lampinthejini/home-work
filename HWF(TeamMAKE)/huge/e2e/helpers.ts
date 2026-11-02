@@ -12,7 +12,11 @@ export const API_CONTAINER = process.env.E2E_API_CONTAINER ?? "huge-app-api-1";
 export const E2E_ADMIN_EMAIL = "e2e-admin@test.local";
 export const STATE_FILE = path.join(__dirname, ".state.json");
 
-export type E2eState = { adminEmail: string; adminPassword: string; postingId: string; postingTitle: string };
+export type E2eState = {
+    adminEmail: string; adminPassword: string;
+    postingId: string; postingTitle: string; // 코딩테스트 끔
+    codingPostingId: string; codingPostingTitle: string; // 코딩테스트 켬
+};
 
 export function readState(): E2eState {
     return JSON.parse(readFileSync(STATE_FILE, "utf-8")) as E2eState;
@@ -80,6 +84,33 @@ export function purgeE2eApplicants(): number {
         stdio: ["ignore", "pipe", "pipe"],
     });
     return Number(out.toString().trim().split("\n").pop());
+}
+
+/**
+ * 결과 공개 시각을 '지금'으로 앞당기고 5분 점검(huge.sweep)을 바로 한 번 돌린다.
+ * 공개 시각은 마감 다음 날 10:00 이라 기다릴 수 없어서, 이 지원 건의 시각만 바꾼다 (freezegun 과 같은 목적).
+ * 공개·알림·메일은 앱의 실제 점검 코드가 한다.
+ */
+export function releaseResultNow(applicationId: string): void {
+    const script = [
+        "import os",
+        "from datetime import timedelta",
+        "from app.db import SessionLocal",
+        "from app.models import Application",
+        "from app.timeutil import now",
+        "from app.worker import sweepTask",
+        "db = SessionLocal()",
+        "app = db.get(Application, os.environ['E2E_APP'])",
+        "assert app.analysis_status == 'decided', app.analysis_status",
+        "app.release_at = now() - timedelta(minutes=1)",
+        "db.commit()",
+        "db.close()",
+        "print(sweepTask())",
+    ].join("\n");
+    execFileSync("docker", ["exec", "-e", `E2E_APP=${applicationId}`, API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "ignore", "pipe"],
+    });
 }
 
 /** 쿠키를 들고 다니는 API 클라이언트 (화면과 같은 출처 /api) */

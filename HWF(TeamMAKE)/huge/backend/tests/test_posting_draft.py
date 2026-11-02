@@ -25,7 +25,7 @@ def newEmptyDraft(adminClient) -> str:
 
 def test_draftAiCopiesFixedValuesWithoutAi(adminClient, monkeypatch):
     prompts = []
-    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt: prompts.append(prompt))
+    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt, **_: prompts.append(prompt))
     postingId = newEmptyDraft(adminClient)
     res = adminClient.post(f"/admin/postings/{postingId}/draft-ai", json=DRAFT_REQUEST)
     assert res.status_code == 202
@@ -37,7 +37,7 @@ def test_draftAiCopiesFixedValuesWithoutAi(adminClient, monkeypatch):
 
 
 def test_draftAiRejectsPreparingJobAndPastClose(adminClient, monkeypatch):
-    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt: None)
+    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt, **_: None)
     postingId = newEmptyDraft(adminClient)
     assert adminClient.post(f"/admin/postings/{postingId}/draft-ai", json={**DRAFT_REQUEST, "job_code": "BACKEND"}).json()["code"] == "JOB_NOT_OPEN"
     past = {**DRAFT_REQUEST, "close_at": (now() - timedelta(minutes=1)).isoformat()}
@@ -45,7 +45,7 @@ def test_draftAiRejectsPreparingJobAndPastClose(adminClient, monkeypatch):
 
 
 def test_generateFillsTextAndFlagsBias(sessionFactory, adminClient, monkeypatch):
-    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt: None)
+    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt, **_: None)
     postingId = newEmptyDraft(adminClient)
     adminClient.post(f"/admin/postings/{postingId}/draft-ai", json=DRAFT_REQUEST)
 
@@ -62,7 +62,7 @@ def test_generateFillsTextAndFlagsBias(sessionFactory, adminClient, monkeypatch)
 
 
 def test_generateFailureIsReported(adminClient, monkeypatch):
-    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt: None)
+    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt, **_: None)
     postingId = newEmptyDraft(adminClient)
     adminClient.post(f"/admin/postings/{postingId}/draft-ai", json=DRAFT_REQUEST)
 
@@ -72,6 +72,48 @@ def test_generateFailureIsReported(adminClient, monkeypatch):
     monkeypatch.setattr(llm, "structured", failing)
     asyncio.run(posting_draft.generate(postingId, "prompt"))
     assert adminClient.get(f"/admin/postings/{postingId}/draft-ai/status").json()["status"] == "failed"
+
+
+def runWithAiOutput(adminClient, monkeypatch, request: dict, **fields) -> str:
+    """AI 가 fields 를 돌려준다고 치고 초안을 만든다. 공고 ID 를 돌려준다."""
+    monkeypatch.setattr(posting_draft, "start", lambda postingId, prompt, **_: None)
+    postingId = newEmptyDraft(adminClient)
+    adminClient.post(f"/admin/postings/{postingId}/draft-ai", json=request)
+    output = {"title": "AI/AX 엔지니어 (신입)", "company_intro": "저희 팀은 제조 데이터를 다루는 AI 조직입니다.",
+              "duties": "- LLM 서비스 개발\n- RAG 검색 개선", "requirements": "- Python 개발 경험\n- 협업 경험", "preferred": "", **fields}
+
+    async def fakeStructured(schema, *args, **kwargs):
+        return schema(**output)
+
+    monkeypatch.setattr(llm, "structured", fakeStructured)
+    asyncio.run(posting_draft.generate(postingId, "prompt", introMemo=request["company_intro"]))
+    return postingId
+
+
+def test_shortIntroFallsBackToAdminMemo(adminClient, monkeypatch):
+    """작은 모델이 짧은 메모를 그대로 베껴도 실패하지 않는다: 관리자 메모로 채운다 (2026-11-02 사용자 결정 A)."""
+    request = {**DRAFT_REQUEST, "company_intro": "AI 회사"}
+    postingId = runWithAiOutput(adminClient, monkeypatch, request, company_intro="AI 회사")
+    assert adminClient.get(f"/admin/postings/{postingId}/draft-ai/status").json()["status"] == "done"
+    assert adminClient.get(f"/admin/postings/{postingId}").json()["company_intro"] == "AI 회사"
+
+
+def test_emptyIntroFromAiUsesMemo(adminClient, monkeypatch):
+    request = {**DRAFT_REQUEST, "company_intro": "작은 AI 팀"}
+    postingId = runWithAiOutput(adminClient, monkeypatch, request, company_intro="  ")
+    assert adminClient.get(f"/admin/postings/{postingId}").json()["company_intro"] == "작은 AI 팀"
+
+
+def test_dashOnlyPreferredBecomesEmpty(adminClient, monkeypatch):
+    """우대 사항 메모가 없을 때 AI 가 '-' 만 넣으면 빈칸으로 저장한다."""
+    postingId = runWithAiOutput(adminClient, monkeypatch, {**DRAFT_REQUEST, "preferred": ""}, preferred="-\n- ")
+    assert adminClient.get(f"/admin/postings/{postingId}").json()["preferred"] == ""
+
+
+def test_promptAsksToExpandIntroWithoutNewFacts():
+    """B: 메모의 사실만으로 2~4문장으로 풀어 쓰라고 지시한다."""
+    assert "풀어 쓴다" in posting_draft.SYSTEM
+    assert "지어내지 않는다" in posting_draft.SYSTEM
 
 
 def test_publishWithoutCompanyName(adminClient):

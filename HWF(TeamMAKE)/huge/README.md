@@ -35,7 +35,8 @@ docker exec huge-app-api-1 python -m app.manage sample_posting  # 예시 공고 
 ```sh
 cd backend && python -m pytest && python -m ruff check .
 cd frontend && npx tsc --noEmit && npm run lint
-cd e2e && npm test               # 브라우저 E2E (스택이 떠 있어야 함, 약 4~5분) — e2e/README.md
+cd e2e && npm test               # 브라우저 E2E 빠른 묶음 (스택이 떠 있어야 함, 약 5분) — e2e/README.md
+cd e2e && npm run test:full      # 끝까지 응시·코딩·채점·결과 공개 포함 (약 25분)
 ```
 
 ## 범위
@@ -50,8 +51,8 @@ cd e2e && npm test               # 브라우저 E2E (스택이 떠 있어야 함
 
 3단계: 카메라 녹화(10초 조각 업로드, 관리자 재생·감사 로그, 응시 끝 + 3일 삭제 — 매시 30분), 동의 철회·회원 탈퇴(진행 중 응시 취소 → 즉시 삭제, `deletion_logs`), 비밀번호 찾기(재설정 메일 30분 링크, Mailpit), 관리자 메모.
 
-E2E: Playwright 로 가입·비밀번호 찾기(Mailpit)·지원~면접·녹화 업로드·화면 이탈 경고/취소·장애 중단→이어가기·관리자 녹화 재생·메모·탈퇴를 확인합니다 ([`e2e/README.md`](e2e/README.md)).
-남은 것: 끝까지 응시 후 채점·결과 공개, 코딩 단계의 E2E.
+E2E: Playwright 로 가입·비밀번호 찾기(Mailpit)·지원~면접·녹화 업로드·화면 이탈 경고/취소·장애 중단→이어가기·끝까지 응시→코딩테스트→채점→결과 공개·관리자 녹화 재생·메모·탈퇴를 확인합니다 ([`e2e/README.md`](e2e/README.md)).
+남은 것: 코딩 시간 초과·붙여넣기 차단, 관리자 화면 공고 작성 E2E.
 설계와 다르게 구현한 부분은 [`CONFLICTS.md`](CONFLICTS.md) 에 있습니다 (승인 필요).
 
 ---

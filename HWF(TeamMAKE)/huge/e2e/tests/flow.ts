@@ -14,16 +14,21 @@ export async function isFullscreen(page: Page): Promise<boolean> {
     return page.evaluate(() => !!document.fullscreenElement);
 }
 
-/** E2E 공고에 지원해 면접을 시작하고, 첫 질문의 '답변 완료' 버튼이 보일 때까지 간다. 지원 ID 를 돌려준다 */
-export async function applyAndStartInterview(page: Page, email: string, password: string): Promise<string> {
+/**
+ * E2E 공고에 지원해 면접을 시작하고, 첫 질문의 '답변 완료' 버튼이 보일 때까지 간다. 지원 ID 를 돌려준다.
+ * coding: true 면 코딩테스트가 켜진 공고에 지원한다.
+ */
+export async function applyAndStartInterview(page: Page, email: string, password: string, { coding = false } = {}): Promise<string> {
     const state = readState();
+    const postingId = coding ? state.codingPostingId : state.postingId;
+    const postingTitle = coding ? state.codingPostingTitle : state.postingTitle;
     let applicationId = "";
     await loginByUi(page, email, password);
     await expect(page).toHaveURL(/\/jobs/);
 
     await test.step("공고 상세에서 지원하기", async () => {
-        await page.goto(`/jobs/${state.postingId}`);
-        await expect(page.getByText(state.postingTitle).first()).toBeVisible();
+        await page.goto(`/jobs/${postingId}`);
+        await expect(page.getByText(postingTitle).first()).toBeVisible();
         await page.getByRole("button", { name: "지원하기" }).click();
         await expect(page).toHaveURL(/\/apply\/[\w-]+\/consent/);
         applicationId = page.url().match(/\/apply\/([\w-]+)\//)![1];
@@ -70,4 +75,29 @@ export async function applyAndStartInterview(page: Page, email: string, password
     });
 
     return applicationId;
+}
+
+/**
+ * 지금 질문부터 마지막 질문까지 답한다. 기본 질문 10개 + 꼬리질문(AI 가 정함, 최대 4개).
+ * 각 답변은 answerMs 동안 가짜 마이크(answer.wav)로 말한 뒤 [답변 완료]를 누른다.
+ * 끝나면 'done'(응시 완료 화면) 또는 'coding'(코딩테스트 안내 화면)과 답한 횟수를 돌려준다.
+ */
+export async function answerAllQuestions(page: Page, { answerMs = 8000, maxAnswers = 16 } = {}): Promise<{ end: "done" | "coding"; answers: number }> {
+    const answerButton = page.getByRole("button", { name: "답변 완료" });
+    const done = page.getByRole("heading", { name: "✓ 응시가 완료되었습니다." });
+    const codingStart = page.getByRole("button", { name: "코딩테스트 시작" });
+    let answers = 0;
+    for (;;) {
+        // 다음 질문은 STT 마무리 + 꼬리질문 판단(LLM) + 질문 읽기(TTS)를 거쳐 나온다
+        await expect(answerButton.or(done).or(codingStart)).toBeVisible({ timeout: 3 * 60_000 });
+        if (await done.isVisible()) return { end: "done", answers };
+        if (await codingStart.isVisible()) return { end: "coding", answers };
+        if (answers >= maxAnswers) throw new Error(`답변을 ${answers}번 했는데도 면접이 끝나지 않았습니다`);
+        const progress = await page.locator(".progress-dots").getAttribute("aria-label");
+        await page.waitForTimeout(answerMs);
+        await answerButton.click();
+        answers += 1;
+        await expect(answerButton).toBeHidden();
+        test.info().annotations.push({ type: "answer", description: `${answers}번째 답변 (${progress})` });
+    }
 }
