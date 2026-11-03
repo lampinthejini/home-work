@@ -28,7 +28,7 @@
 | 제품 요구사항 정의서 | `Final_Project_PRD_v1.6.pdf` | 제품 목표, 주요 기능, 요구사항 |
 | 기술 요구사항 정의서 | `Final_Project_TRD_v1.5.pdf` | 기술 스택 및 기술 요구사항 |
 | 기능정의서 | `Final_Project_기능정의서_v0.2v.xlsx` | 기능별 동작 및 세부 정의 |
-| 화면정의서 | `Final_Project_화면정의서_v0.5.md` | 화면 구성 및 UI 동작 |
+| 화면정의서 | `Final_Project_화면정의서_v0.6.md` | 화면 구성 및 UI 동작 |
 | API 명세서 | `Final_Project_API 명세서.md` | API 요청 및 응답 구조 |
 | 데이터 정의서 | `Final_Project_데이터정의서.pdf` | 데이터 구조 및 정의 |
 | 테이블 정의서 | `Final_Project_테이블정의서_v0.2.xlsx` | DB 테이블 및 컬럼 정의 |

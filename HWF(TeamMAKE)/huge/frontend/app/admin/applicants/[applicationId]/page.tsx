@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { AdminShell } from "@/components/AdminShell";
 import { useApp } from "@/components/Providers";
+import { RESUME_SECTIONS } from "@/components/ResumeForm";
 import { Button, Empty, ErrorBox, Loading, Modal, StatusBadge } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
 import type { AdminPosting } from "@/lib/admin";
@@ -50,18 +51,93 @@ const ANALYSIS_TEXT: Record<string, string> = {
     running: "AI가 채점하고 있습니다. 보통 몇 분 안에 끝납니다.",
 };
 
-function ResumeView({ resume }: { resume: Record<string, unknown> }) {
-    // 이력서는 글자로만 보여 준다 (HTML 해석 안 함)
-    const entries = Object.entries(resume).filter(([, v]) => v !== null && v !== "" && !(Array.isArray(v) && v.length === 0));
+type ResumeItem = Record<string, unknown>;
+
+function text(v: unknown): string {
+    return typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "";
+}
+
+function list(v: unknown): ResumeItem[] {
+    return Array.isArray(v) ? v.filter((x): x is ResumeItem => !!x && typeof x === "object") : [];
+}
+
+/** 이력서 항목 한 줄: 제목(학교·회사 등) · 기간 · 설명. 비어 있는 칸은 빼고 보여 준다 */
+function ResumeEntry({ title, period, description, skills }: { title: string; period?: string; description?: string; skills?: string[] }) {
     return (
-        <dl className="stack" style={{ gap: 8 }}>
-            {entries.map(([k, v]) => (
-                <div key={k}>
-                    <dt className="small muted">{k}</dt>
-                    <dd className="pre" style={{ margin: 0 }}>{typeof v === "string" ? v : JSON.stringify(v, null, 2)}</dd>
-                </div>
-            ))}
-        </dl>
+        <li style={{ padding: "10px 0", borderBottom: "1px solid var(--color-line)" }}>
+            <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
+                <strong>{title || "—"}</strong>
+                {period && <span className="small muted">{period}</span>}
+            </div>
+            {description && <p className="pre small" style={{ margin: "4px 0 0" }}>{description}</p>}
+            {skills && skills.length > 0 && (
+                <div className="row" style={{ gap: 4, marginTop: 6 }}>{skills.map((k) => <span key={k} className="badge badge-blue">{k}</span>)}</div>
+            )}
+        </li>
+    );
+}
+
+function span(start: unknown, end: unknown, ongoing = ""): string {
+    const a = text(start);
+    const b = text(end) || ongoing;
+    return a || b ? `${a} ~ ${b}` : "";
+}
+
+function ResumeSection({ title, children, empty }: { title: string; children: ReactNode; empty: boolean }) {
+    if (empty) return null;
+    return (
+        <section>
+            <h3 style={{ marginBottom: 4 }}>{title}</h3>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{children}</ul>
+        </section>
+    );
+}
+
+/** 지원자가 제출한 이력서를 지원자 화면과 같은 이름(학력·경력…)으로 보여 준다. 글자로만 보여 준다 (HTML 해석 안 함) */
+function ResumeView({ resume }: { resume: Record<string, unknown> }) {
+    const education = list(resume.education);
+    const career = list(resume.career);
+    const projects = list(resume.projects);
+    const certificates = list(resume.certificates);
+    const skills = Array.isArray(resume.skills) ? resume.skills.map(text).filter(Boolean) : [];
+    const coverLetter = text(resume.cover_letter);
+    const nothing = !education.length && !career.length && !projects.length && !certificates.length && !skills.length && !coverLetter;
+    if (nothing) return <p className="muted">입력된 내용이 없습니다.</p>;
+    return (
+        <div className="stack" style={{ gap: 20 }}>
+            <ResumeSection title={RESUME_SECTIONS.education.title} empty={!education.length}>
+                {education.map((e, i) => (
+                    <ResumeEntry key={i} title={[e.school, e.major, e.degree].map(text).filter(Boolean).join(" · ")} period={span(e.start, e.end)} />
+                ))}
+            </ResumeSection>
+            <ResumeSection title={RESUME_SECTIONS.career.title} empty={!career.length}>
+                {career.map((c, i) => (
+                    <ResumeEntry key={i} title={[c.company, c.role].map(text).filter(Boolean).join(" · ")} period={span(c.start, c.end, "재직 중")}
+                        description={text(c.description)} />
+                ))}
+            </ResumeSection>
+            <ResumeSection title={RESUME_SECTIONS.projects.title} empty={!projects.length}>
+                {projects.map((p, i) => (
+                    <ResumeEntry key={i} title={text(p.name)} period={text(p.period)} description={text(p.description)}
+                        skills={Array.isArray(p.skills) ? p.skills.map(text).filter(Boolean) : []} />
+                ))}
+            </ResumeSection>
+            <ResumeSection title={RESUME_SECTIONS.certificates.title} empty={!certificates.length}>
+                {certificates.map((c, i) => <ResumeEntry key={i} title={text(c.name)} period={text(c.acquired)} />)}
+            </ResumeSection>
+            {skills.length > 0 && (
+                <section>
+                    <h3 style={{ marginBottom: 8 }}>기술</h3>
+                    <div className="row" style={{ gap: 4 }}>{skills.map((k) => <span key={k} className="badge badge-blue">{k}</span>)}</div>
+                </section>
+            )}
+            {coverLetter && (
+                <section>
+                    <h3 style={{ marginBottom: 8 }}>자기소개서</h3>
+                    <p className="pre" style={{ margin: 0 }}>{coverLetter}</p>
+                </section>
+            )}
+        </div>
     );
 }
 

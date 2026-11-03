@@ -34,6 +34,8 @@ function Applicants() {
     const [sort, setSort] = useState("-applied_at");
     const [q, setQ] = useState("");
     const [picked, setPicked] = useState<string[]>([]);
+    // 주소의 공고를 보여 줄 수 없는 이유: 지워졌거나, 아직 게시 전(임시저장)이라 지원자가 없다
+    const [missing, setMissing] = useState<"deleted" | "draft" | null>(null);
     const postingId = params.get("posting") ?? "";
 
     // 비교는 같은 공고 안에서 2~3명 (S-R07)
@@ -45,18 +47,22 @@ function Applicants() {
         api<{ items: AdminPosting[] }>("/admin/postings").then((r) => {
             const list = r.items.filter((p) => p.status !== "draft");
             setPostings(list);
-            if (!postingId && list[0]) router.replace(`/admin/applicants?posting=${list[0].posting_id}`);
+            // 공고가 없거나, 알림 링크의 공고가 이미 지워졌거나 임시저장이면 첫 공고를 보여 준다
+            if (list[0] && !list.some((p) => p.posting_id === postingId)) {
+                if (postingId) setMissing(r.items.some((p) => p.posting_id === postingId) ? "draft" : "deleted");
+                router.replace(`/admin/applicants?posting=${list[0].posting_id}`);
+            }
         }).catch((err) => setError((err as ApiError).message));
     }, [postingId, router]);
 
     useEffect(() => {
-        if (!postingId) return;
+        if (!postingId || !postings?.some((p) => p.posting_id === postingId)) return;
         const query = new URLSearchParams({ size: "200", sort });
         if (decision) query.set("result", decision);
         api<{ items: Row[] }>(`/admin/postings/${postingId}/applicants?${query}`)
             .then((r) => { setRows(r.items); setError(null); })
             .catch((err) => setError((err as ApiError).message));
-    }, [postingId, decision, sort]);
+    }, [postingId, postings, decision, sort]);
 
     if (error) return <ErrorBox message={error} />;
     if (!postings) return <Loading />;
@@ -70,7 +76,7 @@ function Applicants() {
         <div className="stack">
             <div className="row" style={{ gap: 12 }}>
                 <label className="row small" style={{ gap: 6 }}>공고
-                    <select className="input" style={{ width: 280 }} value={postingId} onChange={(e) => { setRows(null); setPicked([]); router.replace(`/admin/applicants?posting=${e.target.value}`); }}>
+                    <select className="input" style={{ width: 280 }} value={postingId} onChange={(e) => { setRows(null); setPicked([]); setMissing(null); router.replace(`/admin/applicants?posting=${e.target.value}`); }}>
                         {postings.map((p) => <option key={p.posting_id} value={p.posting_id}>{p.title}</option>)}
                     </select>
                 </label>
@@ -95,6 +101,11 @@ function Applicants() {
                 <Button kind="secondary" disabled={picked.length < 2} reason="비교할 지원자를 2~3명 골라 주세요"
                     onClick={() => router.push(`/admin/compare?ids=${picked.join(",")}`)}>선택한 {picked.length}명 비교</Button>
             </div>
+            {missing && (
+                <div className="notice notice-warn small" role="status">
+                    {missing === "draft" ? "찾으시는 공고는 아직 게시 전(임시저장)이라 지원자가 없습니다." : "찾으시는 공고는 삭제되어 볼 수 없습니다."} 다른 공고의 지원자를 보여 드립니다.
+                </div>
+            )}
             <div className="notice notice-info small">ⓘ 1차 결과는 AI가 정한 점수로 “총점 ≥ 합격 기준”이면 합격입니다. 이 화면에서는 결과를 바꿀 수 없습니다.</div>
             {!rows && <Loading />}
             {rows && rows.length === 0 && <Empty title="아직 지원자가 없습니다" />}

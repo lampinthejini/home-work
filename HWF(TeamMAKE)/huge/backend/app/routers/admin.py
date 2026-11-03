@@ -21,6 +21,7 @@ from ..models import (
     JobCode,
     JobPosting,
     Memo,
+    Notification,
     Recording,
     Result,
     SessionEvent,
@@ -94,8 +95,6 @@ async def draftAi(postingId: str, body: DraftAiRequest, db: Session = Depends(ge
     job = db.get(JobCode, body.job_code)
     if job is None or job.status != "open":
         raise ApiError(400, "JOB_NOT_OPEN", "준비 중인 직무입니다.")
-    if not any(d.strip() for d in body.duties):
-        raise ApiError(400, "POSTING_INCOMPLETE", "주로 맡을 일을 하나 이상 골라 주세요.")
     if body.open_at > body.close_at:
         raise ApiError(400, "POSTING_INCOMPLETE", "접수 시작일은 마감일보다 앞이어야 합니다.")
     if body.close_at <= now():
@@ -111,7 +110,7 @@ async def draftAi(postingId: str, body: DraftAiRequest, db: Session = Depends(ge
     db.commit()
     skills = [s.strip()[:50] for s in body.skills if s.strip()]
     body = body.model_copy(update={"duties": [d.strip()[:50] for d in body.duties if d.strip()], "skills": skills})
-    posting_draft.start(p.id, posting_draft.buildPrompt(body, job.name), introMemo=body.company_intro)
+    posting_draft.start(p.id, posting_draft.buildPrompt(body, job.name), fallbackIntro=posting_draft.fallbackIntro(body, job.name))
     return {"job_id": p.id, "status": "running"}
 
 
@@ -154,6 +153,8 @@ def deletePosting(postingId: str, db: Session = Depends(getDb), _admin: User = D
     p = getPostingOr404(db, postingId)
     if db.query(Application).filter_by(posting_id=p.id).count():
         raise ApiError(409, "HAS_APPLICANTS", "지원자가 있는 공고는 지울 수 없습니다. 마감만 할 수 있습니다.")
+    # 이 공고를 가리키는 관리자 알림(마감 임박 등)은 누르면 없는 공고로 가므로 같이 지운다
+    db.query(Notification).filter(Notification.link == f"/admin/applicants?posting={p.id}").delete()
     db.delete(p)
     db.commit()
 
@@ -383,7 +384,7 @@ def putSetting(key: str, body: dict, db: Session = Depends(getDb), admin: User =
     if (low is not None and value < low) or (high is not None and value > high):
         raise ApiError(400, "INVALID_SETTING", f"{low}~{high} 사이로 입력해 주세요.")
     previous = getSetting(db, key)
-    setSetting(db, key, value)
+    setSetting(db, key, value, actorId=admin.id)
     db.add(AuditLog(actor_id=admin.id, action="settings.change", target=key, detail={"from": previous, "value": value}))
     db.commit()
     return {"key": key, "value": value}

@@ -18,6 +18,9 @@ const FAIL_HINT: Record<keyof Checks, string> = {
     ai_server: "AI 서버를 확인하지 못했습니다. 잠시 후 [다시 점검]을 눌러 주세요.",
 };
 
+const MIC_LEVEL = 0.12; // 레벨 막대 기준 (0~1)
+const MIC_GAP_MS = 400; // 이보다 짧은 쉼은 끊긴 것으로 보지 않음
+
 /** S-A06 환경 점검. S-A15 이어가기 재점검에서도 그대로 쓴다 */
 export function Precheck({ applicationId, onPassed }: { applicationId: string; onPassed: (passed: boolean) => void }) {
     const browser = useRef(typeof navigator === "undefined" ? { name: "unknown", version: "0" } : detectBrowser());
@@ -32,6 +35,7 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
     const video = useRef<HTMLVideoElement>(null);
     const stream = useRef<MediaStream | null>(null);
     const heardSince = useRef<number | null>(null);
+    const lastLoud = useRef(0);
     const checksRef = useRef(checks);
 
     useEffect(() => { checksRef.current = checks; }, [checks]);
@@ -57,10 +61,13 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
                 stopMeter = levelMeter(s, (value) => {
                     setLevel(value);
                     if (checksRef.current.mic === "ok") return;
-                    if (value > 0.12) {
-                        heardSince.current ??= performance.now();
-                        if (performance.now() - heardSince.current >= 1000) set("mic", "ok");
-                    } else {
+                    // 말에는 음절·단어 사이 짧은 쉼이 있으므로 MIC_GAP_MS 보다 짧게 조용한 것은 이어서 말한 것으로 본다
+                    const nowMs = performance.now();
+                    if (value > MIC_LEVEL) {
+                        heardSince.current ??= nowMs;
+                        lastLoud.current = nowMs;
+                        if (nowMs - heardSince.current >= 1000) set("mic", "ok");
+                    } else if (heardSince.current !== null && nowMs - lastLoud.current > MIC_GAP_MS) {
                         heardSince.current = null;
                     }
                 });

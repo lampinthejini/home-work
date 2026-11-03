@@ -20,7 +20,7 @@ type Form = {
 type FieldKey = keyof Form;
 
 const LONG_FIELDS: { key: FieldKey; label: string; required: boolean }[] = [
-    { key: "company_intro", label: "회사 소개", required: true }, { key: "duties", label: "주요 업무", required: true },
+    { key: "company_intro", label: "부서 소개", required: true }, { key: "duties", label: "주요 업무", required: true },
     { key: "requirements", label: "자격 요건", required: true }, { key: "preferred", label: "우대 사항", required: false },
 ];
 const LOCKED_AFTER_PUBLISH: FieldKey[] = ["job_code", "open_at", "close_at"];

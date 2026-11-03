@@ -88,7 +88,7 @@ export default function AiPostingPage() {
     const required: [boolean, string][] = [
         [Boolean(a.job_code), "직무"], [Boolean(a.career_level), "경력 수준"], [Boolean(a.employment_type), "고용 형태"],
         [Boolean(a.location.trim()), "근무지"], [a.headcount >= 1, "모집 인원"], [Boolean(a.open_at && a.close_at), "접수 기간"],
-        [a.duties.length > 0, "주로 맡을 일"], [Boolean(a.company_intro.trim()), "회사·팀 소개"], [a.coding_test !== null, "코딩테스트 여부"],
+        [a.coding_test !== null, "코딩테스트 여부"],
     ];
     const doneCount = required.filter(([ok]) => ok).length;
     const missing = required.filter(([ok]) => !ok).map(([, label]) => label);
@@ -209,7 +209,7 @@ export default function AiPostingPage() {
                     <Field label="6. 접수 마감" required hint="결과는 마감 다음 날 10:00에 공개됩니다"><input className="input" type="datetime-local" value={a.close_at} onChange={(e) => set("close_at", e.target.value)} /></Field>
                 </div>
                 <div className="field">
-                    <span>7. 주로 맡을 일 (복수 선택) <span className="req" aria-hidden>*</span></span>
+                    <span>7. 주로 맡을 일 (선택 · 비우면 AI가 직무에 맞게 씁니다. 직접 입력한 말은 AI가 다듬습니다)</span>
                     <Chips label="주로 맡을 일" options={DUTY_OPTIONS} value={a.duties} onChange={(v) => set("duties", v.slice(0, 10))} />
                 </div>
                 <div className="field">
@@ -217,7 +217,7 @@ export default function AiPostingPage() {
                     <Chips label="필요한 기술" options={SKILL_OPTIONS} value={a.skills} onChange={(v) => set("skills", v.slice(0, 20))} />
                 </div>
                 <Field label="9. 우대 사항 (선택)"><input className="input" value={a.preferred} maxLength={500} placeholder="사내 AI 도입 경험" onChange={(e) => set("preferred", e.target.value)} /></Field>
-                <Field label="10. 회사·팀 소개" required>
+                <Field label="10. 부서 소개 (선택 · 비우면 맡을 일로 AI가 작성)">
                     <textarea className="input" rows={3} value={a.company_intro} maxLength={1000} placeholder="제조 데이터를 다루는 AI 조직…" onChange={(e) => set("company_intro", e.target.value)} />
                 </Field>
                 <Field label="11. 지금 회사 상황·강조할 점 (선택)">

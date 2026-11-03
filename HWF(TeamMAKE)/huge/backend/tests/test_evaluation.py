@@ -337,6 +337,18 @@ def test_answerCannotCloseDelimiterOrUseTinyQuote():
     assert not good and problems
 
 
+def test_quoteIsShortExcerptSoLongAnswersFitTokenLimit():
+    # 긴 답변에서 항목마다 답 전체를 베끼면 출력이 잘려 채점이 실패했다 (2026-11-03 실측) → 근거는 짧은 구절로만 받는다
+    schema = ev.T5Out.model_json_schema()
+    assert schema["$defs"]["T5Item"]["properties"]["quote"]["maxLength"] == ev.QUOTE_MAX_CHARS
+    with pytest.raises(ValueError):
+        ev.T5Item(item="logic", score=3, quote="가" * (ev.QUOTE_MAX_CHARS + 1))
+    answer = "제일 중요했었던 것은 팀원과의 소통입니다. 팀원과의 소통을 통해서 우리가 어떤 프로그램을 만들지 기획을 했습니다."
+    out = ev.T5Out(items=[ev.T5Item(item="logic", score=3, quote="팀원과의 소통을 통해서 우리가 어떤 프로그램을 만들지")])
+    good, problems = ev.checkT5(out, ["logic"], answer)  # 문장 일부만 따와도 근거 확인 통과
+    assert "logic" in good and not problems
+
+
 def test_needsReviewIsNotRescoredUntilReprocess(sessionFactory, fake):
     appId = makeApplication(sessionFactory)
     assert ev.markNeedsReview(appId, "analysis_timeout") is True

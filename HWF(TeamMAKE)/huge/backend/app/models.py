@@ -3,8 +3,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from .crypto import EncryptedJson, EncryptedText
 from .db import Base
@@ -27,7 +27,9 @@ class User(Base):
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     agreements: Mapped[dict] = mapped_column(JSON, default=dict)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 이메일 인증(나중 기능)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
 class LoginSession(Base):
@@ -54,6 +56,7 @@ class JobPosting(Base):
     title: Mapped[str] = mapped_column(String(200), default="")
     job_code: Mapped[str] = mapped_column(String(32), default="AI_AX")
     company_name: Mapped[str] = mapped_column(String(200), default="")
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 불러온 공고의 원래 번호 (공고 불러오기는 아직 없음)
     company_intro: Mapped[str] = mapped_column(Text, default="")
     duties: Mapped[str] = mapped_column(Text, default="")
     requirements: Mapped[str] = mapped_column(Text, default="")
@@ -81,12 +84,19 @@ class EvaluationCriteria(Base):
     posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), index=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     weights: Mapped[dict] = mapped_column(JSON)
     coding_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     coding_ratio: Mapped[int] = mapped_column(Integer, default=30)
     pass_score: Mapped[int] = mapped_column(Integer, default=70)
 
     posting: Mapped[JobPosting] = relationship(back_populates="criteria")
+
+    @validates("locked")
+    def stampLock(self, _key, value):
+        if value and not self.locked:
+            self.locked_at = now()  # 잠근 시각 (테이블 정의서 4-7 locked_at)
+        return value
 
 
 class PostingRevision(Base):
@@ -97,6 +107,7 @@ class PostingRevision(Base):
     field: Mapped[str] = mapped_column(String(64))
     before: Mapped[str] = mapped_column(Text, default="")
     after: Mapped[str] = mapped_column(Text, default="")
+    summary: Mapped[str] = mapped_column(String(300), default="")  # 지원자에게 보여 줄 한 줄
 
 
 class Application(Base):
@@ -135,9 +146,20 @@ class Application(Base):
     release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)  # 이 건의 결과 공개 시각
     purge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)  # 공개 + 7일
     review_reason: Mapped[str | None] = mapped_column(String(24), nullable=True)  # needs_review 사유 (API 명세서 ops-status)
+    needs_review_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
     posting: Mapped[JobPosting] = relationship()
     user: Mapped[User] = relationship()
+
+    @validates("review_reason")
+    def stampReview(self, _key, value):
+        # 확인 필요가 된 시각 (테이블 정의서 4-8). 사유가 지워지면 같이 지운다
+        if value is None:
+            self.needs_review_since = None
+        elif self.review_reason is None:
+            self.needs_review_since = now()
+        return value
 
 
 class Consent(Base):
@@ -235,9 +257,10 @@ class Answer(Base):
     audio_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     audio_sec: Mapped[float | None] = mapped_column(nullable=True)
     stt_elapsed_sec: Mapped[float | None] = mapped_column(nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 첫 음성 조각이 온 시각
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)  # done · timeout
+    is_empty: Mapped[bool] = mapped_column(Boolean, default=False)  # 답을 안 함(무음·빈 글자)
 
 
 class InterviewSession(Base):
@@ -301,6 +324,7 @@ class AppSetting(Base):
     __tablename__ = "app_settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[dict] = mapped_column(JSON)  # {"v": ...}
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
@@ -427,8 +451,53 @@ class Notification(Base):
     title: Mapped[str] = mapped_column(String(200))
     link: Mapped[str | None] = mapped_column(String(300), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 🔔 목록에서 지운 시각. 줄은 남겨 메일 발송 기록(운영 현황)을 지키므로 숨기기만 한다
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email_status: Mapped[str] = mapped_column(String(10), default="pending")  # pending · sent · deferred · failed · skipped
     email_retry_count: Mapped[int] = mapped_column(Integer, default=0)
     email_fail_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
+# 상태 칸에 들어갈 수 있는 값 (테이블 정의서 1장 규칙 1 · CONFLICTS.md T1). 값은 실제 코드 기준.
+# create_all 이 새 표에 걸고, 이미 있는 Postgres 표에는 migrate.addChecks 가 건다
+EVAL_ITEM_VALUES = ("expertise", "logic", "relevance", "delivery", "culture_fit")
+CHECK_VALUES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("users", "role"): ("applicant", "admin"),
+    ("job_codes", "status"): ("open", "preparing"),
+    ("job_postings", "status"): ("draft", "published", "closed"),
+    ("job_postings", "source"): ("manual", "open_api", "dummy", "ai_draft"),
+    ("applications", "attempt_status"): ("drafting", "ready", "interviewing", "coding", "interrupted", "completed",
+                                         "ended", "ended_closed", "cancelled", "not_taken_closed"),
+    ("applications", "analysis_status"): ("pending", "running", "decided", "needs_review"),
+    ("applications", "release_status"): ("scheduled", "delayed", "released", "purged"),
+    ("applications", "resume_method"): ("upload", "manual", "saved"),
+    ("applications", "phase"): ("interview", "coding"),
+    ("applications", "questions_status"): ("none", "composing", "ready", "failed"),
+    ("resume_uploads", "stage"): ("uploaded", "checking", "ocr", "structuring", "done", "failed", "cancelled"),
+    ("questions", "kind"): ("personality", "company", "job", "resume"),
+    ("questions", "status"): ("active", "preparing", "pending", "rejected", "excluded"),
+    ("interview_questions", "kind"): ("base", "follow_up"),
+    ("answers", "end_reason"): ("done", "timeout"),
+    ("item_scores", "eval_item"): EVAL_ITEM_VALUES,
+    ("highlights", "eval_item"): EVAL_ITEM_VALUES,
+    ("highlights", "kind"): ("good", "deducted"),
+    ("results", "ai_decision"): ("pass", "fail"),
+    ("results", "decision_check"): ("ok", "rejudged"),
+    ("notifications", "email_status"): ("pending", "sent", "deferred", "failed", "skipped"),
+    ("deletion_logs", "cause"): ("retention", "withdraw", "consent"),
+    ("deletion_logs", "scope"): ("recording", "interview_data", "account"),
+}
+
+
+def checkName(table: str, column: str) -> str:
+    return f"ck_{table}_{column}"
+
+
+def checkSql(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+for (_table, _column), _values in CHECK_VALUES.items():
+    Base.metadata.tables[_table].append_constraint(CheckConstraint(checkSql(_column, _values), name=checkName(_table, _column)))

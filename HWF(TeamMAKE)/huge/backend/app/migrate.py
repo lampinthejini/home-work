@@ -18,12 +18,28 @@ STATEMENTS = [
     "ALTER TABLE coding_submissions ADD COLUMN IF NOT EXISTS feedback text",
     # 동의는 지원 건이 지워져도 남긴다 (테이블 정의서 4-9)
     "ALTER TABLE consents ADD COLUMN IF NOT EXISTS subject_hash varchar(64)",
+    "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS hidden_at timestamptz",
     "ALTER TABLE consents ALTER COLUMN application_id DROP NOT NULL",
     "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'consents'::regclass "
     "AND confrelid = 'applications'::regclass AND confdeltype = 'n') THEN "
     "ALTER TABLE consents DROP CONSTRAINT IF EXISTS consents_application_id_fkey; "
     "ALTER TABLE consents ADD CONSTRAINT consents_application_id_fkey FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL; "
     "END IF; END $$",
+]
+# 테이블 정의서에 맞춘 덧붙이기 (CONFLICTS.md T19·T22·T25·T28·T32·T34·T35, 2026-11-02)
+ALIGN_STATEMENTS = [
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()",
+    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS needs_review_since timestamptz",
+    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()",
+    "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS locked_at timestamptz",
+    # 이미 잠긴 기준은 그 공고의 첫 응시 시각을 잠근 시각으로 본다
+    "UPDATE evaluation_criteria c SET locked_at = (SELECT min(a.attempt_consumed_at) FROM applications a WHERE a.posting_id = c.posting_id) "
+    "WHERE c.locked AND c.locked_at IS NULL",
+    "ALTER TABLE posting_revisions ADD COLUMN IF NOT EXISTS summary varchar(300) NOT NULL DEFAULT ''",
+    "ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS external_id varchar(100)",
+    "ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_by varchar(36) REFERENCES users(id) ON DELETE SET NULL",
+    "ALTER TABLE answers ADD COLUMN IF NOT EXISTS is_empty boolean NOT NULL DEFAULT false",
 ]
 # 질문 DB 임베딩 (테이블 정의서 4-16: embedding vector(1024), HNSW vector_cosine_ops). 실패하면 RAG 만 꺼진다
 VECTOR_STATEMENTS = [
@@ -44,13 +60,29 @@ def fillConsentSubjects(engine) -> None:
             conn.execute(text("UPDATE consents SET subject_hash = :h WHERE id = :id"), {"h": subjectHash(email), "id": consentId})
 
 
+def addChecks(engine) -> None:
+    """상태 칸 CHECK 제약 (models.CHECK_VALUES). 이미 있으면 건너뛴다. 기존 값이 어긋나면 그 제약만 빼고 경고한다 (서비스는 뜬다)."""
+    from .models import CHECK_VALUES, checkName, checkSql
+
+    for (table, column), values in CHECK_VALUES.items():
+        name = checkName(table, column)
+        try:
+            with engine.begin() as conn:
+                if conn.execute(text("SELECT 1 FROM pg_constraint WHERE conname = :n"), {"n": name}).first():
+                    continue
+                conn.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK ({checkSql(column, values)})"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("check %s not added (existing rows out of list?): %s", name, type(exc).__name__)
+
+
 def addColumns(engine) -> None:
     if engine.dialect.name != "postgresql":
         return
     with engine.begin() as conn:
-        for statement in STATEMENTS:
+        for statement in STATEMENTS + ALIGN_STATEMENTS:
             conn.execute(text(statement))
     fillConsentSubjects(engine)
+    addChecks(engine)
     try:
         with engine.begin() as conn:
             for statement in VECTOR_STATEMENTS:

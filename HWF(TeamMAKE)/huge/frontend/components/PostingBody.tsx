@@ -34,7 +34,7 @@ export function PostingBody({ posting: p, action }: { posting: PostingDetail; ac
             <h1 style={{ marginBottom: 4 }}>{p.title || "(제목 없음)"}</h1>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 24, alignItems: "start", marginTop: 20 }}>
                 <article className="card stack">
-                    <Section title="회사 소개" text={p.company_intro} />
+                    <Section title="부서 소개" text={p.company_intro} />
                     <Section title="주요 업무" text={p.duties} />
                     <Section title="자격 요건" text={p.requirements} />
                     <Section title="우대 사항" text={p.preferred} />

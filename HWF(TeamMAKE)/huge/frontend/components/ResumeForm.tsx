@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import type { ResumeData } from "@/components/ApplyFlow";
 
-type ListKey = "education" | "career" | "projects" | "certificates";
+export type ListKey = "education" | "career" | "projects" | "certificates";
 type Column = { key: string; label: string; placeholder?: string; wide?: boolean };
 
-const COLUMNS: Record<ListKey, { title: string; columns: Column[]; blank: () => Record<string, unknown> }> = {
+export const RESUME_SECTIONS: Record<ListKey, { title: string; columns: Column[]; blank: () => Record<string, unknown> }> = {
     education: {
         title: "학력",
         columns: [{ key: "school", label: "학교" }, { key: "major", label: "전공" }, { key: "degree", label: "학위", placeholder: "학사" },
@@ -85,8 +85,8 @@ export function ResumeForm({ value, onChange, onEdit, invalid, lowConf, onConfir
                         onChange={(e) => edit("name", { ...value, name: e.target.value })} />
                 </label>
             </section>
-            {(Object.keys(COLUMNS) as ListKey[]).map((list) => {
-                const spec = COLUMNS[list];
+            {(Object.keys(RESUME_SECTIONS) as ListKey[]).map((list) => {
+                const spec = RESUME_SECTIONS[list];
                 const items = value[list] as Record<string, string>[];
                 const highlight = invalid?.history && (list === "education" || list === "career");
                 return (

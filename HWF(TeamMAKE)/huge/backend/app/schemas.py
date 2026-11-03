@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Strict(BaseModel):
@@ -91,12 +91,18 @@ class DraftAiRequest(Strict):
     headcount: int = Field(ge=1, le=999)
     open_at: datetime
     close_at: datetime
-    duties: list[str] = Field(min_length=1, max_length=10)
+    duties: list[str] = Field(default_factory=list, max_length=10)  # 비우면 AI 가 직무·기술에 맞게 정한다 (2026-11-03 사용자 결정)
     skills: list[str] = Field(default_factory=list, max_length=20)
     preferred: str = Field(default="", max_length=500)
-    company_intro: str = Field(min_length=1, max_length=1000)
+    company_intro: str = Field(default="", max_length=1000)  # 부서 소개 메모. 비우면 AI 가 맡을 일로 소개를 쓴다
     emphasis: str = Field(default="", max_length=500)
     coding_test: bool
+
+    @field_validator("duties")
+    @classmethod
+    def dropBlankDuties(cls, duties: list[str]) -> list[str]:
+        """공백만 있는 맡을 일은 지우고 같은 것은 하나만 남긴다. 다 비어도 된다."""
+        return list(dict.fromkeys(duty.strip() for duty in duties if duty.strip()))
 
 
 class ApplicationCreate(Strict):

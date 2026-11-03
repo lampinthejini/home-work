@@ -94,7 +94,7 @@ def resumeText(resume: dict) -> str:
 def companyText(posting, brief: bool = False) -> str:
     """회사의 상황 = 공고 본문 (회사 소개·주요 업무·자격 요건·우대 사항).
     brief: 직무 질문용 — 회사 소개만 (업무 줄을 다 넣으면 자리별 기술 주제보다 업무 문구로 쏠림, 실측)."""
-    parts = [f"직무: {posting.title}", f"회사 소개: {(posting.company_intro or '')[:500]}"]
+    parts = [f"직무: {posting.title}", f"부서 소개: {(posting.company_intro or '')[:500]}"]
     if not brief:
         parts += [f"주요 업무: {(posting.duties or '')[:500]}", f"자격 요건: {(posting.requirements or '')[:400]}",
                   f"우대 사항: {(posting.preferred or '')[:300]}"]

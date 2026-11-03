@@ -13,14 +13,15 @@ def getSetting(db: Session, key: str):
     return defaultSetting(key)
 
 
-def setSetting(db: Session, key: str, value) -> None:
+def setSetting(db: Session, key: str, value, actorId: str | None = None) -> None:
     if key not in SETTING_DEFAULTS:
         raise KeyError(key)
     row = db.get(AppSetting, key)
     if row is None:
-        db.add(AppSetting(key=key, value={"v": value}))
+        db.add(AppSetting(key=key, value={"v": value}, updated_by=actorId))
     else:
         row.value = {"v": value}
+        row.updated_by = actorId
     db.commit()
 
 

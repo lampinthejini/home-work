@@ -81,8 +81,9 @@ def myResult(applicationId: str, db: Session = Depends(getDb), user: User = Depe
 @router.get("/notifications")
 def notifications(db: Session = Depends(getDb), user: User = Depends(activeUser)):
     """머리글 🔔: 최근 20건과 안 읽은 수 (API 명세서 9장)."""
-    rows = (db.query(Notification).filter_by(user_id=user.id).order_by(Notification.created_at.desc()).limit(20).all())
-    unread = db.query(Notification).filter_by(user_id=user.id, read_at=None).count()
+    shown = db.query(Notification).filter_by(user_id=user.id, hidden_at=None)
+    rows = shown.order_by(Notification.created_at.desc()).limit(20).all()
+    unread = shown.filter_by(read_at=None).count()
     return {"unread": unread, "items": [{"notification_id": n.id, "kind": n.kind, "title": n.title, "link": n.link,
                                          "read": n.read_at is not None, "created_at": iso(n.created_at)} for n in rows]}
 
@@ -95,3 +96,24 @@ def readNotification(notificationId: str, db: Session = Depends(getDb), user: Us
     if row.read_at is None:
         row.read_at = now()
         db.commit()
+
+
+@router.post("/notifications/{notificationId}/hide", status_code=204)
+def hideNotification(notificationId: str, db: Session = Depends(getDb), user: User = Depends(activeUser)):
+    """🔔 목록에서 지운다(숨김). 안 읽은 알림이면 읽음으로도 표시한다."""
+    row = db.get(Notification, notificationId)
+    if row is None or row.user_id != user.id:
+        raise notFound()
+    current = now()
+    row.read_at = row.read_at or current
+    row.hidden_at = row.hidden_at or current
+    db.commit()
+
+
+@router.post("/notifications/hide-read")
+def hideReadNotifications(db: Session = Depends(getDb), user: User = Depends(activeUser)):
+    """읽은 알림을 모두 🔔 목록에서 지운다(숨김)."""
+    hidden = (db.query(Notification).filter(Notification.user_id == user.id, Notification.read_at.is_not(None),
+                                            Notification.hidden_at.is_(None)).update({"hidden_at": now()}))
+    db.commit()
+    return {"hidden": hidden}

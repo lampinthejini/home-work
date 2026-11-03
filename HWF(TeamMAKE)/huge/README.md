@@ -1,7 +1,7 @@
 # Huge — AI 1차 면접 플랫폼 (Team AIIT)
 
 AI 면접(질문 음성 → 답변 음성 인식 → 꼬리질문)과 선택형 코딩테스트를 한 번에 진행하는 채용 1차 면접 서비스입니다.
-설계 기준은 상위 폴더의 PRD v1.6 · TRD v1.5 · 화면정의서 v0.5 · API 명세서 · AI 기술 아키텍처 v1.4 입니다.
+설계 기준은 상위 폴더의 PRD v1.6 · TRD v1.5 · 화면정의서 v0.6 · API 명세서 · AI 기술 아키텍처 v1.4 입니다.
 
 ## 구성 (컨테이너 3묶음)
 
@@ -28,6 +28,28 @@ docker exec huge-app-api-1 python -m app.manage sample_posting  # 예시 공고 
 - 모델 파일은 `models/llm/` 에 둡니다 (Qwen3 4B · Qwen3 8B Q4_K_M GGUF, 각 `.sha256` 확인). GPU 6GB 기준으로 맞춰 두었습니다.
 - **Docker 메모리 24GB 이상 필요** (llm-eval 8B 가 CPU 메모리 약 5GB 사용, 상한 9GB). Windows 는 `%USERPROFILE%\.wslconfig` 에 `[wsl2]` `memory=24GB` 를 넣고 `wsl --shutdown` 뒤 Docker 를 다시 켭니다.
 - 메일은 개발용 Mailpit 으로 갑니다 (<http://127.0.0.1:8025>).
+
+### DB 직접 보기 (개발자용)
+
+Postgres 는 외부와 끊긴 내부 네트워크에만 있어 포트가 열려 있지 않습니다. DBeaver 등으로 볼 때만 내 PC 전용 통로를 엽니다.
+
+```sh
+docker run -d --name huge-db-tunnel --network huge-front -p 127.0.0.1:15432:5432 alpine/socat tcp-listen:5432,fork,reuseaddr tcp-connect:postgres:5432
+docker network connect huge-internal huge-db-tunnel
+# DBeaver: 127.0.0.1:15432 / DB huge / 사용자 huge / 비밀번호 .env 의 POSTGRES_PASSWORD. 읽기 전용 연결 권장
+docker rm -f huge-db-tunnel        # 다 보면 닫기
+```
+
+답변·이력서·판정 근거 같은 민감한 칸은 앱에서 암호화(AES-256-GCM)해 저장하므로 DBeaver 에서는 읽을 수 없습니다. 서버 안에서 풉니다.
+출력에 지원자 개인정보가 그대로 나오니 확인에만 쓰고 파일·메신저로 옮기지 않습니다.
+
+```sh
+docker exec huge-app-api-1 python -m app.devtools answers <application_id>   # 질문과 답변 글
+docker exec huge-app-api-1 python -m app.devtools field answers transcript <answers.id>  # 표·칸·ID 로 바로 (복사 불필요)
+docker exec huge-app-api-1 python -m app.devtools plain     # DBeaver 용 평문 사본 → dev_plain 스키마 (개발 환경 전용, 그 시점 사본)
+docker exec huge-app-api-1 python -m app.devtools unplain   # 평문 사본 지우기 (다 보면 꼭)
+docker exec huge-app-api-1 python -m app.devtools decrypt "<칸 값>"           # DBeaver 에서 복사한 암호화 값 하나
+```
 - Windows Git Bash 에서는 `MSYS_NO_PATHCONV=1` 이 필요합니다 (`up.sh` 에 들어 있음).
 
 ## 개발 검사

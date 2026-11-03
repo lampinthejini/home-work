@@ -67,6 +67,7 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | U2 | **AI 공고 초안을 1단계에 넣는다** (원래 2단계) | — | S-R02 구현. `POST /admin/postings/{id}/draft-ai` · `GET …/draft-ai/status` |
 | U4 | **이력서 읽기 순서: 리더 → 빈칸 채우기 → 안 되면 OCR** (OCR 3단계 → 1단계) | TRD 7-6 (pdfplumber·쪽당 50자 기준) · AI 아키텍처 | ① PyMuPDF(읽는 순서 정렬) → 깨졌거나 모자란 쪽만 pdfplumber ② LLM 항목 정리 ③ 두 리더 모두 실패한 쪽·사진은 OCR, 정리 뒤 성명·학력/경력이 비면 나머지 쪽도 OCR 해서 **빈 칸만** 채움. OCR 은 PaddleOCR 한국어(CPU, 별도 컨테이너 `ocr`) |
 | U5 | **질문 10개를 RAG 로 먼저 만들고, 못 만들면 질문은행** (모든 종류) | TRD 7-4 ②③: 인성·직무는 질문 DB 에서 먼저 고르고 후보가 모자랄 때만 새로 만듦 · AI 아키텍처 6.1 (T2 '은행 우선, 부족분 생성') | 자리마다 ① 공고·이력서로 찾을 글 → BGE-M3 → pgvector 로 같은 종류 기존 질문 3개 ② 기존 질문(예시) + 이력서 요약 + 회사의 상황(공고 본문)으로 LLM 이 질문 1개 ③ 형식·요구하는 일 2개 이하·이력서 근거·예시와 0.9 이상이면 베낌·고른 질문과 0.9 이상이면 중복 ④ 3번 실패·60초 초과·임베딩 서버 없음 → 질문은행(엑셀) → 예비 질문 |
+| U6 | **AI 공고 초안의 '주로 맡을 일'은 선택** (2026-11-03) | 화면정의서 S-R02 질문 7 (필수 ✓) → **화면정의서 v0.6 반영 완료(2026-11-03, 담당자 요청)** | 비우거나 공백만 넣어도 받음. 프롬프트에 '(지정 없음)'으로 알려 AI 가 직무·기술·강조점에 맞게 주요 업무를 씀. 직접 입력한 말은 AI 가 다듬어 씀. AI 부서 소개가 짧아 대체 문구를 쓸 때는 칩별 미리 정한 문구 · 직접 입력은 규칙으로 줄임('사내 챗봇을 운영함' → '사내 챗봇 운영') · 맡을 일이 없으면 전용 문구 3개 중 하나 |
 | U3 | **이력서만 제출한 상태는 '지원 완료'로 보이지 않게** | 화면정의서 S-A01 지원 상태 배지("준비 중 이후 [지원 완료 ✓]") · T-11 토스트 | 공고 목록 배지를 실제 응시 상태로 표시, '준비 중' → **'면접 준비 중'**, 버튼 [지원 완료] → [이력서 제출] |
 
 AI 초안 구현 메모 (확인 필요):
@@ -162,6 +163,78 @@ RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어
 | W4 | 탈퇴 오류 | `POST /me/withdraw` 오류 코드 없음 | 400 `WRONG_PASSWORD` · 400 `CONFIRM_TEXT`. 관리자는 403 | — |
 | W5 | 진행 중 응시 철회 | — | 자리 반환 → WebSocket `terminate`(`withdrawn`) → 삭제 순서. 응시 화면은 "동의 철회로 응시가 취소되었습니다" 오버레이 | — |
 | M1 | 메모 감사 로그 | 테이블 정의서 감사 action `memo_create`·`memo_update`·`memo_delete` | 기존 표기에 맞춰 `memo.create` · `memo.update` · `memo.delete` (본문은 남기지 않고 memo_id 만). 녹화 재생은 `recording.play` | 기존 감사 로그가 모두 점 표기 (`answer.listen` 등) |
+
+## C-8. 화면정의서 v0.6 대조에서 나온 PRD·TRD 차이 (2026-11-03) — 확인 필요
+
+화면정의서 §1.3 H-01~H-10 가운데 여기에 없던 것만 적음. 나머지는 이미 있음: H-01=S1, H-02=U1, H-04=U3, H-05=C5, H-09=D1, H-10=B6·F6(자동 보호 미구현이라 OV-05 문구가 동시 면접 상한만 말함).
+
+| # | 문서 | 실제 구현 | 이유·상태 |
+|---|---|---|---|
+| V1 | PRD JOB-01 '회사 소개' (화면정의서 H-03) | 화면 이름 '부서 소개'. DB·API 칸 `company_intro` 는 그대로. AI 초안(S-R02)의 소개 메모는 선택 | 사용자 결정(2026-11-02). 한 기업 전용이라 회사 소개 대신 부서 소개. PRD 수정 요청 필요 |
+| V2 | PRD JOB-08 · TRD 5-1 · API 명세서 `POST /admin/postings/import` 공고 불러오기 (화면정의서 H-06) | 없음 (T34 `external_id` 칸만 있음) | 미구현. 필요하면 범위 결정 필요 |
+| V3 | PRD ADM-02 지원자 상세에서 "표준 양식 이력서와 원본 파일" (화면정의서 H-07) | 원본 파일은 저장소에 보관(`resume_uploads.file_key`)하지만 관리자 화면·API 에서 볼 수 없음. 표준 양식 이력서와 제출 방식만 보임 | 미구현. 관리자 원본 보기 API 가 필요하면 추가 |
+| V4 | TRD 5-2 답변 음성 WebRTC 실시간 전송 · 포트 UDP 40000~40019 (화면정의서 H-08) | WebSocket 이진 메시지(16kHz PCM)로 전송. WebRTC·UDP 포트 없음 | 1단계부터 이렇게 구현(README 에만 적혀 있었음). STT 가 서버에서 조각을 받아 처리하는 구조라 WebRTC 미디어 서버 없이 단순화. TRD 수정 또는 승인 필요 |
+
+## T. 테이블 정의서(`Final_project_테이블정의서.pdf`, 2026-10-29)와 실제 DB 차이 — 2026-11-02 점검
+
+실제 Postgres 구조(`information_schema`)와 정의서를 한 칸씩 비교했다. **기능이 빠진 것보다 같은 기능을 다른 이름·구조로 만든 경우가 대부분**이다.
+사용자 결정(2026-11-02): 차이를 먼저 기록하고, **바꿔도 동작에 영향이 없는 것(덧붙이기)만 구현을 정의서에 맞춘다.** 이름·타입·구조 변경은 핵심 흐름(면접·이어가기·채점)을 다시 짜야 해서 하지 않고, 정의서 쪽 수정을 팀과 협의한다.
+"처리" 열: **맞춤** = 이번에 구현을 정의서에 맞춤 · **정의서 수정 요청** = 구현 유지, 정의서를 고쳐야 함 · **승인됨** = 앞선 항목에서 이미 결정.
+
+### T-1. 공통 규칙
+
+| # | 정의서 | 실제 | 처리 |
+|---|---|---|---|
+| T1 | 상태 값에 CHECK 제약 | 제약 없음 (앱 코드만 막음) | **맞춤** — 값이 정해진 상태 칸에 CHECK 추가 (값은 실제 코드 기준. 정의서와 값이 다른 것은 T2) |
+| T2 | 값 이름 | `job_codes.status` `open`(정의서 `active`) · `questions.source` `excel`(정의서 `db`) · 설정·질문 상태 값 추가(`questions.status` `pending`·`excluded` 등) · `session_events.judged` `cheating`·`info` | 정의서 수정 요청 |
+| T3 | 암호화 칸은 `_enc` 이름 + `bytea` | 이름에 `_enc` 없음, `text` 에 Base64(nonce+암호문+태그). DBeaver 에서 암호화 칸인지 이름으로 구분 안 됨 | 정의서 수정 요청 (이름을 바꾸면 모델·쿼리 전부 수정). 확인 도구 `python -m app.devtools` 로 보완 |
+| T4 | 암호화 범위 | 정의서보다 넓음: `results.ai_reason`·`ai_reason_quotes`·`strengths`·`improvements`·`summary`·`public_view`, `item_scores.quote`, `highlights.quote`, `applications.resume_name`, `saved_resumes.name` 도 암호화 | 정의서 수정 요청 (답변 인용·평가 문장도 개인정보) |
+| T5 | id 는 `uuid`, 로그만 `bigserial` | `varchar(36)` 문자열 uuid. `interview_questions`·`questions`·`evaluation_criteria`·`item_scores`·`highlights`·`coding_submissions` 는 정수 자동 증가 | 정의서 수정 요청 (타입 변경은 FK·데이터 변환 필요) |
+| T6 | `jsonb` | `json` | 정의서 수정 요청 (jsonb 전용 검색·인덱스를 쓰지 않음) |
+| T7 | 구조 변경은 Alembic 으로만 | `create_all` + `app/migrate.py` 의 `ALTER TABLE ... IF NOT EXISTS` | 정의서 수정 요청. 공동 개발로 넘어갈 때 Alembic 도입 검토 |
+| T8 | LangGraph 체크포인트 테이블 3개 | 없음 (B1: LangGraph 미사용) | B1 승인 대기와 같이 처리 |
+
+### T-2. 테이블 단위
+
+| # | 정의서 | 실제 | 처리 |
+|---|---|---|---|
+| T9 | `user_resumes` | `saved_resumes` (`name` 추가, `method`·`upload_id` 없음) | 정의서 수정 요청 |
+| T10 | `coding_problems` (문제·숨은 테스트를 DB 에 암호화 저장) | 테이블 없음. 문제는 코드(`services/coding_bank.py`), 제출은 `problem_key` | 정의서 수정 요청. 문제 은행을 관리자가 바꾸는 기능이 생기면 테이블로 옮김 |
+| T11 | `app_setting_history` | 없음, 감사 로그로 대신 | 승인됨 (F8) |
+| T12 | — | `stats_archive` | 승인됨 (F1) |
+| T13 | 로그인 세션은 Redis `session:{쿠키}` | `login_sessions` 테이블 (토큰 해시) | 정의서 수정 요청 (Redis 재시작에도 로그인 유지, 모든 기기 로그아웃이 쉬움) |
+| T14 | 면접 세션은 Redis `interview:session:{sid}` | `interview_sessions` 테이블 | 정의서 수정 요청 (재시작 복구) |
+| T15 | `questions.use_count` | `question_usage` (공고별 사용 횟수) | 정의서 수정 요청 (같은 공고 지원자끼리 질문이 겹치지 않게) |
+| T16 | 로그인 실패 횟수·잠금은 Redis | `users.failed_logins`·`locked_until` | 정의서 수정 요청 |
+| T17 | 환경 점검 통과는 Redis `precheck:` | `applications.precheck_valid_until` | 정의서 수정 요청 |
+
+### T-3. 칸 단위
+
+| # | 테이블 | 차이 | 처리 |
+|---|---|---|---|
+| T18 | users | 동의 3칸(`age_14_plus`·`terms_agreed_at`·`privacy_agreed_at`) → `agreements` 한 칸 · `password_change_required` → `must_change_password` · `phone` 비워 둘 수 있음 | 정의서 수정 요청 |
+| T19 | users | `email_verified_at`·`updated_at` 없음 | **맞춤** (칸 추가. 이메일 인증은 아직 기능 없음) |
+| T20 | applications | 이름: `applicant_id`→`user_id` · `exit_count`→`away_count` · `needs_review_reason`→`review_reason` · `resume_snapshot_enc`→`resume_snapshot` · `resume_edited_fields`→`edited_fields` · `ended_at`→`completed_at` | 정의서 수정 요청 |
+| T21 | applications | 정의서에만: `criteria_id`(실제 `criteria_version`) · `result_status`(합불은 `results` 에만) · `analysis_attempts` · `resume_confirmed_at` · `coding_deadline_at`(실제 남은 초 `coding_remaining_sec`) | 정의서 수정 요청 |
+| T22 | applications | `needs_review_since`·`updated_at` 없음 | **맞춤** |
+| T23 | applications | 실제에만: `phase`·`current_seq`·`followup_count`·`interruption_at/reason/judged`·`end_detail`·`questions_status`·`interview_started_at`·`submitted_at`·`resume_name`·`resume_upload_id` | 정의서 수정 요청 (면접 엔진 상태) |
+| T24 | consents | `user_id` 없음 · 동의자 표시는 SHA-256 이 아니라 서버 키 HMAC | 정의서 수정 요청 (HMAC 은 보안 수정, 2-B·C 검토) |
+| T25 | evaluation_criteria | `locked_at` 대신 `locked`(참/거짓) · `rubric_version` 은 `results` 에만 | `locked_at` **맞춤**(칸 추가, `locked` 유지) · 나머지 정의서 수정 요청 |
+| T26 | interview_questions | 이름: `text_snapshot`→`text` · `category`→`qtype` · `answer_seconds`→`answer_sec` · `tts_key`→`audio_key` · `replaced`→`substituted` · `generation_attempts`→`regen_count` · `question_id`→`source_question_id`. 꼬리질문은 `parent_id` 가 아니라 같은 `seq` + `answer_order=2` | 정의서 수정 요청 |
+| T27 | answers | 정의서에만: `answer_no_count`·`stt_retries`·`stt_retry_sent` · 실제에만: `application_id`·`words`·`audio_sec`·`stt_elapsed_sec`·`end_reason` | 정의서 수정 요청 |
+| T28 | answers | `is_empty` 없음 · `started_at` 칸은 있으나 항상 비어 있음 | **맞춤** (`is_empty` 추가, `started_at` 은 첫 음성 조각이 온 시각) |
+| T29 | questions | 정의서 `category`(직무·인성…) = 실제 `kind`, 실제 `category` 는 엑셀 분류 · `duplicate_group` 정수→글자 · `created_at` 없음 · `status`·`row_no` 추가 | 정의서 수정 요청 |
+| T30 | session_events | `kind`·`reason`·`phase`·`duration_sec` → `type`·`detail`·`session_id` | 정의서 수정 요청 |
+| T31 | resume_uploads | `purpose`·`ocr_confidence`·`ocr_low_conf_fields` 없음(OCR 정보는 `result` 안 `_ocr`) · `created_at`→`started_at` · `content_type` 추가 | 정의서 수정 요청 |
+| T32 | posting_revisions | `summary` 없음 (화면은 칸 이름·전후 값으로 만듦) | **맞춤** |
+| T33 | audit_logs | `target_type`·`target_id` → `target` + `detail` · action 점 표기(M1) | 정의서 수정 요청 |
+| T34 | job_postings | `external_id` 없음 (공고 불러오기 미구현) · 글 칸 NOT NULL(빈 글자 기본값) | `external_id` **맞춤**(칸만 추가) · 나머지 정의서 수정 요청 |
+| T35 | app_settings | `updated_by` 없음 | **맞춤** |
+| T36 | coding_submissions | `problem_id`→`problem_key` · `submitted_at` 대신 `final`(참/거짓) · `grade_status` 추가 | 정의서 수정 요청 |
+| T37 | notifications | `hidden_at` 추가 (🔔 숨기기, 2026-11-02 사용자 선택 A) | 정의서 수정 요청 |
+| T38 | recordings · deletion_logs · memos · item_scores · highlights | 거의 같음 (`item_scores.application_id` 추가 정도) | — |
+
+**맞춤 결과 (2026-11-02):** 칸 9개(`users.email_verified_at`·`updated_at`, `applications.needs_review_since`·`updated_at`, `evaluation_criteria.locked_at`, `posting_revisions.summary`, `job_postings.external_id`, `app_settings.updated_by`, `answers.is_empty`) + CHECK 23개(`models.CHECK_VALUES`). 기존 Postgres 는 `migrate.py` 가 부팅 때 더함(기존 행이 어긋나면 그 제약만 건너뛰고 경고). 이미 잠긴 기준의 `locked_at` 은 그 공고의 첫 응시 시각으로 채움(응시 기록이 지워진 공고는 비어 있음). `answers.started_at` 은 첫 음성 조각이 온 시각. 검증: 단위 203개, E2E 빠른 묶음 5개, 끝까지 응시 1개 통과.
 
 ## D. 출처 (외부 모델)
 

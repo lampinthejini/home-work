@@ -13,7 +13,7 @@ REQUIRED_FIELDS = ["title", "company_intro", "duties", "requirements", "employme
                    "location", "headcount", "open_at", "close_at", "contact_email"]
 SHORT_REVISABLE = {"title": "제목", "employment_type": "고용 형태", "location": "근무지",
                    "headcount": "모집 인원", "contact_email": "문의 이메일"}
-LONG_REVISABLE = {"company_intro": "회사 소개", "duties": "주요 업무", "requirements": "자격 요건", "preferred": "우대 사항"}
+LONG_REVISABLE = {"company_intro": "부서 소개", "duties": "주요 업무", "requirements": "자격 요건", "preferred": "우대 사항"}
 LOCKED_AFTER_PUBLISH = {"job_code", "open_at", "close_at"}
 EMPLOYMENT_TYPES = {"full_time": "정규직", "contract": "계약직", "intern": "인턴"}
 
@@ -67,17 +67,19 @@ def postingView(p: JobPosting, withCriteria: bool = False) -> dict:
     return data
 
 
+def revisionSummary(field: str, before: str, after: str) -> str:
+    """지원자에게 보여 줄 수정 사항 한 줄 (테이블 정의서 4-6 summary). 예: 근무지: 서울 강남구 → 서울 서초구"""
+    label = SHORT_REVISABLE.get(field) or LONG_REVISABLE.get(field) or ("코딩테스트" if field == "coding_enabled" else field)
+    if field in LONG_REVISABLE:
+        return f"{label} 내용이 수정되었습니다"
+    return f"{label}: {before} → {after}"[:300]
+
+
 def revisionsView(db: Session, postingId: str) -> list[dict]:
     rows = db.query(PostingRevision).filter_by(posting_id=postingId).order_by(PostingRevision.revised_at.desc()).all()
-    result = []
-    for r in rows:
-        label = SHORT_REVISABLE.get(r.field) or LONG_REVISABLE.get(r.field) or ("코딩테스트" if r.field == "coding_enabled" else r.field)
-        if r.field in LONG_REVISABLE:
-            summary = f"{label} 내용이 수정되었습니다"
-        else:
-            summary = f"{label}: {r.before} → {r.after}"
-        result.append({"revised_at": iso(r.revised_at), "field": r.field, "summary": summary})
-    return result
+    # 요약 칸이 생기기 전 행은 그 자리에서 만든다
+    return [{"revised_at": iso(r.revised_at), "field": r.field, "summary": r.summary or revisionSummary(r.field, r.before, r.after)}
+            for r in rows]
 
 
 def isAcceptingApplications(p: JobPosting) -> bool:
@@ -153,7 +155,8 @@ def updatePosting(db: Session, posting: JobPosting, body) -> JobPosting:
         posting.release_at = releaseAtFor(posting.close_at)
     revisedAt = now()
     for field, before, after in revisions:
-        db.add(PostingRevision(posting_id=posting.id, field=field, before=before, after=after, revised_at=revisedAt))
+        db.add(PostingRevision(posting_id=posting.id, field=field, before=before, after=after, revised_at=revisedAt,
+                               summary=revisionSummary(field, before, after)))
     db.commit()
     return posting
 
