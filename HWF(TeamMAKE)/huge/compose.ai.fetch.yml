@@ -1,0 +1,15 @@
+# 모델을 내려받는 동안만 AI 상자에 밖으로 나가는 망을 붙인다. scripts/fetch-models.sh 전용
+networks:
+  front: { external: true, name: huge-front }
+
+services:
+  stt:
+    environment: { HF_HUB_OFFLINE: "0" }
+    networks: [front]
+  embed:
+    environment: { HF_HUB_OFFLINE: "0" }
+    networks: [front]
+  tts:
+    networks: [front]
+  ocr:
+    networks: [front]

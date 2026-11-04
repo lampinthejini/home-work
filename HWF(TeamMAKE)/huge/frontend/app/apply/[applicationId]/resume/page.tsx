@@ -21,11 +21,18 @@ const STAGES = [
     { key: "uploaded", label: "업로드" }, { key: "checking", label: "파일 확인" }, { key: "ocr", label: "글자 인식(OCR)" },
     { key: "structuring", label: "AI 정보 추출" },
 ];
+const MAX_PDF_BYTES = 50 * 1024 * 1024; // 서버 upload_max_mb
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // OCR 서비스 상한
 const FAIL_TEXT: Record<string, string> = {
     NO_TEXT: "파일에서 글자를 찾지 못했습니다.",
     LOW_CONFIDENCE: "글자를 알아보기 어렵습니다. 더 선명한 파일로 올려 주세요.",
     TIMEOUT: "처리 시간이 너무 오래 걸렸습니다.",
     UNSUPPORTED_FILE: "PDF·JPG·PNG 파일만 올릴 수 있습니다.",
+    FILE_TOO_LARGE: "파일이 너무 커서 받을 수 없습니다. 용량을 줄여 다시 올려 주세요.",
+    PDF_ENCRYPTED: "암호가 걸린 PDF입니다. 암호를 푼 파일로 다시 올려 주세요.",
+    PDF_BROKEN: "파일이 손상되어 열 수 없습니다. 원본에서 PDF로 다시 저장해 올려 주세요.",
+    PDF_TOO_COMPLEX: "파일이 너무 복잡해 읽지 못했습니다. PDF로 다시 저장하거나 사진으로 올려 주세요.",
+    OCR_FAILED: "글자 인식을 끝내지 못했습니다. 잠시 뒤 다시 올려 주세요.",
 };
 
 function ResumeMethod() {
@@ -96,6 +103,11 @@ function ResumeMethod() {
     }, [upload, app.application_id, proceed]);
 
     async function sendFile(file: File) {
+        // 큰 파일은 보내기 전에 거절한다. 서버가 도중에 끊으면 브라우저에 원인이 남지 않는다
+        if (file.size > (file.type === "application/pdf" ? MAX_PDF_BYTES : MAX_PHOTO_BYTES)) {
+            setFailed(FAIL_TEXT.FILE_TOO_LARGE);
+            return;
+        }
         setBusy(true);
         setFailed(null);
         setStatus(null);

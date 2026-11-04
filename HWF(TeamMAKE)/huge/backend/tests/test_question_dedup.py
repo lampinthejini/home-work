@@ -1,5 +1,9 @@
 """질문 10개 안에 같은 질문이 두 번 나오지 않게 하는 비교."""
 
+import pytest
+
+from app.models import AuditLog, Question
+from app.services import question_bank, rag
 from app.services.question_compose import isRepeat, sameText
 
 
@@ -38,3 +42,35 @@ def test_loadMarksExistingCompanyQuestionsExcluded(sessionFactory):
         db.commit()
         assert question_bank.excludeOtherCompanies(db) == 1
         assert [q.status for q in db.query(Question).order_by(Question.id)] == ["excluded", "active"]
+
+
+def test_pickDuplicatesKeepsEarlierAndChainsOnlyThroughKept():
+    # 2 는 1 과 겹쳐 빠지고, 3 은 빠진 2 하고만 겹치므로 남는다. 5 는 남은 것 중 가장 비슷한 4 를 기록한다
+    pairs = [(1, 2, 0.9), (2, 3, 0.85), (1, 5, 0.81), (4, 5, 0.95)]
+    assert question_bank.pickDuplicates([1, 2, 3, 4, 5], pairs) == {2: (1, 0.9), 5: (4, 0.95)}
+
+
+def test_dedupeExcelExcludesOnlyActiveExcelAndIsRepeatable(sessionFactory, monkeypatch):
+    with sessionFactory() as db:
+        rows = [Question(source="excel", kind="job", text=f"질문 {i}", status="active", sheet="s", row_no=i) for i in range(2)]
+        generated = Question(source="generated", kind="job", text="AI 질문", status="active")
+        db.add_all([*rows, generated])
+        db.commit()
+        first, second, generatedId = rows[0].id, rows[1].id, generated.id
+
+        monkeypatch.setattr(rag, "supported", lambda s: True)
+        monkeypatch.setattr(rag, "similarPairs", lambda s, kind, threshold: [(first, second, 0.88)] if kind == "job" else [])
+        assert question_bank.dedupeExcel(db) == {"personality": 0, "company": 0, "job": 1}
+        assert (db.get(Question, first).status, db.get(Question, second).status) == ("active", "excluded")
+        assert db.get(Question, generatedId).status == "active"
+        log = db.query(AuditLog).filter_by(action="question.dedupe").one()
+        assert log.target == str(second) and log.detail["similar_to"] == first
+
+        monkeypatch.setattr(rag, "similarPairs", lambda s, kind, threshold: [])  # 빠진 질문은 다시 찾지 않는다
+        assert question_bank.dedupeExcel(db) == {"personality": 0, "company": 0, "job": 0}
+        assert db.query(AuditLog).filter_by(action="question.dedupe").count() == 1
+
+
+def test_dedupeExcelNeedsPostgres(sessionFactory):
+    with sessionFactory() as db, pytest.raises(RuntimeError):
+        question_bank.dedupeExcel(db)

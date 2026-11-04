@@ -9,15 +9,15 @@ LLM 정리는 설계상 채점용 LLM(8B, CPU)이 맡지만, 2단계 llm-eval �
 """
 
 import asyncio
-import io
+import json
 import logging
+import os
 import re
+import sys
 import time
 from dataclasses import dataclass
 
-import fitz  # PyMuPDF
 import httpx
-import pdfplumber
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -26,14 +26,18 @@ from ..config import ENV
 from ..models import ResumeUpload
 from ..settings_store import getSetting
 from ..timeutil import now
-from . import llm, storage
+from . import llm, pdf_box, storage
+from .pdf_box import isReadable  # noqa: F401 — 시험에서 쓴다
 
 log = logging.getLogger("huge.resume")
 
-SCANNED_PAGE_CHARS = 50
 MAX_TEXT_CHARS = 6000
-MAX_PAGES = 10
-RENDER_DPI = 200
+OCR_MAX_IMAGE_BYTES = 15 * 1024 * 1024  # OCR 서비스의 상한 (ai/ocr/server.py)
+BOX_COMMAND = [sys.executable, "-I", pdf_box.__file__]
+BOX_TIMEOUT_SEC = 30
+BOX_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")  # Windows 의 Python 은 SYSTEMROOT 가 있어야 뜬다
+BOX_SLOTS = asyncio.Semaphore(2)  # CPU 를 면접과 나눠 쓰므로 동시에 2개까지
+EXTRACT_SLOTS = asyncio.Semaphore(2)  # 파일을 메모리에 든 채 LLM 을 기다리므로 동시에 2건까지
 OCR_TIMEOUT_SEC = 60
 LOW_CONF = 0.80
 FAIL_CONF = 0.5  # OCR 로만 읽었는데 평균 신뢰도가 이보다 낮으면 실패 (API 명세서 LOW_CONFIDENCE)
@@ -41,10 +45,6 @@ PDF_MAGIC = b"%PDF-"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 JPG_MAGIC = b"\xff\xd8\xff"
 
-MEANINGFUL = re.compile(r"[가-힣A-Za-z0-9]")
-# 글꼴 정보가 깨진 PDF 에서 나오는 흔적: (cid:123), 대체 문자, 사용자 영역 문자, 라틴-1 깨짐(ÇÑ±¹ 같은 글자)
-GARBAGE = re.compile(r"\(cid:\d+\)|�|[-]")
-LATIN1_JUNK = re.compile(r"[À-ÿ]")
 
 
 def detectType(fileName: str, head: bytes) -> str | None:
@@ -61,15 +61,6 @@ def detectType(fileName: str, head: bytes) -> str | None:
 
 # ---------- ① 리더 ----------
 
-def isReadable(text: str) -> bool:
-    """쪽 글자를 믿을 수 있는지: 의미 있는 글자가 충분하고, 깨진 글자 흔적이 적어야 한다."""
-    meaningful = len(MEANINGFUL.findall(text))
-    if meaningful < SCANNED_PAGE_CHARS:
-        return False
-    junk = len(GARBAGE.findall(text)) + len(LATIN1_JUNK.findall(text))
-    return junk / meaningful < 0.05
-
-
 @dataclass
 class PageText:
     no: int
@@ -78,37 +69,47 @@ class PageText:
     confidence: float | None = None
 
 
-def readPages(data: bytes) -> list[PageText]:
-    pages: list[PageText] = []
-    with fitz.open(stream=data, filetype="pdf") as doc:
-        plumber = None
+class BoxError(Exception):
+    """code 는 업로드 응답의 오류 코드가 된다. 메시지는 내부 기록용."""
+
+    def __init__(self, message: str, code: str = "PDF_TOO_COMPLEX"):
+        super().__init__(message)
+        self.code = code
+
+
+EXIT_CODES = {pdf_box.EXIT_ENCRYPTED: "PDF_ENCRYPTED", pdf_box.EXIT_BROKEN: "PDF_BROKEN", pdf_box.EXIT_TOO_COMPLEX: "PDF_TOO_COMPLEX"}
+
+
+def boxEnv() -> dict[str, str]:
+    """비밀값을 물려주지 않는다."""
+    return {k: os.environ[k] for k in BOX_ENV_KEYS if k in os.environ}
+
+
+async def runBox(args: list[str], data: bytes) -> bytes:
+    """pdf_box 를 별도 프로세스로 돌린다. 시간을 넘기거나 비정상 종료하면 BoxError."""
+    async with BOX_SLOTS:
+        proc = await asyncio.create_subprocess_exec(*BOX_COMMAND, *args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                                                    stderr=asyncio.subprocess.DEVNULL, env=boxEnv())
         try:
-            for index, page in enumerate(doc):
-                if index >= MAX_PAGES:
-                    break
-                text = page.get_text("text", sort=True).strip()
-                if isReadable(text):
-                    pages.append(PageText(index + 1, text, "pymupdf"))
-                    continue
-                # 두 번째 리더: 표·특수 글꼴은 pdfplumber 가 더 잘 읽을 때가 있다
-                if plumber is None:
-                    plumber = pdfplumber.open(io.BytesIO(data))
-                second = (plumber.pages[index].extract_text() or "").strip()
-                if isReadable(second):
-                    pages.append(PageText(index + 1, second, "pdfplumber"))
-                else:
-                    pages.append(PageText(index + 1, "", "none"))
-        finally:
-            if plumber is not None:
-                plumber.close()
-    return pages
+            out, _ = await asyncio.wait_for(proc.communicate(data), BOX_TIMEOUT_SEC)
+        except asyncio.TimeoutError as exc:  # noqa: UP041 — 3.10(로컬 시험)에서는 내장 TimeoutError 와 다르다
+            proc.kill()
+            await proc.wait()
+            raise BoxError("timeout") from exc
+    if proc.returncode != 0:
+        raise BoxError(f"exit_{proc.returncode}", EXIT_CODES.get(proc.returncode, "PDF_TOO_COMPLEX"))
+    return out
 
 
-def countPages(data: bytes, contentType: str) -> tuple[int, int, str]:
+async def readPages(data: bytes) -> list[PageText]:
+    return [PageText(p["no"], p["text"], p["source"]) for p in json.loads(await runBox(["read"], data))]
+
+
+async def countPages(data: bytes, contentType: str) -> tuple[int, int, str]:
     """(글자 있는 쪽 수, OCR 이 필요한 쪽 수, 리더로 읽은 글자). 업로드 직후 예상 시간 계산에 쓴다."""
     if contentType != "application/pdf":
         return 0, 1, ""
-    pages = readPages(data)
+    pages = await readPages(data)
     textPages = [p for p in pages if p.source != "none"]
     return len(textPages), len(pages) - len(textPages), "\n\n".join(p.text for p in textPages)
 
@@ -119,9 +120,8 @@ def estimateSeconds(textPages: int, scannedPages: int, ocrSecPerPage: int, llmSe
 
 # ---------- ③ OCR ----------
 
-def renderPage(data: bytes, pageNo: int) -> bytes:
-    with fitz.open(stream=data, filetype="pdf") as doc:
-        return doc[pageNo - 1].get_pixmap(dpi=RENDER_DPI).tobytes("png")
+async def renderPage(data: bytes, pageNo: int) -> bytes:
+    return await runBox(["render", str(pageNo)], data)
 
 
 class OcrError(Exception):
@@ -143,7 +143,10 @@ async def ocrImage(image: bytes) -> dict:
 async def ocrPages(data: bytes, contentType: str, pageNos: list[int]) -> list[tuple[PageText, list[dict]]]:
     results = []
     for no in pageNos:
-        image = data if contentType != "application/pdf" else await asyncio.to_thread(renderPage, data, no)
+        try:
+            image = data if contentType != "application/pdf" else await renderPage(data, no)
+        except BoxError as exc:
+            raise OcrError(str(exc)) from exc
         out = await ocrImage(image)
         results.append((PageText(no, (out.get("text") or "").strip(), "ocr", float(out.get("confidence") or 0)), out.get("lines") or []))
     return results
@@ -324,6 +327,11 @@ def joined(pages: list[PageText]) -> str:
 
 
 async def runExtraction(uploadId: str) -> None:
+    async with EXTRACT_SLOTS:
+        await extractUpload(uploadId)
+
+
+async def extractUpload(uploadId: str) -> None:
     db = dbModule.SessionLocal()
     try:
         upload = db.get(ResumeUpload, uploadId)
@@ -338,11 +346,12 @@ async def runExtraction(uploadId: str) -> None:
         setStage(db, upload, "checking")
         data, _ = await asyncio.to_thread(storage.getObject, upload.file_key)
         isPdf = upload.content_type == "application/pdf"
-        pages = await asyncio.to_thread(readPages, data) if isPdf else [PageText(1, "", "none")]
+        pages = await readPages(data) if isPdf else [PageText(1, "", "none")]
 
         # ③ 리더 두 개로도 못 읽은 쪽·사진 → OCR
         ocrLines: list[dict] = []
         ocrConf: list[float] = []
+        ocrFailed = False
         unread = [p.no for p in pages if p.source == "none"]
         if unread:
             setStage(db, upload, "ocr")
@@ -353,9 +362,10 @@ async def runExtraction(uploadId: str) -> None:
                     ocrConf.append(page.confidence or 0)
             except OcrError as exc:
                 log.warning("ocr unavailable for upload %s: %s", uploadId, exc)
+                ocrFailed = True
         text = joined(pages)
         if not text.strip():
-            setStage(db, upload, "failed", fail_reason="NO_TEXT", finished_at=now())
+            setStage(db, upload, "failed", fail_reason="OCR_FAILED" if ocrFailed else "NO_TEXT", finished_at=now())
             return
         if all(p.source == "ocr" for p in pages if p.text) and ocrConf and sum(ocrConf) / len(ocrConf) < FAIL_CONF:
             setStage(db, upload, "failed", fail_reason="LOW_CONFIDENCE", finished_at=now())

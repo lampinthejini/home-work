@@ -16,8 +16,8 @@ from ..db import getDb
 from ..deps import requireAdmin
 from ..domain import status as st
 from ..errors import ApiError, notFound
-from ..models import Application, AuditLog, InterviewSession, JobPosting, Notification, Question, Result, StatsArchive, User
-from ..services import coding_bank
+from ..models import UNSCORED_CHECKS, Application, AuditLog, InterviewSession, JobPosting, Notification, Question, Result, StatsArchive, User
+from ..services import coding_bank, login_block
 from ..timeutil import asKst, iso, now
 
 router = APIRouter(prefix="/admin")
@@ -55,8 +55,8 @@ def compare(ids: str = Query(..., max_length=200), db: Session = Depends(getDb),
         items.append({
             "application_id": a.id, "name": a.user.name, "posting_id": a.posting_id, "posting_title": a.posting.title,
             "attempt_status": a.attempt_status, "analysis_status": a.analysis_status,
-            "decision": r.ai_decision if r else None, "total_score": score(r.total_score) if r else None,
-            "interview_score": score(r.interview_score) if r else None, "coding_score": score(r.coding_score) if r else None,
+            "decision": r.ai_decision if r else None, "total_score": score(r.total_score) if r and r.scored else None,
+            "interview_score": score(r.interview_score) if r and r.scored else None, "coding_score": score(r.coding_score) if r and r.scored else None,
             "pass_score": score(r.pass_score) if r else None, "item_scores": r.item_points if r else {},
             "strengths": r.strengths if r else [], "improvements": r.improvements if r else [],
         })
@@ -75,7 +75,7 @@ def passed(postingId: str, q: str | None = Query(None, max_length=50), db: Sessi
             .filter(Application.posting_id == p.id, Result.ai_decision == "pass")
             .order_by(Result.total_score.desc()).all())
     items = [{"application_id": a.id, "name": a.user.name, "email": a.user.email, "phone": a.user.phone,
-              "total_score": score(r.total_score), "decided_at": iso(r.decided_at), "purge_at": iso(a.purge_at)}
+              "total_score": score(r.total_score) if r.scored else None, "decided_at": iso(r.decided_at), "purge_at": iso(a.purge_at)}
              for a, r in rows if not q or q.strip() in a.user.name]
     undecided = (db.query(Application).filter(Application.posting_id == p.id, Application.attempt_status.in_(COUNTED),
                                               Application.analysis_status != "decided").count())
@@ -96,7 +96,7 @@ def stats(posting_id: str | None = None, db: Session = Depends(getDb), _admin: U
     apps = base.with_entities(Application.id, Application.posting_id, Application.attempt_status, Application.completed_at,
                               Application.end_detail).all()
     results = {row.application_id: row for row in db.query(Result.application_id, Result.total_score, Result.ai_decision, Result.item_points)
-               .join(scope, scope.c.id == Result.application_id)}
+               .join(scope, scope.c.id == Result.application_id).filter(Result.decision_check.notin_(UNSCORED_CHECKS))}
     sessions = Counter(dict(db.query(InterviewSession.application_id, func.count()).join(scope, scope.c.id == InterviewSession.application_id)
                             .group_by(InterviewSession.application_id).all()))
     titles = dict(db.query(JobPosting.id, JobPosting.title).all())
@@ -197,4 +197,13 @@ def opsStatus(db: Session = Depends(getDb), _admin: User = Depends(requireAdmin)
         "reserve_questions": [{"category": kind, "count": reserve.get(kind, 0), "below_minimum": reserve.get(kind, 0) < RESERVE_MINIMUM}
                               for kind in ("personality", "company", "resume", "job")],
         "coding_problems": dict(levels),
+        "login_blocks": [{"code": b.code, "fail_count": b.fail_count, "blocked_at": iso(b.blocked_at), "blocked_until": iso(b.blocked_until)}
+                         for b in login_block.activeBlocks(db)],
     }
+
+
+@router.post("/login-blocks/{code}/release", status_code=204)
+def releaseLoginBlock(code: str, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
+    if not login_block.release(db, code, admin.id):
+        raise notFound()
+    db.commit()

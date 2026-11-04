@@ -74,7 +74,7 @@ function NextStage() {
                             {shown.map((r) => (
                                 <tr key={r.application_id}>
                                     <td style={{ fontWeight: 600 }}>{r.name}</td><td className="small">{r.email}</td><td className="small">{r.phone ?? "—"}</td>
-                                    <td>{r.total_score}</td><td className="small">{dateOnly(r.decided_at)}</td>
+                                    <td>{r.total_score ?? "—"}</td><td className="small">{dateOnly(r.decided_at)}</td>
                                     <td><Link className="btn btn-secondary btn-sm" href={`/admin/applicants/${r.application_id}`}>상세</Link></td>
                                 </tr>
                             ))}

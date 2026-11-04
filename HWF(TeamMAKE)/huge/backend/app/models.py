@@ -40,6 +40,17 @@ class LoginSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class LoginBlock(Base):
+    """IP 별 로그인 실패. IP 원문은 두지 않는다. blocked_until 이 미래면 차단 중."""
+    __tablename__ = "login_blocks"
+    ip_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fail_count: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    code: Mapped[str | None] = mapped_column(String(6), nullable=True, index=True)
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class JobCode(Base):
     __tablename__ = "job_codes"
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -212,7 +223,7 @@ class Question(Base):
     sheet: Mapped[str | None] = mapped_column(String(64), nullable=True)
     row_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duplicate_group: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default="active")  # active · preparing · pending(검토 대기) · rejected · excluded(다른 회사명·무관 글)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active · preparing · pending(검토 대기) · rejected · excluded(다른 회사명·무관 글·중복)
     answer_seconds: Mapped[int] = mapped_column(Integer, default=90)
     eval_items: Mapped[list] = mapped_column(JSON, default=list)
 
@@ -373,6 +384,10 @@ class AuditLog(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+# 채점 점수가 없는 결과: 관리자 수동 결정 · 3일 안에 평가를 못 끝낸 건 (CONFLICTS U8). 점수 칸은 0 이지만 보이지 않고 통계에도 넣지 않는다
+UNSCORED_CHECKS = ("manual", "incomplete")
+
+
 class Result(Base):
     """지원 1건의 최종 점수와 결정 (테이블 정의서 4-12). 확정 뒤 고치지 않는다.
 
@@ -400,6 +415,10 @@ class Result(Base):
     rubric_version: Mapped[str] = mapped_column(String(80))
     public_view: Mapped[dict] = mapped_column(EncryptedJson)
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    @property
+    def scored(self) -> bool:
+        return self.decision_check not in UNSCORED_CHECKS
 
 
 class ItemScore(Base):
@@ -484,7 +503,7 @@ CHECK_VALUES: dict[tuple[str, str], tuple[str, ...]] = {
     ("highlights", "eval_item"): EVAL_ITEM_VALUES,
     ("highlights", "kind"): ("good", "deducted"),
     ("results", "ai_decision"): ("pass", "fail"),
-    ("results", "decision_check"): ("ok", "rejudged"),
+    ("results", "decision_check"): ("ok", "rejudged", "manual", "incomplete"),
     ("notifications", "email_status"): ("pending", "sent", "deferred", "failed", "skipped"),
     ("deletion_logs", "cause"): ("retention", "withdraw", "consent"),
     ("deletion_logs", "scope"): ("recording", "interview_data", "account"),

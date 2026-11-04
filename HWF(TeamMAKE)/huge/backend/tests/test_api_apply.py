@@ -7,7 +7,7 @@ from app.routers import interview as interviewRouter
 from app.services import admission
 from app.timeutil import now
 
-CONSENT = {"consent_version": "v1.3", "items": {"data_collection": True, "ai_decision": True, "share_with_admin": True,
+CONSENT = {"consent_version": "v1.7", "items": {"data_collection": True, "ai_decision": True, "share_with_admin": True,
                                                 "retention": True, "exam_rules": True}}
 RESUME = {"method": "manual", "resume": {
     "name": "김지원",
@@ -49,7 +49,7 @@ def test_resumeBeforeConsentRejected(adminClient):
 def test_partialConsentRejected(adminClient):
     client, postingId = asApplicant(adminClient)
     appId = client.post("/applications", json={"posting_id": postingId}).json()["application_id"]
-    body = {"consent_version": "v1.3", "items": {**CONSENT["items"], "retention": False}}
+    body = {"consent_version": "v1.7", "items": {**CONSENT["items"], "retention": False}}
     assert client.post(f"/applications/{appId}/consent", json=body).json()["code"] == "AGREEMENT_REQUIRED"
 
 

@@ -28,6 +28,8 @@ STATEMENTS = [
 ]
 # 테이블 정의서에 맞춘 덧붙이기 (CONFLICTS.md T19·T22·T25·T28·T32·T34·T35, 2026-11-02)
 ALIGN_STATEMENTS = [
+    # 값 목록이 늘어서 지우면 addChecks 가 새 목록으로 다시 만든다 (CONFLICTS U8)
+    "ALTER TABLE results DROP CONSTRAINT IF EXISTS ck_results_decision_check",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()",
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS needs_review_since timestamptz",

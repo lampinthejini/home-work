@@ -1,3 +1,5 @@
+import asyncio
+
 import fitz
 
 from app.services import resume_extract as rx
@@ -21,14 +23,14 @@ def test_isReadable():
 def test_readPagesUsesReaderThenMarksBlankPage():
     doc = fitz.open(stream=makePdf(["성명: 홍길동", "학력: 한국대학교 컴퓨터공학과 학사 2015-03 ~ 2019-02", "기술: Python PyTorch LangChain"]))
     doc.new_page()  # 글자 없는 쪽 (스캔 쪽처럼)
-    pages = rx.readPages(doc.tobytes())
+    pages = asyncio.run(rx.readPages(doc.tobytes()))
     assert [p.source for p in pages] == ["pymupdf", "none"]
     assert "홍길동" in pages[0].text
-    assert rx.countPages(doc.tobytes(), "application/pdf")[:2] == (1, 1)
+    assert asyncio.run(rx.countPages(doc.tobytes(), "application/pdf"))[:2] == (1, 1)
 
 
 def test_imageNeedsOcr():
-    assert rx.countPages(b"\x89PNG", "image/png") == (0, 1, "")
+    assert asyncio.run(rx.countPages(b"\x89PNG", "image/png")) == (0, 1, "")
 
 
 def test_missingFields():
@@ -117,9 +119,9 @@ def test_photoUsesOcr(sessionFactory, monkeypatch):
     assert upload.result["_ocr"]["confidence"] == 0.7
 
 
-def test_photoWithOcrDownFailsAsNoText(sessionFactory, monkeypatch):
+def test_photoWithOcrDownSaysOcrFailed(sessionFactory, monkeypatch):
     upload, _, _ = runFlow(sessionFactory, monkeypatch, b"\x89PNG", "image/png", [{}], ocrOk=False)
-    assert upload.stage == "failed" and upload.fail_reason == "NO_TEXT"
+    assert upload.stage == "failed" and upload.fail_reason == "OCR_FAILED"
 
 
 

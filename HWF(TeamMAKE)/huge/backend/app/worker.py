@@ -5,6 +5,7 @@
 실행: celery -A app.worker worker -Q evaluate -c 1 / -Q default / -Q sandbox -c 2 · celery -A app.worker beat
 정해진 시각 작업은 모두 한국 시간.
   5분마다: 끝났는데 채점이 없거나 멈춘 건 다시 넣기(AC-17) · 공개 시각이 지난 결과 공개
+           평가 지연 건 6시간마다 재채점, 3일 뒤 재채점까지 실패하면(늦어도 7일) 평가 미완료 불합격
   매시 정각: 마감 3일·1일 전 미응시 안내 · 결과 보기 끝나기 2일 전 안내 · 마감 1일 전 관리자 안내
   매시 30분: 응시 끝 + 3일이 지난 녹화 삭제
   매일 03:00: 보관 기간이 지난 면접 데이터 삭제 · 매일 09:00: 이틀 뒤 삭제될 건 관리자 안내 (공고별 한 통)
@@ -13,7 +14,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import redis
 from celery import Celery
@@ -24,7 +25,7 @@ from . import db as dbModule
 from .config import ENV
 from .domain import status as st
 from .models import Application, JobPosting, Result
-from .services import coding, evaluation, notify, retention, sandbox_runner
+from .services import coding, evaluation, llm, login_block, notify, retention, sandbox_runner
 from .timeutil import asKst, now
 
 log = logging.getLogger("huge.worker")
@@ -41,6 +42,10 @@ AI_DOWN_DELAY_SEC = 60
 CODING_WAIT_SEC = 30
 LOCK_TTL_SEC = 40 * 60
 QUEUED_GRACE_SEC = 120
+SWEEP_LAST_KEY = "sweep:last"
+SWEEP_GRACE_KEY = "sweep:grace"  # 서비스가 멈췄다 돌아온 뒤 관리자에게 주는 시간
+SWEEP_GAP_SEC = 3600  # 5분 점검이 이만큼 안 돌았으면 서비스가 멈춰 있던 것으로 본다
+DOWN_GRACE_SEC = 24 * 3600
 
 celery = Celery("huge", broker=ENV.redisUrl)
 celery.conf.update(
@@ -139,7 +144,6 @@ def evaluationStartedAt(applicationId: str, completedAt) -> object:
     """30분 한도를 재는 기준 시각: 다시 돌리기를 눌렀으면 그때, 아니면 응시 끝난 때."""
     raw = _redis.get(sinceKey(applicationId))
     if raw:
-        from datetime import datetime
         return datetime.fromisoformat(raw.decode())
     return asKst(completedAt) or now()
 
@@ -149,8 +153,9 @@ def toNeedsReview(applicationId: str, reason: str) -> None:
         log.warning("application %s needs review: %s", applicationId, reason)
         db = dbModule.SessionLocal()
         try:
-            rows = [(adminId, "needs_review", "평가가 지연된 지원 건이 있습니다 (확인 필요)", f"/admin/applicants/{applicationId}", applicationId)
-                    for adminId in notify.adminIds(db)]
+            # 자동 재채점이 또 실패해도 같은 건을 다시 알리지 않는다
+            rows = [(adminId, "needs_review", "평가가 지연된 지원 건이 있습니다", f"/admin/applicants/{applicationId}", applicationId)
+                    for adminId in notify.adminIds(db) if not notify.exists(db, adminId, "needs_review", applicationId)]
         finally:
             db.close()
         notifyMany(rows)
@@ -249,19 +254,71 @@ def releaseDue(db) -> list[str]:
     return [n.id for n in created]
 
 
+def noteSweep() -> bool:
+    """이번 점검 시각을 남긴다. 서비스가 멈췄다 돌아온 지 24시간 안이면 True."""
+    current = now()
+    last = _redis.get(SWEEP_LAST_KEY)
+    if last is None or (current - datetime.fromisoformat(last.decode())).total_seconds() > SWEEP_GAP_SEC:
+        _redis.set(SWEEP_GRACE_KEY, "1", ex=DOWN_GRACE_SEC)
+    _redis.set(SWEEP_LAST_KEY, current.isoformat())
+    return bool(_redis.exists(SWEEP_GRACE_KEY))
+
+
+def aiReady() -> bool:
+    return all(asyncio.run(llm.health(lane=lane)) for lane in ("rt", "eval"))
+
+
+def settleReviews(db) -> tuple[list[str], list[str]]:
+    """평가 지연 건을 재채점하거나 닫는다. (닫은 건, 다시 넣을 건). 재채점 건의 사유·시각은 남겨 기한이 늘어나지 않게 한다.
+
+    AI 가 멈췄거나 PC 가 꺼져 있었던 일로 재채점 기회 없이 불합격되지 않게, 기한이 지나도 AI 가 정상일 때
+    재채점까지 실패해야 닫는다. 채점 지시 의심 건은 재채점하지 않고, 멈췄다 돌아온 뒤 관리자에게 24시간을 더 준다.
+    """
+    recovering = noteSweep()
+    rows = db.query(Application).filter(Application.analysis_status == "needs_review", Application.needs_review_since.is_not(None)).with_for_update().all()
+    current = now()
+    ready = aiReady() if any(a.review_reason != evaluation.INSTRUCTION_REASON for a in rows) else False
+    closed, retried = [], []
+    for app in rows:
+        age = current - asKst(app.needs_review_since)
+        overdue = age >= timedelta(days=evaluation.REVIEW_DEADLINE_DAYS)
+        if age >= timedelta(days=evaluation.REVIEW_LIMIT_DAYS):
+            close = True
+        elif app.review_reason == evaluation.INSTRUCTION_REASON:
+            close = overdue and not recovering
+        else:
+            key = f"eval:review-retry:{app.id}"
+            if not ready or age < timedelta(hours=evaluation.REVIEW_RETRY_HOURS):
+                continue
+            close = overdue and bool(_redis.exists(key))
+            if not close and _redis.set(key, "1", nx=True, ex=evaluation.REVIEW_RETRY_HOURS * 3600):
+                app.analysis_status = "pending"
+                retried.append(app.id)
+        if close and evaluation.closeIncomplete(db, app):
+            closed.append(app.id)
+    db.commit()
+    return closed, retried
+
+
 @celery.task(name="huge.sweep")
 def sweepTask() -> dict:
     db = dbModule.SessionLocal()
     try:
-        missing = findUnscored(db)
+        closed, retried = settleReviews(db)
+        missing = [appId for appId in findUnscored(db) if appId not in retried]
         released = releaseDue(db)
+        closedRows = [(adminId, "needs_review", "평가를 끝내지 못한 지원 건이 불합격 처리되었습니다", f"/admin/applicants/{appId}", appId)
+                      for appId in closed for adminId in notify.adminIds(db)]
     finally:
         db.close()
+    notifyMany(closedRows)
+    for appId in retried:
+        requestReprocess(appId)
     for appId in missing:
         enqueueEvaluation(appId)
     for notificationId in released:
         queueMail(notificationId)
-    return {"requeued": len(missing), "released": len(released)}
+    return {"requeued": len(missing), "released": len(released), "retried": len(retried), "auto_failed": len(closed)}
 
 
 def reminderRows(db) -> list[tuple]:
@@ -281,6 +338,12 @@ def reminderRows(db) -> list[tuple]:
                     for adminId in notify.adminIds(db):
                         if not notify.exists(db, adminId, "posting_closing", None, adminTitle):
                             rows.append((adminId, "posting_closing", adminTitle, f"/admin/applicants?posting={posting.id}", None))
+    for app in db.query(Application).filter(Application.analysis_status == "needs_review", Application.needs_review_since.is_not(None)).all():
+        left = evaluation.reviewDeadline(app) - current
+        title = f"[{app.posting.title}] 평가 지연 건을 24시간 안에 결정하지 않으면 불합격 처리될 수 있습니다"
+        if timedelta(0) < left <= timedelta(days=1):
+            rows += [(adminId, "needs_review", title, f"/admin/applicants/{app.id}", app.id)
+                     for adminId in notify.adminIds(db) if not notify.exists(db, adminId, "needs_review", app.id, title)]
     for app in db.query(Application).filter(Application.release_status == "released", Application.purge_at.is_not(None)).all():
         left = asKst(app.purge_at) - current
         if timedelta(days=2) - timedelta(hours=1) < left <= timedelta(days=2) and not notify.exists(db, app.user_id, "result_expiring", app.id):
@@ -344,6 +407,8 @@ def purgeTask() -> int:
     db = dbModule.SessionLocal()
     try:
         done = retention.purgeDue(db, _redis)
+        login_block.purgeExpired(db)
+        db.commit()
     finally:
         db.close()
     log.info("purged %d applications", len(done))

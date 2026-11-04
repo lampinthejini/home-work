@@ -17,13 +17,13 @@ type ScoreRow = { item: string; score: number; quote: string | null; quote_verif
 type Highlight = { seq: number | null; kind: "good" | "deducted"; item: string; start_ms: number; end_ms: number; quote: string; media_url: string | null };
 type ResultView = {
     decision: "pass" | "fail"; reason: string; quotes: string[]; item_scores: Record<string, string>;
-    interview_score: string; coding_score: string | null; total_score: string; pass_score: string;
+    interview_score: string | null; coding_score: string | null; total_score: string | null; pass_score: string;
     strengths: string[]; improvements: string[]; summary: string | null; decision_check: string;
     model_version: string; prompt_version: string; rubric_version: string; decided_at: string;
 };
 type Detail = {
     application_id: string; applicant: { name: string; email: string; phone: string }; posting: AdminPosting;
-    attempt_status: AttemptStatus; analysis_status: string; review_reason: string | null; release_at: string | null;
+    attempt_status: AttemptStatus; analysis_status: string; review_reason: string | null; release_at: string | null; review_deadline: string | null;
     result: ResultView | null; highlights: Highlight[]; instruction_hits: { seq: number; phrase: string }[];
     resume: Record<string, unknown> | null; resume_method: string | null;
     edited_fields: string[] | null; submitted_at: string | null; completed_at: string | null;
@@ -149,8 +149,31 @@ function ScoreBar({ value }: { value: number }) {
     );
 }
 
-/** 판정 카드: 결과·총점·기준·이유. 결정을 바꾸는 버튼은 없다 (EVL-05, AC-14). 확인 필요면 [다시 돌리기]만 */
-function DecisionCard({ d, onReprocess, busy }: { d: Detail; onReprocess: () => void; busy: boolean }) {
+/** 자동 채점을 끝내지 못한 건만 관리자가 정한다 (CONFLICTS U8). 자동 채점 결과는 여기서 바꿀 수 없다 */
+function ManualDecision({ deadline, onDecide, busy }: { deadline: string | null; onDecide: (decision: "pass" | "fail", reason: string) => void; busy: boolean }) {
+    const [reason, setReason] = useState("");
+    const [confirm, setConfirm] = useState<"pass" | "fail" | null>(null);
+    const ready = reason.trim().length >= 10;
+    return (
+        <div className="stack" style={{ gap: 6 }}>
+            <strong className="small">직접 결정{deadline && ` · ${longDateTime(deadline)}까지 결정하지 않으면 재채점 실패 시 평가 미완료로 불합격 처리됩니다`}</strong>
+            <textarea rows={3} maxLength={1000} aria-label="결정 사유" placeholder="응시 자료를 확인한 내용과 결정 사유를 10자 이상 적어 주세요. 관리자에게만 보입니다." value={reason} onChange={(e) => setReason(e.target.value)} />
+            <div className="row">
+                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("pass")}>1차 합격으로 결정</Button>
+                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("fail")}>1차 불합격으로 결정</Button>
+            </div>
+            {confirm && (
+                <Modal title={`1차 ${confirm === "pass" ? "합격" : "불합격"}으로 결정할까요?`} onClose={() => setConfirm(null)}
+                    actions={<><Button kind="secondary" onClick={() => setConfirm(null)}>취소</Button><Button busy={busy} onClick={() => { onDecide(confirm, reason.trim()); setConfirm(null); }}>결정</Button></>}>
+                    <p>결정하면 바꿀 수 없습니다. 담당자가 정한 결과로 기록되고 지원자에게도 그렇게 안내됩니다.</p>
+                </Modal>
+            )}
+        </div>
+    );
+}
+
+/** 판정 카드: 결과·총점·기준·이유. 자동 채점 결과를 바꾸는 버튼은 없다 (EVL-05, AC-14). 확인 필요면 [다시 돌리기]와 직접 결정 */
+function DecisionCard({ d, onReprocess, onDecide, busy }: { d: Detail; onReprocess: () => void; onDecide: (decision: "pass" | "fail", reason: string) => void; busy: boolean }) {
     const c = d.posting.criteria;
     const r = d.result;
     return (
@@ -159,10 +182,12 @@ function DecisionCard({ d, onReprocess, busy }: { d: Detail; onReprocess: () => 
                 <strong>AI 1차 판정</strong>
                 {r?.decision === "pass" && <span className="badge badge-green">1차 합격</span>}
                 {r?.decision === "fail" && <span className="badge badge-gray">1차 불합격</span>}
-                {!r && d.analysis_status === "needs_review" && <span className="badge badge-orange">평가 지연 (확인 필요)</span>}
+                {!r && d.analysis_status === "needs_review" && <span className="badge badge-orange">평가 지연</span>}
                 {!r && d.analysis_status !== "needs_review" && <span className="badge badge-gray">판정 전</span>}
-                {r && <span className="small">총점 <strong>{r.total_score}</strong> / 기준 {r.pass_score}</span>}
-                {r && <span className="small muted">AI 면접 {r.interview_score}{r.coding_score != null && ` · 코딩 ${r.coding_score}`}</span>}
+                {r?.decision_check === "manual" && <span className="badge badge-orange">담당자 결정</span>}
+                {r?.decision_check === "incomplete" && <span className="badge badge-orange">평가 미완료</span>}
+                {r?.total_score != null && <span className="small">총점 <strong>{r.total_score}</strong> / 기준 {r.pass_score}</span>}
+                {r?.total_score != null && <span className="small muted">AI 면접 {r.interview_score}{r.coding_score != null && ` · 코딩 ${r.coding_score}`}</span>}
             </div>
             {r && (
                 <>
@@ -181,6 +206,7 @@ function DecisionCard({ d, onReprocess, busy }: { d: Detail; onReprocess: () => 
                     <Button kind="secondary" busy={busy} onClick={onReprocess}>{d.review_reason === "instruction_suspected" ? "확인했습니다, 채점하기" : "다시 돌리기"}</Button>
                 </div>
             )}
+            {!r && d.analysis_status === "needs_review" && <ManualDecision deadline={d.review_deadline} onDecide={onDecide} busy={busy} />}
             {d.instruction_hits.length > 0 && (
                 <div className="notice notice-warn small">
                     ⚠ 답변에 채점을 바꾸려는 말로 보이는 구절이 있습니다. AI는 이런 지시를 따르지 않도록 되어 있지만, 점수가 흔들렸을 수 있으니 답변을 직접 확인해 주세요.
@@ -357,6 +383,19 @@ function ApplicantDetail() {
         }
     }
 
+    async function decide(decision: "pass" | "fail", reason: string) {
+        setBusy(true);
+        try {
+            await api(`/admin/analysis/${applicationId}/decision`, { body: { decision, reason } });
+            toast("info", "결정을 저장했습니다");
+            load();
+        } catch (err) {
+            toast("error", (err as ApiError).message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
     // 하이라이트: 그 구간부터 재생 (ADM-04)
     function playFrom(h: Highlight) {
         setTab("qa");
@@ -387,7 +426,7 @@ function ApplicantDetail() {
                 <span className="muted small">{d.applicant.email} · {d.applicant.phone} · 지원 {dateOnly(d.submitted_at)}</span>
                 <StatusBadge status={d.attempt_status} />
             </div>
-            <DecisionCard d={d} onReprocess={reprocess} busy={busy} />
+            <DecisionCard d={d} onReprocess={reprocess} onDecide={decide} busy={busy} />
             <div className="tabs" role="tablist">
                 {tabs.map((t) => <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>{t.label}</button>)}
             </div>

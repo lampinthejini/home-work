@@ -192,6 +192,37 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
         assert picked is not None and picked.id != first.id
 
 
+@pytest.mark.parametrize(("similarity", "lastText", "regenCount"), [
+    (0.95, "회사 질문 셋째", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
+    (0.85, "회사 질문 둘째", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (질문 관리에만 넣지 않는다)
+])
+def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, monkeypatch, similarity, lastText, regenCount):
+    fake = world()
+    base = [0.0] * rag.EMBED_DIM
+    base[900] = 1.0
+    near = [0.0] * rag.EMBED_DIM
+    near[900], near[901] = similarity, math.sqrt(1 - similarity ** 2)
+    vectors = {"회사 질문 첫째": base, "회사 질문 둘째": near}
+    realEmbed, realStructured = fake.embed, fake.structured
+    companyTexts = iter(["회사 질문 첫째", "회사 질문 둘째", "회사 질문 셋째"])
+
+    async def embed(texts, timeoutSec=10):
+        return [vectors.get(t) or (await realEmbed([t]))[0] for t in texts]
+
+    async def structured(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        if user.startswith("[만들 질문] 회사"):
+            return schema(question=next(companyTexts), task_count=1)
+        return await realStructured(schema, system, user, timeoutSec, maxTokens, temperature, lane)
+
+    monkeypatch.setattr(rag, "embed", embed)
+    monkeypatch.setattr(llm, "structured", structured)
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    rows = composed(sessionFactory, appId)
+    assert len(rows) == 10
+    assert (rows[-1].text, rows[-1].source, rows[-1].regen_count) == (lastText, "generated", regenCount)
+
+
 def test_answerFormatWordsInQuestionAreRejected():
     out = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정하는 기준을 90초 내에 한 문장으로 설명해 주세요?", task_count=1)
     assert question_compose.checkGenerated("job", out, "") == "meta_phrase"
@@ -270,6 +301,18 @@ def test_generatedQuestionsSavedForReviewExceptResume(sessionFactory, world):
     asyncio.run(question_compose.compose(secondId))
     texts = [q.text for q in pendingQuestions(sessionFactory)]
     assert len(texts) == len(set(texts))  # 같은 질문은 두 번 넣지 않는다
+
+
+@pytest.mark.parametrize(("stored", "saved"), [(0.85, False), (0.75, True)])
+def test_savePendingSkipsQuestionSimilarToStored(sessionFactory, world, monkeypatch, stored, saved):
+    world()
+    monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: stored)
+    appId = makeApplication(sessionFactory)
+    text = "우리 회사에서 해 보고 싶은 일은 무엇인가요?"
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        question_compose.savePending(db, app, [{"source": "generated", "qtype": "company", "text": text, "vector": fakeVector(text)}])
+    assert bool(pendingQuestions(sessionFactory)) is saved
 
 
 def test_personalGeneratedQuestionNotSaved(sessionFactory):

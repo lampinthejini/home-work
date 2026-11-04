@@ -1,10 +1,12 @@
 """API 테스트: SQLite 메모리 DB + fakeredis. 외부 AI·저장소는 부르지 않는다."""
 
+import base64
 import os
 
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["APP_PROFILE"] = "dev"
-os.environ.pop("APP_ENCRYPTION_KEY", None)
+os.environ["TRUSTED_PROXY_HOST"] = ""  # 시험에는 frontend 가 없다. 이름 찾기로 로그인마다 몇 초씩 기다리지 않게 한다
+os.environ["APP_ENCRYPTION_KEY"] = base64.b64encode(b"t" * 32).decode()  # 시험 전용 키
 
 from datetime import timedelta  # noqa: E402
 

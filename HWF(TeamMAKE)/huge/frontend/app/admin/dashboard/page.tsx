@@ -23,6 +23,7 @@ type Ops = {
     questions: { bank: number; reserve_total: number };
     reserve_questions: { category: string; count: number; below_minimum: boolean }[];
     coding_problems: Record<string, number>;
+    login_blocks: { code: string; fail_count: number; blocked_at: string; blocked_until: string }[];
 };
 
 function Bars({ data, label }: { data: { name: string; value: number }[]; label: string }) {
@@ -86,6 +87,16 @@ function Dashboard() {
         }
     }
 
+    async function releaseBlock(code: string) {
+        try {
+            await api(`/admin/login-blocks/${code}/release`, { method: "POST" });
+            toast("ok", "차단을 해제했습니다");
+            await load();
+        } catch (err) {
+            toast("error", (err as ApiError).message);
+        }
+    }
+
     if (error) return <ErrorBox message={error} onRetry={load} />;
     if (!stats || !ops) return <Loading />;
     const empty = stats.taken === 0;
@@ -125,9 +136,9 @@ function Dashboard() {
 
             <h2 style={{ margin: "16px 0 0" }}>운영 현황</h2>
             <div className="card stack">
-                {ops.needs_review.length === 0 ? <div>✓ 확인 필요한 분석이 없습니다</div> : (
+                {ops.needs_review.length === 0 ? <div>✓ 평가 지연 건이 없습니다</div> : (
                     <div>
-                        <strong>⚠ 분석 확인 필요 {ops.needs_review.length}건</strong>
+                        <strong>⚠ 평가 지연 {ops.needs_review.length}건</strong>
                         {ops.needs_review.map((r) => (
                             <div key={r.application_id} className="row between small" style={{ padding: "6px 0" }}>
                                 <span>{r.name} · {r.posting_title} · {shortDateTime(r.since)}부터 — {REVIEW_REASON[r.reason ?? ""] ?? "자동 채점을 끝내지 못했습니다"}</span>
@@ -136,6 +147,18 @@ function Dashboard() {
                                     {r.reason !== "instruction_suspected" && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReprocess(r)}>재처리</button>}
                                     <Link className="btn btn-secondary btn-sm" href={`/admin/applicants/${r.application_id}`}>상세</Link>
                                 </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <hr style={{ border: 0, borderTop: "1px solid var(--color-line)", width: "100%" }} />
+                {ops.login_blocks.length === 0 ? <div>✓ 로그인 차단 중인 곳이 없습니다</div> : (
+                    <div>
+                        <strong>🔒 로그인 차단 {ops.login_blocks.length}곳</strong>
+                        {ops.login_blocks.map((b) => (
+                            <div key={b.code} className="row between small" style={{ padding: "6px 0" }}>
+                                <span>문의 코드 {b.code} · {shortDateTime(b.blocked_at)} 차단 · {shortDateTime(b.blocked_until)}에 자동 해제</span>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => void releaseBlock(b.code)}>해제</button>
                             </div>
                         ))}
                     </div>
@@ -171,7 +194,7 @@ function Dashboard() {
                         <Button busy={busy} onClick={runReprocess}>다시 돌리기</Button>
                     </>
                 )}>
-                    <p>{reprocess.name} 님의 응시 자료로 처음부터 다시 채점합니다. 판정을 사람이 고치지는 않습니다.</p>
+                    <p>{reprocess.name} 님의 응시 자료로 처음부터 다시 채점합니다. 3일 기한은 늘어나지 않으며, 합격·불합격을 직접 정하려면 지원자 상세로 가 주세요.</p>
                 </Modal>
             )}
         </div>

@@ -35,6 +35,8 @@ export async function applyAndStartInterview(page: Page, email: string, password
     });
 
     await test.step("동의 5개", async () => {
+        await expect(page.getByText("카메라 녹화(영상과 마이크 소리)")).toBeVisible();
+        await expect(page.getByText(/2회 응시 취소 · 연결이 끊기면 이어가기 3회까지/)).toBeVisible();
         const next = page.getByRole("button", { name: "동의하고 다음 ▶" });
         await expect(next).toBeDisabled();
         await page.getByLabel("전체 동의").check();

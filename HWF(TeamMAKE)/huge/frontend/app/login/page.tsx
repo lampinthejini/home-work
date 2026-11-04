@@ -8,7 +8,6 @@ import { HugeLogo, Mascot, TeamCredit } from "@/components/Brand";
 import { useApp } from "@/components/Providers";
 import { Field } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
-import { mmss } from "@/lib/format";
 
 type LoginResponse = { role: "applicant" | "admin"; redirect: string };
 
@@ -21,21 +20,11 @@ function LoginForm() {
     const [password, setPassword] = useState("");
     const [show, setShow] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [lockedUntil, setLockedUntil] = useState<number | null>(null);
-    const [nowMs, setNowMs] = useState(() => Date.now());
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
         if (meLoaded && me) router.replace(me.role === "admin" ? "/admin/postings" : "/jobs");
     }, [me, meLoaded, router]);
-
-    useEffect(() => {
-        if (!lockedUntil) return;
-        const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
-        return () => window.clearInterval(timer);
-    }, [lockedUntil]);
-
-    const lockLeft = lockedUntil ? Math.max(0, (lockedUntil - nowMs) / 1000) : 0;
 
     async function submit(event: React.FormEvent) {
         event.preventDefault();
@@ -50,21 +39,11 @@ function LoginForm() {
             await refreshMe();
             router.replace(res.redirect);
         } catch (err) {
-            const e = err as ApiError;
-            if (e.code === "ACCOUNT_LOCKED") {
-                const match = e.message.match(/\d{4}-\d{2}-\d{2}T[\d:]+[+-]\d{2}:\d{2}/);
-                setLockedUntil(match ? new Date(match[0]).getTime() : Date.now() + 600_000);
-                setNowMs(Date.now());
-                setError(null);
-            } else {
-                setError(e.code === "INVALID_CREDENTIALS" ? "이메일 또는 비밀번호가 올바르지 않습니다." : e.message);
-            }
+            setError((err as ApiError).message);
         } finally {
             setBusy(false);
         }
     }
-
-    const locked = lockLeft > 0;
 
     return (
         <main className="narrow">
@@ -88,12 +67,7 @@ function LoginForm() {
                         </div>
                     </Field>
                     {error && <div className="notice notice-error" role="alert">⚠ {error}</div>}
-                    {locked && (
-                        <div className="notice notice-error">
-                            <span role="alert">로그인을 5회 실패해 10분간 로그인할 수 없습니다.</span> <span aria-live="off">남은 시간 {mmss(lockLeft)}</span>
-                        </div>
-                    )}
-                    <button type="submit" className="btn btn-primary btn-lg" disabled={busy || locked} style={{ width: "100%" }}>
+                    <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: "100%" }}>
                         {busy && <span className="spinner" />}로그인
                     </button>
                 </form>

@@ -8,7 +8,7 @@ networks:
 
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://huge:${POSTGRES_PASSWORD}@postgres:5432/huge
-  REDIS_URL: redis://redis:6379/0
+  REDIS_URL: redis://:${REDIS_PASSWORD:?set in .env}@redis:6379/0
   S3_ENDPOINT: http://objectstore:9000
   LLM_RT_URL: http://llm-rt:8080/v1
   LLM_EVAL_URL: http://llm-eval:8080/v1
@@ -19,6 +19,8 @@ x-backend-env: &backend-env
   SMTP_HOST: mailpit
   SMTP_PORT: "1025"
   TZ: Asia/Seoul
+  # 로그인 차단 제외 IP(개발자). 기본값은 이 PC 에서 접속할 때 보이는 Docker 내부 주소다
+  LOGIN_EXEMPT_IPS: ${LOGIN_EXEMPT_IPS:-127.0.0.1/32,172.16.0.0/12}
 
 services:
   api:

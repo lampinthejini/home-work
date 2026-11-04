@@ -71,7 +71,7 @@ def myResult(applicationId: str, db: Session = Depends(getDb), user: User = Depe
         "status_reason": view.get("status_reason"),
         "strengths": view.get("strengths", []),
         "improvements": view.get("improvements", []),
-        "ai_generated": True,
+        "ai_generated": view.get("ai_generated", True),
         "contact_email": app.posting.contact_email,
         "result_until": iso(app.purge_at),
         "status": "released",

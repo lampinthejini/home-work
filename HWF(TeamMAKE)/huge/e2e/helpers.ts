@@ -155,3 +155,29 @@ export async function waitForMail(to: string, timeoutMs = 30_000): Promise<{ sub
         await ctx.dispose();
     }
 }
+
+/**
+ * 채점을 끝내지 못한 '확인 필요' 지원 건을 바로 만든다. 실제로 만들려면 AI 를 멈추고 30분을 기다려야 해서 상태만 넣는다.
+ * 돌려주는 값은 지원 번호.
+ */
+export function seedNeedsReview(email: string, postingId: string): string {
+    const script = [
+        "import os",
+        "from app.db import SessionLocal",
+        "from app.models import Application, EvaluationCriteria, User",
+        "from app.timeutil import now",
+        "db = SessionLocal()",
+        "user = db.query(User).filter_by(email=os.environ['E2E_EMAIL']).one()",
+        "criteria = db.query(EvaluationCriteria).filter_by(posting_id=os.environ['E2E_POSTING']).order_by(EvaluationCriteria.version.desc()).first()",
+        "app = Application(user_id=user.id, posting_id=os.environ['E2E_POSTING'], attempt_status='completed', submitted_at=now(), completed_at=now(),",
+        "                  criteria_version=criteria.version, analysis_status='needs_review', review_reason='analysis_timeout')",
+        "db.add(app)",
+        "db.commit()",
+        "print(app.id)",
+        "db.close()",
+    ].join("\n");
+    return execFileSync("docker", ["exec", "-e", `E2E_EMAIL=${email}`, "-e", `E2E_POSTING=${postingId}`, API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    }).toString().trim();
+}

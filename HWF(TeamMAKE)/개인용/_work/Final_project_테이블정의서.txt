@@ -1,0 +1,1844 @@
+
+<<PAGE 1>>
+TABLE DEFINITIONS · ERD
+AI 1차 채용면접 자동화 플랫폼 — 테이블 정의서
+테이블 관계도(ERD)와 테이블별 칸·자료형·키
+항목
+내용
+기준 문서
+API 명세서 v1.1 (값 이름·응답 칸), TRD v1.5 (4-1 주요 테이블,
+4-3 데이터 전달 형식)
+DB
+PostgreSQL 16 + pgvector. 테이블 구조 변경은 Alembic으로만
+한다
+작성일
+2026-10-29
+읽는 법
+키: PK 기본 키, FK 외래 키(다른 테이블을 가리킴), UQ 중복 불가.
+NULL: Y면 비워 둘 수 있음. 칸 이름과 상태 값은 API 명세서와 같
+은 영어 이름을 쓴다
+1. 공통 규칙
+1. 값 이름: 상태 칸의 값은 API 명세서의 값과 글자까지 같게 쓰고, 정해진 값만 들어가도록 CHECK 제약을 건다. 값을 더하거나
+바꿀 때는 두 문서를 함께 고친다.
+2. id: 대부분 uuid( gen_random_uuid() )를 쓴다. 기록이 계속 쌓이는 로그 테이블만 bigserial(1씩 커지는 숫자)을 쓴다.
+3. 시각: 모두 timestamptz 로 저장하고, 화면과 정해진 시각 작업은 한국 시간(Asia/Seoul)으로 계산한다.
+4. 점수: 계산한 점수는 numeric(5,2) 로 저장해 소수 오차가 없게 한다(예: 70.15). API에는 문자열로 내보낸다.
+5. 암호화 칸: 이름이 _enc 로 끝나는 칸은 서버 코드에서 AES-256-GCM으로 암호화한 값( bytea )이다.
+6. 지울 때: 지원 건을 지우면 그 아래 행(질문·답변·점수·결과·기록·녹화)도 함께 지운다( ON DELETE CASCADE ). 동의
+(consents)는 증거로 남기고 연결만 끊는다( ON DELETE SET NULL ). 지운 일은 deletion_logs에 남긴다.
+7. 탈퇴: users 행을 바로 지운다. 그래서 같은 이메일로 다시 가입할 수 있다.
+8. LangGraph 체크포인트: checkpoints · checkpoint_blobs · checkpoint_writes 테이블은 LangGraph가 직접 만들고
+관리한다. thread_id는 지원 건 id이고, 지원 건을 지울 때 함께 지운다.
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+1 / 15
+
+
+<<PAGE 2>>
+2. 테이블 관계도 (ERD)
+users
+회원
+PK
+id
+uuid
+UQ
+email
+varchar(254)
+user_resumes
+등록 이력서
+PK·FK user_id
+uuid
+FK
+upload_id
+uuid
+resume_uploads
+PK
+id
+uuid
+FK
+user_id
+uuid
+FK
+application_id
+uuid
+consents
+동의
+PK
+id
+uuid
+FK
+application_id
+uuid
+FK
+user_id
+uuid
+memos
+관리자 메모
+PK
+id
+uuid
+FK
+application_id
+uuid
+FK
+author_id
+uuid
+notifications
+알림
+PK
+id
+uuid
+FK
+user_id
+uuid
+FK
+application_id
+uuid
+audit_logs
+감사 로그
+PK
+id
+bigserial
+FK
+actor_id
+uuid
+app_settings
+설정
+PK
+key
+varchar(60)
+FK
+updated_by
+uuid
+app_setting_history
+PK
+id
+bigserial
+FK
+key
+varchar(60)
+FK
+changed_by
+uuid
+applications
+지원 1건
+PK
+id
+uuid
+FK
+posting_id
+uuid
+FK
+applicant_id
+uuid
+FK
+criteria_id
+uuid
+results
+결과
+PK
+id
+uuid
+FK·UQ application_id
+uuid
+FK
+criteria_id
+uuid
+session_events
+PK
+id
+bigserial
+FK
+application_id
+uuid
+recordings
+녹화
+PK
+id
+uuid
+FK
+application_id
+uuid
+deletion_logs
+삭제 기록
+PK
+id
+bigserial
+job_codes
+직무
+PK
+code
+varchar(20)
+job_postings
+공고
+PK
+id
+uuid
+FK
+job_code
+varchar(20)
+posting_revisions
+PK
+id
+bigserial
+FK
+posting_id
+uuid
+evaluation_criteria
+PK
+id
+uuid
+FK
+posting_id
+uuid
+coding_problems
+코딩 문제
+PK
+id
+uuid
+coding_submissions
+PK
+id
+uuid
+FK
+application_id
+uuid
+FK
+problem_id
+uuid
+questions
+질문 DB
+PK
+id
+uuid
+interview_questions
+PK
+id
+uuid
+FK
+application_id
+uuid
+FK
+parent_id
+uuid
+FK
+question_id
+uuid
+answers
+답변
+PK
+id
+uuid
+FK·UQ interview_question_id
+uuid
+item_scores
+항목 점수
+PK
+id
+uuid
+FK
+interview_question_id
+uuid
+highlights
+하이라이트
+PK
+id
+uuid
+FK
+application_id
+uuid
+FK
+interview_question_id
+uuid
+│ 쪽이 1, 까마귀발(<) 쪽이 여러 개, 양쪽 모두 │ 이면 1:1. 키 칸만 그렸다. 회색 = 회원·관리, 노랑 = 지원 건, 초록 = 공고·코딩, 파랑 = 질문·답변
+3. 테이블 목록
+#
+묶음
+테이블
+하는 일
+1
+회원·관리
+users  (회원)
+지원자와 관리자 계정. 탈퇴하면 행을 바로 지운다(같은 이메
+일로 다시 가입 가능)
+2
+회원·관리
+user_resumes  (등록 이력서)
+마이페이지에 등록해 두는 이력서 1개. 지원할 때 불러와 쓴다
+3
+회원·관리
+resume_uploads  (이력서 파일 처리)
+올린 이력서 파일과 내용 뽑기(OCR 포함) 진행 상태. 지원용·
+등록용 모두
+4
+공고·코딩
+job_codes  (직무)
+직무 종류. 지금은 AI_AX만 지원을 받는다
+5
+공고·코딩
+job_postings  (공고)
+채용 공고 내용, 접수 기간, 게시 상태
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+2 / 15
+
+
+<<PAGE 3>>
+6
+공고·코딩
+posting_revisions  (공고 수정 기
+록)
+게시 뒤 바뀐 칸마다 남기는 기록. 지원자에게 "수정 사항"으로
+보여 준다
+7
+공고·코딩
+evaluation_criteria  (채점 기준)
+공고별 채점 기준. 첫 응시가 시작되면 잠그고 바꾸지 않는다
+8
+지원 건
+applications  (지원 1건)
+지원 1건의 상태를 모으는 중심 테이블
+9
+회원·관리
+consents  (동의)
+지원할 때 받은 필수 동의 5개와 철회 기록. 지원·회원이 지워
+져도 증거로 남긴다
+10
+지원 건
+recordings  (녹화)
+카메라 녹화. 접속 구간(시작 1, 이어가기마다 +1)마다 파일 하
+나
+11
+지원 건
+session_events  (면접 중 기록)
+연결 끊김·화면 이탈·창 닫기 등 면접 중 일어난 일과 판단
+12
+지원 건
+results  (결과)
+지원 1건의 최종 점수와 AI 결정. 확정 뒤 수정 불가
+13
+지원 건
+deletion_logs  (삭제 기록)
+보관 기간·탈퇴·동의 철회로 지운 기록(지운 내용은 남기지 않
+음)
+14
+공고·코딩
+coding_problems  (코딩 문제)
+코딩테스트 문제와 테스트
+15
+공고·코딩
+coding_submissions  (코드 제출)
+지원 건의 문제마다 저장·제출한 코드와 채점 결과
+16
+질문·답변
+questions  (질문 DB)
+엑셀에서 불러온 질문, AI가 만든 질문, 예비 질문
+17
+질문·답변
+interview_questions  (면접 질문)
+지원자 한 명의 면접에 실제로 낸 질문 목록
+18
+질문·답변
+answers  (답변)
+질문 하나에 대한 답변. 이탈 전후로 나뉜 음성도 한 답변으로
+합친다
+19
+질문·답변
+item_scores  (항목 점수)
+질문 번호마다 AI가 매긴 항목 점수(꼬리질문 답변 합쳐 채점)
+20
+질문·답변
+highlights  (하이라이트)
+관리자가 다시 들어 볼 답변 구간(종류마다 최대 3개)
+21
+회원·관리
+memos  (관리자 메모)
+지원자에 대한 관리자 내부 메모(1~2000자). 지원자 응답에는
+넣지 않는다
+22
+회원·관리
+notifications  (알림)
+사이트 알림(머리글 🔔)과 같은 내용의 메일 발송 상태
+23
+회원·관리
+audit_logs  (감사 로그)
+누가 언제 무엇을 했는지(내용은 남기지 않음)
+24
+회원·관리
+app_settings  (설정)
+서버를 다시 켜지 않고 바꾸는 설정값(목록은 TRD 14장)
+25
+회원·관리
+app_setting_history  (설정 변경
+기록)
+설정을 바꿀 때마다 전·후 값을 남긴다(관리자 설정 화면의 최
+근 변경)
+4. 테이블별 정의
+4-1. users (회원)
+지원자와 관리자 계정. 탈퇴하면 행을 바로 지운다(같은 이메일로 다시 가입 가능)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+3 / 15
+
+
+<<PAGE 4>>
+role
+varchar(10)
+N
+'applicant'
+applicant 지원자 · admin 관리자(설치할 때
+1개 만듦)
+email
+varchar(254)
+UQ
+N
+로그인 아이디. 바꿀 수 없음
+password_hash
+text
+N
+Argon2id로 바꾼 비밀번호
+name
+varchar(50)
+N
+phone_enc
+bytea
+N
+휴대전화, AES-256-GCM 암호화
+age_14_plus
+boolean
+N
+가입 동의: 만 14세 이상
+terms_agreed_at ·
+privacy_agreed_at
+timestamptz
+N
+가입 동의: 이용약관·개인정보 처리방침 동의
+시각
+password_change_required
+boolean
+N
+false
+관리자 초기 비밀번호면 true. 바꾸면 false
+email_verified_at
+timestamptz
+Y
+이메일 인증 시각(나중에 붙이는 기능)
+created_at
+timestamptz
+N
+now()
+updated_at
+timestamptz
+N
+now()
+로그인 실패 횟수와 잠금은 이 테이블이 아니라 Redis에 둔다(6장). 없는 이메일에도 같은 잠금을 걸기 위해서다
+4-2. user_resumes (등록 이력서)
+마이페이지에 등록해 두는 이력서 1개. 지원할 때 불러와 쓴다
+칸
+자료형
+키
+NULL
+기본값
+설명
+user_id
+uuid
+PK
+FK
+N
+→ users.id (한 사람에 1개)
+resume_enc
+bytea
+N
+이력서 객체(JSON:
+education·career·projects·skills·certificates·cover_letter),
+암호화
+method
+varchar(10)
+N
+upload 파일에서 뽑음 · manual 직접 입력
+upload_id
+uuid
+FK
+Y
+→ resume_uploads.id, 파일에서 뽑았을 때
+updated_at
+timestamptz
+N
+now()
+4-3. resume_uploads (이력서 파일 처리)
+올린 이력서 파일과 내용 뽑기(OCR 포함) 진행 상태. 지원용·등록용 모두
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+user_id
+uuid
+FK
+N
+→ users.id
+purpose
+varchar(12)
+N
+application 지원용 · profile 등록 이력서용
+application_id
+uuid
+FK
+Y
+지원용이면 → applications.id. 확정한 파일
+은 그 지원의 가장 최근 done 행
+file_key
+text
+Y
+MinIO 원본 위치. 취소하면 지움
+file_name
+varchar(255)
+N
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+4 / 15
+
+
+<<PAGE 5>>
+pages_text ·
+pages_scanned
+smallint
+N
+0
+글자 있는 쪽 수 · 스캔 쪽 수
+estimated_seconds
+integer
+N
+예상 처리 시간
+stage
+varchar(12)
+N
+'uploaded'
+uploaded · checking · ocr · structuring ·
+done · failed · cancelled
+method
+varchar(6)
+Y
+끝나면: text · ocr · mixed
+result_enc
+bytea
+Y
+뽑은 이력서 객체, 암호화
+ocr_confidence
+numeric(4,3)
+Y
+OCR 신뢰도 평균(0~1)
+ocr_low_conf_fields
+jsonb
+N
+'[]'
+신뢰도 0.80 미만 칸. 예:
+["career[0].company"]
+fail_reason
+varchar(16)
+Y
+TIMEOUT · NO_TEXT ·
+LOW_CONFIDENCE · INTERNAL
+created_at
+timestamptz
+N
+now()
+finished_at
+timestamptz
+Y
+4-4. job_codes (직무)
+직무 종류. 지금은 AI_AX만 지원을 받는다
+칸
+자료형
+키
+NULL
+기본값
+설명
+code
+varchar(20)
+PK
+N
+예: 'AI_AX'
+name
+varchar(50)
+N
+직무 이름
+status
+varchar(10)
+N
+'preparing'
+active 지원 가능 · preparing 준비 중
+4-5. job_postings (공고)
+채용 공고 내용, 접수 기간, 게시 상태
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+job_code
+varchar(20)
+FK
+N
+→ job_codes.code
+source
+varchar(10)
+N
+'manual'
+manual 직접 작성 · open_api · dummy ·
+ai_draft
+external_id
+varchar(100)
+Y
+불러온 공고의 원래 번호
+status
+varchar(10)
+N
+'draft'
+draft 임시저장 · published 게시 · closed 마
+감
+title
+varchar(200)
+N
+''
+company_name
+varchar(100)
+N
+''
+company_intro · duties
+· requirements ·
+preferred
+text
+Y
+회사 소개 · 주요 업무 · 자격 요건 · 우대 사항
+employment_type
+varchar(12)
+Y
+full_time · contract · intern
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+5 / 15
+
+
+<<PAGE 6>>
+location
+varchar(100)
+Y
+근무지
+headcount
+smallint
+Y
+모집 인원
+contact_email
+varchar(254)
+N
+문의 이메일. 기본값은 관리자 이메일(결과 화
+면에도 표시)
+open_at · close_at
+timestamptz
+Y
+접수 시작 · 마감(게시할 때는 필수)
+release_at
+timestamptz
+Y
+결과 한꺼번에 공개 시각
+published_at ·
+closed_at
+timestamptz
+Y
+게시한 시각 · 마감된 시각
+created_at
+timestamptz
+N
+now()
+updated_at
+timestamptz
+N
+now()
+UNIQUE (source, external_id): 같은 공고를 두 번 불러오지 않는다
+AI 초안 만들기 진행 상태와 차별 표현 경고는 Redis에 둔다(6장)
+4-6. posting_revisions (공고 수정 기록)
+게시 뒤 바뀐 칸마다 남기는 기록. 지원자에게 "수정 사항"으로 보여 준다
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+bigserial
+PK
+N
+posting_id
+uuid
+FK
+N
+→ job_postings.id
+field
+varchar(40)
+N
+바뀐 칸 이름. 예: location
+before · after
+text
+Y
+바뀌기 전 · 후 값
+summary
+varchar(300)
+N
+지원자에게 보여 줄 한 줄. 예: 근무지: 서울 강남구 →
+서울 서초구
+revised_at
+timestamptz
+N
+now()
+4-7. evaluation_criteria (채점 기준)
+공고별 채점 기준. 첫 응시가 시작되면 잠그고 바꾸지 않는다
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+posting_id
+uuid
+FK
+N
+→ job_postings.id
+version
+smallint
+N
+1
+채점 기준 버전
+weights
+jsonb
+N
+{"expertise":30, "logic":25,
+"relevance":20, "delivery":10,
+"culture_fit":15}. 5 단위, 항목마다 5 이상,
+합계 100
+coding_enabled
+boolean
+N
+true
+코딩테스트 사용(기본값은 팀 확정 필요)
+coding_ratio
+smallint
+N
+30
+코딩테스트 반영 비율(%), 10 단위
+pass_score
+smallint
+N
+70
+합격 기준 점수(0~100 정수)
+rubric_version
+varchar(20)
+N
+고정 채점 기준표 버전
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+6 / 15
+
+
+<<PAGE 7>>
+locked_at
+timestamptz
+Y
+잠근 시각(첫 응시 시작). 값이 있으면 기준 수
+정 409
+UNIQUE (posting_id, version)
+4-8. applications (지원 1건)
+지원 1건의 상태를 모으는 중심 테이블
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+posting_id
+uuid
+FK
+N
+→ job_postings.id
+applicant_id
+uuid
+FK
+N
+→ users.id
+criteria_id
+uuid
+FK
+Y
+→ evaluation_criteria.id, 지원할 때의 기준
+attempt_status
+varchar(16)
+N
+'drafting'
+응시 상태: drafting 작성 중 · ready 준비 중 ·
+interviewing 면접 진행 중 · coding 코딩테
+스트 진행 중 · interrupted 장애 중단 ·
+completed 응시 완료 · ended 응시 종료 ·
+ended_closed 응시 종료(마감) · cancelled
+응시 취소 · not_taken_closed 미응시(마감)
+analysis_status
+varchar(12)
+N
+'pending'
+분석 상태: pending · running · decided 확
+정 · needs_review 확인 필요
+needs_review_reason
+varchar(20)
+Y
+threshold_mismatch · invalid_format ·
+quote_not_found · analysis_timeout ·
+sandbox_error
+needs_review_since
+timestamptz
+Y
+확인 필요가 된 시각
+analysis_attempts
+smallint
+N
+0
+분석 재시도 횟수(3번·30분 넘으면
+analysis_timeout)
+result_status
+varchar(10)
+N
+'undecided'
+1차 결과: undecided · pass · fail
+release_status
+varchar(10)
+N
+'scheduled'
+공개 상태: scheduled · delayed 다음 날
+10:00 공개 · released · purged 삭제 후
+resume_method
+varchar(6)
+Y
+이력서를 낸 방법: upload · manual · saved
+등록본
+resume_snapshot_enc
+bytea
+Y
+확정한 이력서 사본(JSON), 암호화. 확정 뒤
+수정 불가
+resume_edited_fields
+jsonb
+N
+'[]'
+지원자가 고친 칸(관리자 이력서 탭에 표시)
+resume_confirmed_at
+timestamptz
+Y
+이력서 확정 시각(이때 ready)
+attempt_consumed_at
+timestamptz
+Y
+응시 횟수를 쓴 시각(첫 질문이 나갈 때)
+holds_seat
+boolean
+N
+false
+지금 동시 면접 자리를 잡고 있는지(TRD 5-3)
+seat_released_at
+timestamptz
+Y
+끊긴 뒤 자리를 돌려준 시각
+exit_count
+smallint
+N
+0
+화면 이탈 횟수(면접·코딩 합침, 2면
+cancelled)
+coding_started_at ·
+coding_deadline_at
+timestamptz
+Y
+코딩테스트 시작 · 끝(시작 + 60분, 서버 기준)
+ended_at
+timestamptz
+Y
+응시가 끝난 시각
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+7 / 15
+
+
+<<PAGE 8>>
+release_at
+timestamptz
+Y
+이 건의 결과 공개 시각
+purge_at
+timestamptz
+Y
+삭제 예정 시각(공개 + 7일). 결과 열람 끝 시각
+과 같음
+created_at
+timestamptz
+N
+now()
+지원한 시각
+updated_at
+timestamptz
+N
+now()
+UNIQUE (posting_id, applicant_id): 공고마다 한 사람 1건(1회 응시)
+INDEX (release_at), (purge_at): 매일 공개·삭제 작업용
+INDEX (analysis_status) WHERE analysis_status = 'needs_review'
+4-9. consents (동의)
+지원할 때 받은 필수 동의 5개와 철회 기록. 지원·회원이 지워져도 증거로 남긴다
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+Y
+→ applications.id. 지원이 지워지면
+NULL(ON DELETE SET NULL)
+user_id
+uuid
+FK
+Y
+→ users.id. 탈퇴하면 NULL
+subject_hash
+char(64)
+N
+동의한 사람 표시: 이메일의 SHA-256. 지운 뒤
+에도 누가 동의·철회했는지 맞춰 볼 수 있음
+consent_version
+varchar(20)
+N
+동의 문구 버전. 예: v1.3
+items
+jsonb
+N
+data_collection · ai_decision ·
+share_with_admin · retention ·
+exam_rules 각 true
+agreed_at
+timestamptz
+N
+now()
+withdrawn_at
+timestamptz
+Y
+철회 시각
+보관 기간은 팀 확정 필요(개인정보 처리방침에 적는 기간)
+4-10. recordings (녹화)
+카메라 녹화. 접속 구간(시작 1, 이어가기마다 +1)마다 파일 하나
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+N
+→ applications.id
+segment_no
+smallint
+N
+접속 구간 번호
+file_key
+text
+N
+MinIO 위치. 10초 조각을 chunk_no 순서로
+이어 씀
+last_chunk_no
+integer
+N
+-1
+마지막으로 이어 쓴 조각 번호(빠진 조각 확인
+용)
+size_bytes
+bigint
+N
+0
+started_at
+timestamptz
+N
+now()
+last_chunk_at
+timestamptz
+Y
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+8 / 15
+
+
+<<PAGE 9>>
+expires_at
+timestamptz
+N
+응시 끝 + 3일. 지나면 파일 삭제, 재생은 410
+UNIQUE (application_id, segment_no)
+4-11. session_events (면접 중 기록)
+연결 끊김·화면 이탈·창 닫기 등 면접 중 일어난 일과 판단
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+bigserial
+PK
+N
+application_id
+uuid
+FK
+N
+→ applications.id
+kind
+varchar(12)
+N
+disconnect 연결 끊김 · exit 화면 이탈 · signal 신호
+(창 닫기·권한) · stt_failed 글자 변환 실패
+reason
+varchar(20)
+N
+disconnect: heartbeat_timeout ·
+ws_abnormal_close · offline · device_error ·
+upload_failed · server_error · unknown /
+signal: unload · permission_revoked / exit:
+visibility · blur · fullscreen · navigate /
+stt_failed: stt_retry
+phase
+varchar(10)
+N
+'interview'
+interview · coding
+seq
+smallint
+Y
+그때의 질문 번호
+judged
+varchar(10)
+Y
+fault 장애 · not_fault 장애 아님 · counted 이탈로
+셈 · ignored 장애 구간이라 안 셈
+duration_sec
+integer
+Y
+끊겨 있던 시간
+detail
+jsonb
+Y
+원래 신호(sendBeacon 원문, 남은 답변 시간 등)
+at
+timestamptz
+N
+now()
+일어난 시각
+INDEX (application_id, at)
+4-12. results (결과)
+지원 1건의 최종 점수와 AI 결정. 확정 뒤 수정 불가
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK UQ
+N
+→ applications.id (지원 1건에 결과 1개)
+criteria_id
+uuid
+FK
+N
+→ evaluation_criteria.id, 그때 쓴 기준
+item_points
+jsonb
+N
+항목 점수(0~100). 예: {"expertise":"80.00",
+…}
+interview_score
+numeric(5,2)
+N
+AI 면접 점수
+coding_score
+numeric(5,2)
+Y
+코딩테스트 점수, 안 쓰면 비움
+total_score
+numeric(5,2)
+N
+총점
+pass_score
+numeric(5,2)
+N
+그때의 합격 기준
+ai_decision
+varchar(4)
+N
+pass · fail
+ai_reason
+text
+N
+AI가 쓴 이유 2~3문장
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+9 / 15
+
+
+<<PAGE 10>>
+ai_reason_quotes
+jsonb
+N
+'[]'
+이유의 근거 문장들
+strengths ·
+improvements
+jsonb
+N
+'[]'
+강점 · 개선점, 각 최대 3개
+summary
+text
+Y
+관리자 리포트 요약
+decision_check
+varchar(12)
+N
+ok 통과 · rejudged 다시 판정해 통과
+model_version ·
+prompt_version ·
+rubric_version
+varchar(80)
+N
+쓴 모델·지시문·채점 기준표 버전
+public_view
+jsonb
+N
+지원자에게 보여 줄 것만: result · strengths ·
+improvements · status_reason ·
+ai_generated
+decided_at
+timestamptz
+N
+now()
+확정 시각
+4-13. deletion_logs (삭제 기록)
+보관 기간·탈퇴·동의 철회로 지운 기록(지운 내용은 남기지 않음)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+bigserial
+PK
+N
+application_id
+uuid
+Y
+지운 지원 건 id(행이 지워지므로 FK 없음)
+user_id
+uuid
+Y
+탈퇴로 지웠으면 그 회원 id(FK 없음)
+cause
+varchar(12)
+N
+retention 보관 기간 · withdraw 탈퇴 · consent 동
+의 철회
+scope
+varchar(16)
+N
+recording 녹화 · interview_data 면접 데이터 ·
+account 계정
+deleted_items
+jsonb
+N
+DB 행 수, MinIO 파일 수, Redis 키 수, 체크포인트
+수
+deleted_at
+timestamptz
+N
+now()
+4-14. coding_problems (코딩 문제)
+코딩테스트 문제와 테스트
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+title
+varchar(200)
+N
+statement
+text
+N
+문제 설명
+signature
+varchar(300)
+N
+함수 모양. 예: def solution(nums: list[int],
+k: int) -> int:
+examples
+jsonb
+N
+공개 예시 [{input, output}]
+hidden_tests_enc
+bytea
+N
+숨겨진 테스트, 암호화. 어떤 응답·AI 입력에도
+넣지 않음
+time_limit_sec ·
+memory_mb
+smallint
+N
+10 · 256
+실행 제한
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+10 / 15
+
+
+<<PAGE 11>>
+4-15. coding_submissions (코드 제출)
+지원 건의 문제마다 저장·제출한 코드와 채점 결과
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+N
+→ applications.id
+problem_no
+smallint
+N
+1 · 2
+problem_id
+uuid
+FK
+N
+→ coding_problems.id
+code
+text
+N
+''
+마지막 저장 코드
+saved_at
+timestamptz
+Y
+마지막 자동 저장(30초마다)
+paste_blocked
+integer
+N
+0
+막은 외부 붙여넣기 시도 수(누적)
+submitted_at
+timestamptz
+Y
+제출 시각(시간 끝이면 서버가 자동 제출)
+passed · total
+smallint
+Y
+통과한 테스트 수 · 전체 수
+feedback
+text
+Y
+AI 코드 피드백(점수에 반영 안 함)
+UNIQUE (application_id, problem_no)
+4-16. questions (질문 DB)
+엑셀에서 불러온 질문, AI가 만든 질문, 예비 질문
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+source
+varchar(10)
+N
+db 엑셀 · generated AI가 만듦 · reserve 예
+비
+category
+varchar(20)
+N
+질문 종류: job 직무 · personality 인성 ·
+company 회사 · resume 이력서·경험
+sheet
+varchar(50)
+Y
+엑셀 원래 시트 이름
+text
+text
+N
+질문 글
+answer_seconds
+smallint
+N
+90
+답변 시간
+eval_items
+text[]
+N
+이 질문으로 보는 평가 항목
+duplicate_group
+integer
+Y
+겹치는 질문 묶음 번호
+embedding
+vector(1024)
+Y
+BGE-M3 임베딩
+use_count
+integer
+N
+0
+쓰인 횟수
+created_at
+timestamptz
+N
+now()
+INDEX HNSW (embedding vector_cosine_ops): 비슷한 질문 찾기·RAG
+INDEX (source, category): 예비 질문 수 확인(관리자 운영 현황)
+4-17. interview_questions (면접 질문)
+지원자 한 명의 면접에 실제로 낸 질문 목록
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+11 / 15
+
+
+<<PAGE 12>>
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+N
+→ applications.id
+seq
+smallint
+N
+질문 번호(1~10)
+kind
+varchar(10)
+N
+'base'
+base 기본 · follow_up 꼬리
+parent_id
+uuid
+FK
+Y
+꼬리질문이면 원래 질문 →
+interview_questions.id
+question_id
+uuid
+FK
+Y
+질문 DB에서 왔으면 → questions.id
+category
+varchar(20)
+N
+질문 종류(관리자 화면 표시)
+text_snapshot
+text
+N
+낸 질문 사본(바뀌지 않음)
+answer_seconds
+smallint
+N
+답변 시간
+tts_key
+text
+Y
+질문 음성 위치(/media/questions/…), 못 만
+들면 비움
+generation_attempts
+smallint
+N
+0
+다시 만든 횟수
+replaced
+boolean
+N
+false
+대신 쓴 질문(질문 DB·예비)인지
+replace_reason
+varchar(20)
+Y
+timeout · invalid_json · check_failed ·
+budget_over
+asked_at
+timestamptz
+Y
+질문을 낸 시각
+UNIQUE (application_id, seq, kind)
+4-18. answers (답변)
+질문 하나에 대한 답변. 이탈 전후로 나뉜 음성도 한 답변으로 합친다
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+interview_question_id
+uuid
+FK UQ
+N
+→ interview_questions.id (질문 1개에 답
+변 1개)
+audio_key
+text
+Y
+MinIO 답변 음성 위치
+(/media/answers/{id})
+answer_no_count
+smallint
+N
+1
+이어서 답한 조각 수(WebSocket
+answer_no의 마지막 값)
+transcript
+text
+Y
+최종 글자(is_final)
+is_empty
+boolean
+N
+false
+답을 안 함(무음·시간 초과)
+stt_retries
+smallint
+N
+0
+최종 글자 변환 재시도 횟수
+stt_retry_sent
+smallint
+N
+0
+stt_retry로 같은 질문을 다시 낸 횟수(2번이면
+장애)
+started_at · ended_at
+timestamptz
+Y
+답변 시작 · 끝
+답변 음성은 공개 + 7일에 지운다
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+12 / 15
+
+
+<<PAGE 13>>
+4-19. item_scores (항목 점수)
+질문 번호마다 AI가 매긴 항목 점수(꼬리질문 답변 합쳐 채점)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+interview_question_id
+uuid
+FK
+N
+기본 질문 행 → interview_questions.id
+eval_item
+varchar(12)
+N
+expertise · logic · relevance · delivery ·
+culture_fit
+score
+smallint
+N
+0~5
+quote
+text
+Y
+근거 문장
+quote_verified
+boolean
+N
+false
+근거가 답변 원문에 있음
+regenerated
+boolean
+N
+false
+근거가 틀려 다시 받았음
+scored_at
+timestamptz
+N
+now()
+UNIQUE (interview_question_id, eval_item)
+4-20. highlights (하이라이트)
+관리자가 다시 들어 볼 답변 구간(종류마다 최대 3개)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+N
+→ applications.id
+interview_question_id
+uuid
+FK
+N
+→ interview_questions.id
+kind
+varchar(8)
+N
+good 잘함(4~5점) · deducted 깎임(1~2점)
+eval_item
+varchar(12)
+N
+평가 항목
+start_ms · end_ms
+integer
+N
+답변 음성 안의 구간(Range 재생 위치)
+quote
+text
+N
+그 구간의 문장
+4-21. memos (관리자 메모)
+지원자에 대한 관리자 내부 메모(1~2000자). 지원자 응답에는 넣지 않는다
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+application_id
+uuid
+FK
+N
+→ applications.id
+author_id
+uuid
+FK
+N
+→ users.id (관리자)
+body
+varchar(2000)
+N
+created_at
+timestamptz
+N
+now()
+updated_at
+timestamptz
+Y
+고친 시각, 안 고쳤으면 비움
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+13 / 15
+
+
+<<PAGE 14>>
+4-22. notifications (알림)
+사이트 알림(머리글 🔔)과 같은 내용의 메일 발송 상태
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+uuid
+PK
+N
+gen_random_uuid()
+user_id
+uuid
+FK
+N
+받는 사람 → users.id
+application_id
+uuid
+FK
+Y
+관련 지원 건 → applications.id
+kind
+varchar(20)
+N
+지원자: result_released ·
+deadline_reminder · result_expiring / 관
+리자: posting_closing · data_purge_soon
+· needs_review
+title
+varchar(200)
+N
+알림 문구
+link
+varchar(300)
+Y
+누르면 갈 화면 주소
+read_at
+timestamptz
+Y
+읽은 시각
+email_status
+varchar(10)
+N
+'pending'
+pending · sent · deferred 하루 한도로 미룸
+· failed · skipped
+email_retry_count
+smallint
+N
+0
+메일 다시 보낸 횟수(최대 3)
+email_fail_reason
+varchar(200)
+Y
+예: 550 no such user
+email_sent_at
+timestamptz
+Y
+created_at
+timestamptz
+N
+now()
+INDEX (user_id, created_at DESC): 최근 20건
+메일이 실패해도 사이트 알림 행은 그대로 남는다
+4-23. audit_logs (감사 로그)
+누가 언제 무엇을 했는지(내용은 남기지 않음)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+bigserial
+PK
+N
+actor_id
+uuid
+FK
+Y
+→ users.id, 자동 작업이면 비움
+action
+varchar(24)
+N
+view_result · play_media · memo_create ·
+memo_update · memo_delete · consent ·
+change_criteria · change_setting · reprocess ·
+delete · judge_event
+target_type · target_id
+varchar(30) ·
+uuid
+Y
+대상 테이블과 id
+at
+timestamptz
+N
+now()
+같은 파일의 이어지는 Range 요청은 처음 한 번만 play_media로 남긴다
+4-24. app_settings (설정)
+서버를 다시 켜지 않고 바꾸는 설정값(목록은 TRD 14장)
+칸
+자료형
+키
+NULL
+기본값
+설명
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+14 / 15
+
+
+<<PAGE 15>>
+key
+varchar(60)
+PK
+N
+예: 'max_concurrent_interviews'
+value
+jsonb
+N
+설정값
+updated_by
+uuid
+FK
+Y
+→ users.id
+updated_at
+timestamptz
+N
+now()
+4-25. app_setting_history (설정 변경 기록)
+설정을 바꿀 때마다 전·후 값을 남긴다(관리자 설정 화면의 최근 변경)
+칸
+자료형
+키
+NULL
+기본값
+설명
+id
+bigserial
+PK
+N
+key
+varchar(60)
+FK
+N
+→ app_settings.key
+old_value · new_value
+jsonb
+Y
+바꾸기 전 · 후
+changed_by
+uuid
+FK
+Y
+→ users.id
+changed_at
+timestamptz
+N
+now()
+5. DB 밖에 두는 임시 값 (Redis)
+짧게 쓰고 버리는 값은 테이블을 만들지 않고 Redis에 둔다. 토큰은 원래 값이 아니라 해시로 키를 만든다.
+키
+담는 것
+쓰는 방법
+유효 시간
+login_fail:{email 해시}
+로그인 실패 횟수
+5번이면 10분 잠금(423). 없는 이메일에도 같은 규칙
+10분
+pw_reset:{토큰 해시}
+비밀번호 재설정 토큰
+사용하면 바로 지움
+30분
+email_verify:{토큰 해시}
+이메일 인증 토큰
+나중에 붙이는 기능
+24시간
+session:{쿠키 값}
+로그인 세션
+마지막 요청 뒤 2시간, 면접 중에는 계속 늘림
+2시간
+precheck:{application_id}
+환경 점검 통과 표시
+시작·이어가기 API가 확인
+15분
+interview:session:{sid}
+면접 세션 토큰
+application_id, segment_no, phase. 응시가 끝
+나면 지움
+응시 끝까지
+interview:active
+지금 진행 중인 면접 수
+Lua로 N과 비교해 1 올림(TRD 5-3)
+없음
+audio:{sid}
+답변 음성 조각 스트림
+stt가 꺼내 자막을 만든다
+답변 끝 + 10
+분
+draft_ai:{job_id}
+AI 공고 초안 진행 상태
+status, posting_id, bias_warnings
+1일
+mail:daily:{날짜}
+오늘 보낸 메일 수
+mail_daily_limit 넘으면 deferred
+1일
+settings:{key}
+app_settings 복사본
+바꾸면 바로 갱신
+없음
+테이블 정의서 · AI 1차 채용면접 자동화 플랫폼
+15 / 15

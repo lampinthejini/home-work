@@ -47,18 +47,19 @@ services:
       retries: 60
 
   # STT (faster-whisper Large V3 Turbo, int8_float16, GPU). audio:{sid} 스트림 → caption:{sid} 임시 자막
-  # front 망은 모델 파일을 처음 내려받을 때만 필요하다 (internal 망은 밖으로 못 나감)
+  # 밖으로 나가는 망에 붙이지 않는다. 모델은 scripts/fetch-models.sh 로 볼륨에 미리 받아 둔다
   stt:
     restart: unless-stopped
     build: ./ai/stt
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set in .env}@redis:6379/0
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       WHISPER_COMPUTE: ${WHISPER_COMPUTE:-int8_float16}
       CAPTION_INTERVAL_SEC: ${CAPTION_INTERVAL_SEC:-3}
       HF_HOME: /hf
+      HF_HUB_OFFLINE: "1"
     volumes: [hfcache:/hf]
-    networks: [internal, front]
+    networks: [internal]
     deploy:
       resources:
         reservations:
@@ -70,9 +71,10 @@ services:
     build: ./ai/embed
     environment:
       HF_HOME: /hf
+      HF_HUB_OFFLINE: "1"
       EMBED_THREADS: ${EMBED_THREADS:-4}
     volumes: [hfcache:/hf]
-    networks: [internal, front]
+    networks: [internal]
     deploy:
       resources:
         limits: { memory: 5g }
@@ -83,8 +85,14 @@ services:
     build: ./ai/tts
     environment:
       HF_HOME: /hf
+      SUPERTONIC_CACHE_DIR: /hf/supertonic3
     volumes: [hfcache:/hf]
-    networks: [internal, front]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
 
   # 이력서 OCR (PaddleOCR 한국어, CPU). 글자 레이어가 없거나 깨진 쪽·사진 이력서만 처리한다 (TRD 7-6)
   ocr:
@@ -93,4 +101,4 @@ services:
     environment:
       OCR_MAX_SIDE: ${OCR_MAX_SIDE:-2400}
     volumes: [hfcache:/hf]
-    networks: [internal, front]
+    networks: [internal]

@@ -20,10 +20,14 @@ def subjectHash(email: str) -> str:
     return hmac.new(key, email.strip().lower().encode(), hashlib.sha256).hexdigest()
 
 
+def ipHash(ip: str) -> str:
+    """로그인 차단 표의 IP 표시. IPv4 는 경우의 수가 적어 일반 해시로는 되돌릴 수 있으므로 키를 섞는다."""
+    key = hashlib.sha256(b"huge-login-ip" + loadKey()).digest()
+    return hmac.new(key, ip.encode(), hashlib.sha256).hexdigest()
+
+
 def loadKey() -> bytes:
-    if not ENV.encryptionKey:
-        if ENV.profile == "dev":
-            return b"\x00" * 32  # 테스트·로컬 전용. 운영에서는 반드시 APP_ENCRYPTION_KEY 를 둔다
+    if not ENV.encryptionKey:  # 개발 환경도 같다. 고정 키로 조용히 켜지면 암호화가 형식만 남는다
         raise RuntimeError("APP_ENCRYPTION_KEY is required")
     key = base64.b64decode(ENV.encryptionKey)
     if len(key) != 32:

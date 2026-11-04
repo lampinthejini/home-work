@@ -8,6 +8,7 @@ import io
 import os
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request
@@ -18,8 +19,20 @@ MAX_IMAGE_BYTES = 15 * 1024 * 1024
 MAX_SIDE = int(os.environ.get("OCR_MAX_SIDE", "2400"))
 
 app = FastAPI(title="huge-ocr")
+
+
+def localModels() -> dict:
+    """받아 둔 모델 경로. PaddleX 는 이름만 주면 캐시가 있어도 접속부터 시도하므로, 망이 끊긴 실행에서는 경로를 직접 준다."""
+    root = Path(os.environ.get("PADDLE_PDX_CACHE_HOME", "/hf/paddlex")) / "official_models"
+    det, rec = "PP-OCRv5_server_det", "korean_PP-OCRv5_mobile_rec"
+    if not ((root / det).is_dir() and (root / rec).is_dir()):
+        return {}
+    return {"text_detection_model_name": det, "text_detection_model_dir": str(root / det),
+            "text_recognition_model_name": rec, "text_recognition_model_dir": str(root / rec)}
+
+
 engine = PaddleOCR(lang="korean", device="cpu", use_doc_orientation_classify=False, use_doc_unwarping=False,
-                   use_textline_orientation=False)
+                   use_textline_orientation=False, **localModels())
 lock = threading.Lock()
 
 

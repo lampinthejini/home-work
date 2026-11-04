@@ -644,6 +644,59 @@ def save(data: EvalInput, scores: Scores, perQuestion: dict[int, list[dict]], re
         db.close()
 
 
+# ---------- 확인 필요 건 마무리 (CONFLICTS U8) ----------
+#
+# 점수가 없으므로 근거를 만들어 내지 않는다. 사유는 아래 고정 문구 또는 관리자가 쓴 글이고 LLM 을 부르지 않는다.
+
+REVIEW_DEADLINE_DAYS = 3  # 이때까지 관리자가 정하지 않으면, AI 가 정상일 때 마지막 재채점까지 실패해야 닫는다
+REVIEW_LIMIT_DAYS = 7  # 장애가 길어져도 이때는 닫는다 (보관 기간이 끝없이 늘어나지 않게)
+REVIEW_RETRY_HOURS = 6
+INCOMPLETE_REASON = ("기한 안에 자동 채점을 끝내지 못해 평가 미완료로 1차 불합격 처리했습니다. "
+                     "답변을 평가한 결과가 아니며 점수와 근거가 없습니다. (마지막 사유: {reason})")
+INSTRUCTION_REASON = "instruction_suspected"
+MANUAL_REASON_MIN = 10
+
+
+def reviewDeadline(app: Application):
+    return asKst(app.needs_review_since) + timedelta(days=REVIEW_DEADLINE_DAYS) if app.needs_review_since else None
+
+
+def closeUnscored(db: Session, app: Application, decision: str, reason: str, check: str, statusReason: str, modelVersion: str) -> bool:
+    """점수 없이 결과를 확정한다. 커밋은 부르는 쪽에서 한다. 기준 버전이 아예 없으면 False."""
+    criteria = (db.query(EvaluationCriteria).filter_by(posting_id=app.posting_id)
+                .order_by((EvaluationCriteria.version == app.criteria_version).desc(), EvaluationCriteria.version.desc()).first())
+    if criteria is None:
+        return False
+    decidedAt = now()
+    db.add(Result(application_id=app.id, criteria_id=criteria.id, item_points={}, interview_score=Decimal(0), total_score=Decimal(0),
+                  pass_score=Decimal(criteria.pass_score), ai_decision=decision, ai_reason=reason, ai_reason_quotes=[], strengths=[],
+                  improvements=[], summary=None, decision_check=check, model_version=modelVersion, prompt_version="-", rubric_version="-",
+                  public_view={"result": decision, "strengths": [], "improvements": [], "status_reason": statusReason, "ai_generated": False},
+                  decided_at=decidedAt))
+    app.release_at, app.release_status = releaseSchedule(app.posting.release_at, decidedAt)
+    app.purge_at = asKst(app.release_at) + timedelta(days=RESULT_VIEW_DAYS)
+    app.analysis_status = "decided"
+    app.review_reason = None
+    return True
+
+
+def decideManually(db: Session, app: Application, decision: str, reason: str, adminId: str) -> bool:
+    if not closeUnscored(db, app, decision, reason, "manual", "manual_decision", "manual"):
+        return False
+    # 사유 글은 지원자 평가 내용이라 감사 로그에는 넣지 않는다
+    db.add(AuditLog(actor_id=adminId, action="analysis.manual_decision", target=app.id, detail={"decision": decision}))
+    return True
+
+
+def closeIncomplete(db: Session, app: Application) -> bool:
+    """평가 미완료 불합격으로 닫는다. 커밋은 부르는 쪽에서 한다."""
+    last = app.review_reason
+    if not closeUnscored(db, app, "fail", INCOMPLETE_REASON.format(reason=last), "incomplete", "evaluation_incomplete", "none"):
+        return False
+    db.add(AuditLog(action="analysis.auto_fail", target=app.id, detail={"review_reason": last}))
+    return True
+
+
 def markNeedsReview(applicationId: str, reason: str) -> bool:
     """확인 필요로 바꾼다. 이미 결과가 있으면 바꾸지 않는다. 바꿨으면 True."""
     db = dbModule.SessionLocal()

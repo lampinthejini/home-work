@@ -16,17 +16,24 @@ AI 면접(질문 음성 → 답변 음성 인식 → 꼬리질문)과 선택형 
 ## 처음 실행
 
 ```sh
-cp .env.example .env              # 비밀값 채우기 (POSTGRES_PASSWORD, APP_SECRET, ADMIN_INITIAL_PASSWORD 등)
-sh scripts/up.sh                  # 네트워크 생성 → infra → ai → app 순서로 띄움
+cp .env.example .env              # 비밀값 채우기 (POSTGRES_PASSWORD, REDIS_PASSWORD, APP_ENCRYPTION_KEY, ADMIN_INITIAL_PASSWORD 등)
+sh scripts/up.sh infra            # 네트워크 생성 → 저장소 띄움
+sh scripts/fetch-models.sh        # 처음 한 번: AI 모델 내려받기 (받는 동안만 밖으로 나가는 망을 연다)
+sh scripts/up.sh ai && sh scripts/up.sh app
 docker exec huge-app-api-1 python -m app.manage init            # 관리자 계정 (첫 로그인 때 비밀번호 변경)
 docker exec huge-app-api-1 python -m app.manage load_questions  # 질문은행 (상위 폴더 xlsx 2개)
 docker exec huge-app-api-1 python -m app.manage embed_questions # 질문 임베딩 (RAG, 처음 약 13분, 다시 돌리면 없는 것만)
+docker exec huge-app-api-1 python -m app.manage dedupe_questions # 뜻이 겹치는 엑셀 질문 정리 (유사도 0.8 이상, 임베딩 뒤에)
 docker exec huge-app-api-1 python -m app.manage sample_posting  # 예시 공고 (선택)
 ```
 
 - 내리기: `sh scripts/down.sh` (볼륨은 남음). 한 묶음만: `sh scripts/up.sh app`
 - 모델 파일은 `models/llm/` 에 둡니다 (Qwen3 4B · Qwen3 8B Q4_K_M GGUF, 각 `.sha256` 확인). GPU 6GB 기준으로 맞춰 두었습니다.
 - **Docker 메모리 24GB 이상 필요** (llm-eval 8B 가 CPU 메모리 약 5GB 사용, 상한 9GB). Windows 는 `%USERPROFILE%\.wslconfig` 에 `[wsl2]` `memory=24GB` 를 넣고 `wsl --shutdown` 뒤 Docker 를 다시 켭니다.
+- 동시 면접 상한을 2건 이상으로 올리면 `.env` 의 `LLM_RT_PARALLEL` 을 (상한 + 1)로, `LLM_RT_CTX` 를 (4096 × 그 수)로 함께 올립니다. 2건이면 3 · 12288. GPU 메모리를 더 쓰므로 올린 뒤 측정합니다.
+- `APP_ENCRYPTION_KEY` 는 필수입니다 (`openssl rand -base64 32`). 없으면 앱이 켜지지 않고, 잃어버리면 DB·저장소의 암호화 데이터를 복구할 수 없습니다. 백업도 만들 때의 키로만 읽힙니다.
+- stt·tts·embed·ocr 는 밖으로 나가는 망에 붙지 않아 실행 중에 모델을 받을 수 없습니다. 모델을 바꾸면 `sh scripts/fetch-models.sh` 를 다시 돌립니다. 망 분리는 `compose.ai.yml` 기준이고, 포트를 여는 frontend·api·mailpit 은 front 망에 남습니다.
+- 로그인 차단은 IP 기준입니다. 외부에 공개할 때는 **앞단 프록시가 `X-Forwarded-For` 를 진짜 접속 IP 로 덮어쓰게** 하고, api(8000)·frontend(8080) 포트를 직접 열지 않습니다. 그러지 않으면 헤더를 꾸며 차단을 피할 수 있습니다. 이때 `LOGIN_EXEMPT_IPS` 는 내 IP 로 바꿉니다.
 - 메일은 개발용 Mailpit 으로 갑니다 (<http://127.0.0.1:8025>).
 
 ### DB 직접 보기 (개발자용)
@@ -64,7 +71,7 @@ cd e2e && npm run test:full      # 끝까지 응시·코딩·채점·결과 공�
 ## 범위
 
 포함: 회원가입·로그인, 공고 작성(AI 초안·직접 작성)·게시·마감(코딩테스트 토글), 공고 조회·지원, 동의·이력서(PDF 리더 → AI 항목 정리 → 필요 시 OCR · 직접 작성),
-환경 점검, 질문 10개 RAG 구성(기존 질문 예시 + 이력서 + 회사 상황 → LLM, 실패 시 질문은행 → 예비 질문), AI 면접(TTS 질문 · WebSocket PCM 음성 · STT 자막 · LLM 꼬리질문), 화면 이탈 경고·취소, 장애 중단·이어가기,
+환경 점검, 질문 10개 RAG 구성(기존 질문 예시 + 이력서 + 회사 상황 → LLM, 실패 시 질문은행 → 예비 질문), AI 면접(TTS 질문 · WebSocket PCM 음성 · STT 자막 · LLM 꼬리질문, 진행 순서는 LangGraph 면접 진행 그래프 + PostgreSQL 체크포인트 · 질문 구성도 LangGraph 그래프), 화면 이탈 경고·취소, 장애 중단·이어가기,
 코딩테스트(격리 실행 상자), 마이페이지, 관리자 지원자 목록·상세(답변 원문·음성·기록).
 
 2단계-A: 응시가 끝나면 자동 채점(문항별 AI 점수 + 근거 문장 확인) → 코드가 총점·합격 여부 계산(총점 ≥ 합격 기준) → 8B 모델이 결과 이유 작성(방향·근거 검사, 1회 다시 쓰기, 안 되면 '확인 필요') → 공개 시각에 결과 공개·사이트 알림·메일, 지원자 결과 화면, 관리자 점수·리포트·하이라이트·[다시 돌리기], 🔔 알림.

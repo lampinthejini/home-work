@@ -13,7 +13,8 @@ import openpyxl
 from sqlalchemy.orm import Session
 
 from ..domain.scoring import EVAL_ITEMS_BY_KIND
-from ..models import Question
+from ..models import AuditLog, Question
+from . import rag
 
 JOB_SHEET_KEYWORDS = ("머신러닝", "딥러닝", "컴퓨터 비전", "데이터 사이언", "파이썬")
 COMPANY_CATEGORIES = {"지원동기", "동기/지원 이유", "조직 문화 적합성"}
@@ -85,6 +86,39 @@ def excludeOtherCompanies(db: Session) -> int:
             count += 1
     db.commit()
     return count
+
+
+def pickDuplicates(ids: list[int], pairs: list[tuple[int, int, float]]) -> dict[int, tuple[int, float]]:
+    """id 순서로 보며 앞에서 남긴 질문과 겹치면 뺀다. {뺄 id: (가장 비슷한 남긴 id, 유사도)}."""
+    earlier: dict[int, list[tuple[int, float]]] = {}
+    for first, second, similarity in pairs:
+        earlier.setdefault(second, []).append((first, similarity))
+    kept: set[int] = set()
+    duplicates = {}
+    for questionId in sorted(ids):
+        hits = [hit for hit in earlier.get(questionId, []) if hit[0] in kept]
+        if hits:
+            duplicates[questionId] = max(hits, key=lambda hit: hit[1])
+        else:
+            kept.add(questionId)
+    return duplicates
+
+
+def dedupeExcel(db: Session) -> dict[str, int]:
+    """사용 중인 엑셀 질문끼리 뜻이 겹치면 앞선 것만 남기고 'excluded'로 바꾼다 (CONFLICTS). 임베딩을 만든 뒤에 돌린다."""
+    if not rag.supported(db):
+        raise RuntimeError("pgvector 는 PostgreSQL 에서만 쓸 수 있습니다")
+    result = {}
+    for kind in ("personality", "company", "job"):
+        ids = [i for (i,) in db.query(Question.id).filter_by(source="excel", status="active", kind=kind)]
+        duplicates = pickDuplicates(ids, rag.similarPairs(db, kind, rag.BANK_DUPLICATE_SIMILARITY))
+        for questionId, (similarTo, similarity) in duplicates.items():
+            db.get(Question, questionId).status = "excluded"
+            db.add(AuditLog(action="question.dedupe", target=str(questionId),
+                            detail={"from": "active", "to": "excluded", "similar_to": similarTo, "similarity": round(similarity, 3)}))
+        result[kind] = len(duplicates)
+    db.commit()
+    return result
 
 
 def normalizeText(text: str) -> str:

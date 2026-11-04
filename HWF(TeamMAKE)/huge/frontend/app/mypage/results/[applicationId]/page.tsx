@@ -12,7 +12,7 @@ import { dateOnly, longDateTime } from "@/lib/format";
 import type { AttemptStatus } from "@/lib/status";
 
 type Result = {
-    result: "pass" | "fail"; attempt_status: AttemptStatus; status_reason: string | null; strengths: string[]; improvements: string[];
+    result: "pass" | "fail"; attempt_status: AttemptStatus; status_reason: string | null; strengths: string[]; improvements: string[]; ai_generated: boolean;
     contact_email: string; result_until: string;
 };
 type Card = { application_id: string; posting: { title: string }; release_at: string };
@@ -20,6 +20,8 @@ type Card = { application_id: string; posting: { title: string }; release_at: st
 const STATUS_REASON: Record<string, string> = {
     cheating_cancelled: "화면 이탈 규칙에 따라 응시가 취소되어 평가하지 않았습니다.",
     closed: "접수 마감으로 면접이 끝나 답변한 문항까지 평가했습니다.",
+    evaluation_incomplete: "시스템 문제 등으로 자동 평가를 기한 안에 끝내지 못해 1차 불합격으로 처리되었습니다. 답변을 평가한 결과가 아닙니다. 문의는 아래 이메일로 보내 주세요.",
+    manual_decision: "자동 평가를 끝내지 못해 담당자가 응시 자료를 확인하고 결과를 정했습니다.",
     ended: "응시가 중간에 종료되어 답변한 문항까지 평가했습니다.",
 };
 
@@ -62,11 +64,11 @@ function ResultDetail() {
                 <div>응시 상태: <StatusBadge status={result.attempt_status} /></div>
                 {result.status_reason && <p className="small muted">{STATUS_REASON[result.status_reason] ?? ""}</p>}
             </div>
-            <div className="grid2">
+            {result.ai_generated && <div className="grid2">
                 <div className="card"><h3>강점</h3><ol>{result.strengths.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>
                 <div className="card"><h3>개선점</h3><ol>{result.improvements.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>
-            </div>
-            <p className="small muted">ⓘ AI가 생성한 결과입니다.</p>
+            </div>}
+            {result.ai_generated && <p className="small muted">ⓘ AI가 생성한 결과입니다.</p>}
             <hr style={{ border: 0, borderTop: "1px solid var(--color-line)", width: "100%" }} />
             <p className="tiny muted">결과에 문제가 있으면 채용 담당자 이메일(<a href={`mailto:${result.contact_email}`}>{result.contact_email}</a>)로 문의해 주세요.</p>
         </div>

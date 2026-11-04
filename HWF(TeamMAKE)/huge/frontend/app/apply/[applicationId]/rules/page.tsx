@@ -69,7 +69,7 @@ function Rules() {
             <h2>면접을 시작하기 전에 꼭 읽어 주세요.</h2>
             <div className="grid3">
                 <div className="card"><h3>진행 방식</h3><ul className="small" style={{ paddingLeft: 18, margin: 0 }}>
-                    <li>AI가 음성+자막으로 질문</li><li>3-2-1 뒤 답변 녹음</li><li>카메라 화면 표시 (평가에 쓰지 않음)</li></ul></div>
+                    <li>AI가 음성+자막으로 질문</li><li>3-2-1 뒤 답변 녹음</li><li>카메라 영상과 마이크 소리 녹화 (녹화는 평가에 쓰지 않음)</li></ul></div>
                 <div className="card"><h3>질문과 시간</h3><ul className="small" style={{ paddingLeft: 18, margin: 0 }}>
                     <li>기본 질문 10개 · 각 90초</li><li>꼬리질문 최대 4개 · 각 60초</li><li>AI 면접 예상 약 25분</li></ul></div>
                 <div className="card"><h3>코딩테스트</h3><ul className="small" style={{ paddingLeft: 18, margin: 0 }}>

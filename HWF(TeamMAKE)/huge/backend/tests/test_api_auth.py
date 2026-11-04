@@ -31,15 +31,6 @@ def test_unknownFieldRejected(client):
     assert res.status_code == 422
 
 
-def test_wrongPasswordFiveTimesLocksAccount(client):
-    signup(client)
-    for _ in range(4):
-        assert client.post("/auth/login", json={"email": "kim@example.com", "password": "Wrong#Pass2026"}).status_code == 401
-    res = client.post("/auth/login", json={"email": "kim@example.com", "password": "Wrong#Pass2026"})
-    assert res.status_code == 423
-    res = client.post("/auth/login", json={"email": "kim@example.com", "password": APPLICANT_PASSWORD})
-    assert res.status_code == 423
-
 
 def test_externalNextIsIgnored(client):
     signup(client)

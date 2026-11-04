@@ -3,6 +3,7 @@
   init            테이블 · 직무 코드 · 관리자 계정(초기 비밀번호, 첫 로그인 때 변경 강제)
   load_questions  질문 엑셀 2개와 예비 질문을 질문 DB 에 넣는다 (같은 시트·행은 건너뜀)
   embed_questions 질문 DB 의 임베딩(BGE-M3)을 만든다. 없는 것만 하므로 다시 돌려도 된다 (RAG)
+  dedupe_questions 사용 중 엑셀 질문끼리 유사도 0.8 이상이면 앞선 것만 남긴다 (embed_questions 뒤에. 다시 돌려도 된다)
   sample_posting  확인용 공고 1건(AI/AX 엔지니어, 오늘부터 14일, 코딩테스트 사용)
 """
 
@@ -64,7 +65,12 @@ def embedQuestions(db) -> None:
     print(f"embedded {done} questions, total {rag.indexedCount(db)}")
 
 
-COMMANDS = {"init": init, "load_questions": loadQuestions, "sample_posting": samplePosting, "embed_questions": embedQuestions}
+def dedupeQuestions(db) -> None:
+    print(question_bank.dedupeExcel(db))
+
+
+COMMANDS = {"init": init, "load_questions": loadQuestions, "sample_posting": samplePosting, "embed_questions": embedQuestions,
+            "dedupe_questions": dedupeQuestions}
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:

@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..domain import status as st
+from ..interview import checkpoint
 from ..models import (
     Answer,
     Application,
@@ -72,8 +73,8 @@ def archiveStats(db: Session, app: Application) -> None:
     row.resumed += max(sessions - 1, 0)
     row.cheating_cancelled += int(app.attempt_status == st.CANCELLED and app.end_detail == "exit_twice")
     result = db.query(Result).filter_by(application_id=app.id).first()
-    if result is None:
-        return
+    if result is None or not result.scored:
+        return  # 점수가 없는 결과는 점수 통계에 넣지 않는다 (/admin/stats 와 같은 기준)
     total = Decimal(result.total_score)
     row.decided += 1
     row.passed += int(result.ai_decision == "pass")
@@ -98,7 +99,8 @@ def purgeApplication(db: Session, app: Application, redisClient=None, cause: str
     rows = 1 + sum(db.query(func.count()).select_from(table).filter(table.application_id == app.id).scalar() or 0
                    for table in CHILD_TABLES)
     db.query(Consent).filter_by(application_id=app.id).update({Consent.application_id: None})  # 동의는 증거로 남김
-    items = {"db_rows": rows, "files": files, "redis_keys": redisKeys, "checkpoints": 0}
+    checkpoints = checkpoint.deleteThread(db, app.id)  # LangGraph 체크포인트 (thread_id = 지원 번호, AI 아키텍처 7장)
+    items = {"db_rows": rows, "files": files, "redis_keys": redisKeys, "checkpoints": checkpoints}
     db.add(DeletionLog(application_id=app.id, cause=cause, scope="interview_data", deleted_items=items))
     # 동의 철회·탈퇴는 응시가 끝난 건만 익명 숫자로 남긴다 (끝나지 않은 응시는 통계에 넣지 않음)
     if cause == "retention" or app.attempt_status in st.FINAL_STATUSES:
@@ -136,7 +138,7 @@ UNSCORED_STATUSES = (st.DRAFTING, st.READY, st.NOT_TAKEN_CLOSED)
 
 def purgeDue(db: Session, redisClient=None, at=None) -> list[str]:
     """purge_at 이 지난 지원 건을 지운다. 한 건이 실패해도 다음 건은 계속 지운다 (다음 날 다시 시도).
-    '확인 필요'로 멈춘 건은 purge_at 이 없어 지우지 않는다 — 관리자가 처리해야 결과·삭제일이 정해진다."""
+    '확인 필요' 건은 purge_at 이 없어 지우지 않는다 — 결과가 정해질 때(최대 7일, CONFLICTS U8) 삭제일도 정해진다."""
     at = at or now()
     ids = [appId for (appId,) in db.query(Application.id).filter(Application.purge_at.is_not(None), Application.purge_at <= at)]
     ids += [appId for (appId,) in db.query(Application.id).join(JobPosting, JobPosting.id == Application.posting_id)

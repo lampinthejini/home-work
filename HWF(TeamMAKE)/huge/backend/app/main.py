@@ -2,20 +2,23 @@
 
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from . import jobs, migrate
 from .db import Base, SessionLocal, engine
 from .domain import status as st
 from .errors import ApiError, apiErrorHandler, validationErrorHandler
-from .interview import lifecycle
+from .interview import checkpoint, lifecycle
 from .models import Application, InterviewSession
 from .routers import admin, admin_ops, admin_questions, applications, auth, interview, me, postings
 from .services import admission, llm, question_compose, storage
 from .services.postings import seedJobCodes
+from .settings_store import getSetting
 from .timeutil import now
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -69,14 +72,45 @@ async def lifespan(_app: FastAPI):
         seedJobCodes(db)
     await asyncio.to_thread(storage.ensureBucket)
     recoverAfterRestart()
+    await checkpoint.openSaver()  # 면접 진행 그래프 체크포인트 (ADR-07)
     spawn(warmUp())
     spawn(jobs.runForever())
     yield
     for task in list(backgroundTasks):
         task.cancel()
+    await checkpoint.closeSaver()
+
+
+UPLOAD_PATH = re.compile(r"/applications/[^/]+/resume/upload")
+MULTIPART_OVERHEAD_BYTES = 1024 * 1024
+
+
+def uploadLimitBytes() -> int:
+    with SessionLocal() as db:
+        return getSetting(db, "upload_max_mb") * 1024 * 1024 + MULTIPART_OVERHEAD_BYTES
+
+
+class UploadSizeGuard:
+    """FastAPI 는 본문을 임시 파일로 다 받은 뒤 핸들러를 부른다. 큰 요청은 그 전에 Content-Length 로 거절한다.
+
+    브라우저 업로드에는 항상 길이가 있고, 길이보다 많이 보내면 uvicorn 이 끊는다. 그래서 길이가 없으면 받지 않는다.
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["method"] == "POST" and UPLOAD_PATH.fullmatch(scope["path"]):
+            length = dict(scope["headers"]).get(b"content-length", b"")
+            if not length.isdigit():
+                return await JSONResponse({"code": "LENGTH_REQUIRED", "message": "이력서를 불러오는 데 실패했습니다."}, 411)(scope, receive, send)
+            if int(length) > await asyncio.to_thread(uploadLimitBytes):
+                return await JSONResponse({"code": "FILE_TOO_LARGE", "message": "이력서를 불러오는 데 실패했습니다."}, 413)(scope, receive, send)
+        await self.inner(scope, receive, send)
 
 
 app = FastAPI(title="Huge API (Team AIIT)", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(UploadSizeGuard)
 app.add_exception_handler(ApiError, apiErrorHandler)
 app.add_exception_handler(RequestValidationError, validationErrorHandler)
 for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin):

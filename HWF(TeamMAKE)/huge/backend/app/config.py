@@ -29,6 +29,8 @@ class Env:
     publicOrigin: str
     itQuestionsPath: str
     personalityQuestionsPath: str
+    trustedProxyHost: str
+    loginExemptIps: str
 
 
 def loadEnv() -> Env:
@@ -53,6 +55,8 @@ def loadEnv() -> Env:
         publicOrigin=os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8080"),
         itQuestionsPath=os.environ.get("IT_QUESTIONS_PATH", "/data/it_questions.xlsx"),
         personalityQuestionsPath=os.environ.get("PERSONALITY_QUESTIONS_PATH", "/data/personality_questions.xlsx"),
+        trustedProxyHost=os.environ.get("TRUSTED_PROXY_HOST", "frontend"),
+        loginExemptIps=os.environ.get("LOGIN_EXEMPT_IPS", ""),
     )
 
 
@@ -73,6 +77,9 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "caption_interval_sec": (1, 3),
     "next_question_target_sec": (5, 20),
     "followup_min_sec": (2, 3),
+    # 꼬리질문을 낼 때만 쓰는 목표 시간 (답변 끝 → 꼬리질문). 5초 안에는 T4 판단 + TTS(실측 5~7초)가 들어가지 않아
+    # 2026-11-03 사용자 결정(①)으로 따로 둔다. 꼬리질문이 없으면 next_question_target_sec 그대로 (CONFLICTS U7)
+    "followup_target_sec": (10, 20),
     "question_regen_limit": (3, 3),
     "rag_example_count": (3, 3),
     "question_attempt_timeout_sec": (8, 30),
@@ -90,8 +97,11 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "session_idle_hours": (2, 2),
     "login_fail_limit": (5, 5),
     "login_lock_min": (10, 10),
+    "login_block_window_min": (60, 60),
+    "login_block_hours": (24, 24),
+    "login_contact_email": ("", ""),
     "release_hour": (10, 10),
-    "consent_version": ("v1.3", "v1.3"),
+    "consent_version": ("v1.7", "v1.7"),
 }
 
 

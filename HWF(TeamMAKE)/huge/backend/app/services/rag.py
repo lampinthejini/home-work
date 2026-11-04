@@ -20,8 +20,11 @@ log = logging.getLogger("huge.rag")
 EMBED_DIM = 1024
 COPY_SIMILARITY = 0.9
 DUPLICATE_SIMILARITY = 0.9
+BANK_DUPLICATE_SIMILARITY = 0.8  # 질문은행에 남길 때는 더 엄격하게 (면접 안 중복은 위 0.9)
 EMBED_TIMEOUT_SEC = 10
 INDEX_BATCH = 32
+# HNSW 는 가까운 N개를 찾은 뒤 조건으로 거른다. 안 쓰는 질문(excluded·preparing)이 자리를 차지해 예시가 모자라지 않게 넓힌다 (실측 40 → 0개, 200 → 3개, 5ms)
+SEARCH_WIDTH = 200
 # 이력서 기반 질문은 질문 DB 에 같은 종류가 없어 직무 질문을 예시로 쓴다
 EXAMPLE_KIND = {"personality": "personality", "company": "company", "job": "job", "resume": "job"}
 
@@ -124,6 +127,7 @@ def indexQuestions(db: Session) -> int:
 
 def similar(db: Session, slotKind: str, vector: list[float], count: int, excludeIds: set[int]) -> list[Example]:
     """같은 종류의 쓰는 질문(엑셀) 중 뜻이 가장 가까운 것 count 개 (RAG 예시, TRD 7-4 ③-2)."""
+    db.execute(text(f"SET LOCAL hnsw.ef_search = {SEARCH_WIDTH}"))
     rows = db.execute(text(
         "SELECT id, text, embedding::text AS emb, 1 - (embedding <=> CAST(:v AS vector)) AS sim FROM questions "
         "WHERE kind = :kind AND status = 'active' AND source = 'excel' AND embedding IS NOT NULL "
@@ -138,6 +142,15 @@ def maxStoredSimilarity(db: Session, kind: str, vector: list[float]) -> float:
         "SELECT 1 - (embedding <=> CAST(:v AS vector)) FROM questions WHERE kind = :kind AND embedding IS NOT NULL "
         "ORDER BY embedding <=> CAST(:v AS vector) LIMIT 1"), {"v": toLiteral(vector), "kind": kind}).scalar()
     return float(sim) if sim is not None else 0.0
+
+
+def similarPairs(db: Session, kind: str, threshold: float) -> list[tuple[int, int, float]]:
+    """같은 종류의 사용 중 엑셀 질문 중 threshold 이상 비슷한 쌍 (앞 id, 뒤 id, 유사도)."""
+    rows = db.execute(text(
+        "SELECT a.id, b.id, 1 - (a.embedding <=> b.embedding) FROM questions a JOIN questions b ON a.id < b.id AND a.kind = b.kind "
+        "WHERE a.kind = :kind AND a.source = 'excel' AND b.source = 'excel' AND a.status = 'active' AND b.status = 'active' "
+        "AND 1 - (a.embedding <=> b.embedding) >= :t"), {"kind": kind, "t": threshold}).all()
+    return [(x, y, float(s)) for x, y, s in rows]
 
 
 def storeVector(db: Session, questionId: int, vector: list[float]) -> None:

@@ -8,7 +8,7 @@
 전체 question_compose_budget_sec 를 넘으면 남은 자리는 LLM 없이 바로 질문은행으로 채운다.
 임베딩 서버가 없거나 질문 DB 임베딩이 비어 있으면 RAG 를 건너뛰고 질문은행으로 간다.
 
-api 프로세스의 백그라운드 작업으로 돈다.
+자리마다의 순서와 갈림길은 LangGraph 그래프(buildComposeGraph)가 정한다 (ADR-07). api 프로세스의 백그라운드 작업으로 돈다.
 """
 
 import asyncio
@@ -16,7 +16,9 @@ import hashlib
 import logging
 import re
 import time
+from typing import TypedDict
 
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -217,76 +219,6 @@ def chosenVectors(chosen: list[dict]) -> list[list[float]]:
     return [c["vector"] for c in chosen if c.get("vector")]
 
 
-async def ragGenerate(db: Session, app: Application, kind: str, chosen: list[dict], ctx: dict, deadline: float,
-                      settings: dict, record: dict) -> str | None:
-    """RAG 로 질문 1개를 만든다. 실패하면 None (record 에 다시 만든 횟수·이유를 남긴다)."""
-    regenLimit = settings["question_regen_limit"]
-    attemptTimeout = settings["question_attempt_timeout_sec"]
-    topic = None
-    if kind == "job" and ctx["jobTopics"]:
-        topic = ctx["jobTopics"][ctx["jobIndex"] % len(ctx["jobTopics"])]
-        ctx["jobIndex"] += 1
-    if deadline - time.monotonic() <= 1:
-        record["substitute_reason"] = "budget"
-        return None
-    try:
-        queryVector = (await rag.embed([queryText(kind, app.posting, app.resume_snapshot or {}, topic)],
-                                       timeoutSec=min(rag.EMBED_TIMEOUT_SEC, deadline - time.monotonic())))[0]
-        examples = rag.similar(db, kind, queryVector, settings["rag_example_count"], ctx["exampleIds"] | ctx["usedIds"])
-        if not examples:  # 같은 종류 예시를 다 썼으면 앞 자리에서 본 예시도 다시 쓴다
-            examples = rag.similar(db, kind, queryVector, settings["rag_example_count"], ctx["usedIds"])
-    except rag.EmbedUnavailable as exc:
-        record["substitute_reason"] = "embed_unavailable"
-        ctx["ragOn"] = False  # 남은 자리는 기다리지 않고 바로 질문은행
-        log.warning("rag examples unavailable: %s", exc)
-        return None
-    if not examples:
-        record["substitute_reason"] = "no_rag_example"
-        return None
-    ctx["exampleIds"].update(e.id for e in examples)  # 같은 종류 다음 자리는 다른 예시를 보게 (질문이 비슷해지지 않게)
-    problem = None
-    for attempt in range(regenLimit):
-        remaining = deadline - time.monotonic()
-        if remaining <= 1:
-            record["substitute_reason"] = "budget"
-            break
-        try:
-            async with composeSemaphore:
-                remaining = deadline - time.monotonic()  # 다른 지원자 질문 만들기를 기다린 시간도 예산에 넣는다
-                if remaining <= 1:
-                    record["substitute_reason"] = "budget"
-                    break
-                resume = ctx["skills"] if kind == "job" else ctx["resume"]
-                company = ctx["companyBrief"] if kind == "job" else ctx["company"]
-                out = await llm.structured(RagQuestion, SYSTEM, ragPrompt(kind, company, resume, examples,
-                                                                          [c["text"] for c in chosen], problem, topic),
-                                           min(attemptTimeout, remaining), maxTokens=400, temperature=0.6)
-            problem = checkGenerated(kind, out, ctx["resume"])
-            text = out.question.strip()
-            if problem is None:
-                vector = (await rag.embed([text], timeoutSec=max(min(rag.EMBED_TIMEOUT_SEC, deadline - time.monotonic()), 1)))[0]
-                if rag.maxSimilarity(vector, [e.vector for e in examples]) >= rag.COPY_SIMILARITY:
-                    problem = "copied_example"
-                elif isRepeat(text, chosen) or rag.maxSimilarity(vector, chosenVectors(chosen)) >= rag.DUPLICATE_SIMILARITY:
-                    problem = "duplicate"
-                else:
-                    record["vector"] = vector
-                    log.info("slot %s generated with examples %s", kind, [e.id for e in examples])
-                    return text
-        except (llm.LlmError, rag.EmbedUnavailable) as exc:
-            problem = f"llm:{exc}" if isinstance(exc, llm.LlmError) else "embed_unavailable"
-            if problem == "embed_unavailable":
-                ctx["ragOn"] = False
-                record["regen_count"] = attempt + 1
-                record["substitute_reason"] = problem
-                break
-        record["regen_count"] = attempt + 1
-        record["substitute_reason"] = problem
-        log.info("slot %s attempt %d failed: %s", kind, attempt + 1, problem)
-        problem = PROBLEM_TEXT.get(problem, problem)
-    return None
-
-
 def bankFallback(db: Session, app: Application, kind: str, chosen: list[dict], ctx: dict) -> Question | None:
     """질문은행(확인된 DB 질문)에서 고른다. 이미 고른 질문과 뜻이 0.9 이상 비슷하면 건너뛴다 (TRD 7-4 ②)."""
     pool = [q for q in candidates(db, app, kind, ctx["usedGroups"], ctx["usedIds"]) if not isRepeat(q.text, chosen)]
@@ -300,13 +232,40 @@ def bankFallback(db: Session, app: Application, kind: str, chosen: list[dict], c
     return pool[0] if pool else None
 
 
-async def composeSlot(db: Session, app: Application, kind: str, chosen: list[dict], ctx: dict, deadline: float,
-                      settings: dict) -> dict:
-    """자리 하나: RAG 로 만들기 → 실패하면 질문은행 → 예비 질문. 질문 바꾸기는 감점·장애가 아니다."""
-    record = {"qtype": kind, "regen_count": 0, "substituted": False, "substitute_reason": None, "source_question_id": None,
-              "vector": None}
+# ---------- 질문 만들기 그래프 (ADR-07, TRD 7-4, AI 아키텍처 6.1) ----------
+#
+#   pick ─┬─ examples ─┬─ generate → check ─┬─ accept ─┬─ pick (다음 자리)
+#         │            │       ↑            │          └─ END (10개)
+#         │            │       └── 다시 ────┤
+#         └────────────┴──── bank ──────────┴─ (질문은행 → 예비 질문) → accept
+#
+# 갈림길은 코드가 정한다: 확인 통과 → 저장 / 실패하고 다시 만들기 횟수 남음 → 만들기 / 횟수 소진·예산 초과 → 질문은행 → 예비 질문.
+# 그래프 상태에는 DB 세션·벡터가 들어가므로 체크포인트 없이 메모리에서만 돈다 (면접 시작 전 짧은 작업, 실패하면 처음부터 다시).
 
-    def finish(text: str, source: str, question: Question | None, substituted=False):
+COMPOSE_RECURSION_LIMIT = 300  # 자리 하나에 최대 3 + 2 × question_regen_limit 단계 × 10자리 + 여유
+
+
+class SlotState(TypedDict, total=False):
+    chosen: list[dict]
+    kind: str
+    record: dict
+    examples: list
+    topic: str | None
+    attempt: int
+    problem: str | None       # 다시 만들 때 프롬프트에 넣는 문장
+    llmError: str | None
+    candidate: RagQuestion | None
+    accepted: bool          # 이 자리 질문이 정해졌나
+
+
+def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float, settings: dict):
+    regenLimit = settings["question_regen_limit"]
+
+    def remaining() -> float:
+        return deadline - time.monotonic()
+
+    def accept(state: SlotState, text: str, source: str, question: Question | None, substituted: bool) -> dict:
+        record = state["record"]
         if question is not None:
             if question.duplicate_group:
                 ctx["usedGroups"].add(question.duplicate_group)
@@ -317,25 +276,145 @@ async def composeSlot(db: Session, app: Application, kind: str, chosen: list[dic
         record.update(text=text, source=source, substituted=substituted)
         if not substituted:
             record["substitute_reason"] = None
-        return record
+        return {"chosen": [*state["chosen"], record], "accepted": True}
 
-    if ctx["ragOn"] and deadline - time.monotonic() > 1:
-        text = await ragGenerate(db, app, kind, chosen, ctx, deadline, settings, record)
-        if text is not None:
-            return finish(text, "generated", None)
-    elif not ctx["ragOn"]:
-        record["substitute_reason"] = "rag_unavailable"
-    else:
-        record["substitute_reason"] = "budget"
+    async def pick(state: SlotState) -> dict:
+        kind = SLOT_ORDER[len(state["chosen"])]
+        record = {"qtype": kind, "regen_count": 0, "substituted": False, "substitute_reason": None,
+                  "source_question_id": None, "vector": None}
+        if not ctx["ragOn"]:
+            record["substitute_reason"] = "rag_unavailable"
+        elif remaining() <= 1:
+            record["substitute_reason"] = "budget"
+        return {"kind": kind, "record": record, "examples": [], "topic": None, "attempt": 0, "problem": None,
+                "llmError": None, "candidate": None, "accepted": False}
 
-    if kind != "resume":
-        question = bankFallback(db, app, kind, chosen, ctx)
-        if question is not None:
-            return finish(question.text, "excel", question, True)
-    reserve = reserveFor(db, kind, ctx["usedGroups"])
-    if reserve is not None:
-        return finish(reserve.text, "reserve", reserve, True)
-    return finish(RESERVE_LAST_RESORT, "reserve", None, True)
+    async def examples(state: SlotState) -> dict:
+        """① 찾기: 공고·이력서로 같은 종류 기존 질문 예시를 찾는다."""
+        kind, record = state["kind"], state["record"]
+        topic = None
+        if kind == "job" and ctx["jobTopics"]:
+            topic = ctx["jobTopics"][ctx["jobIndex"] % len(ctx["jobTopics"])]
+            ctx["jobIndex"] += 1
+        if remaining() <= 1:
+            record["substitute_reason"] = "budget"
+            return {"topic": topic, "examples": []}
+        try:
+            queryVector = (await rag.embed([queryText(kind, app.posting, app.resume_snapshot or {}, topic)],
+                                           timeoutSec=min(rag.EMBED_TIMEOUT_SEC, remaining())))[0]
+            found = rag.similar(db, kind, queryVector, settings["rag_example_count"], ctx["exampleIds"] | ctx["usedIds"])
+            if not found:  # 같은 종류 예시를 다 썼으면 앞 자리에서 본 예시도 다시 쓴다
+                found = rag.similar(db, kind, queryVector, settings["rag_example_count"], ctx["usedIds"])
+        except rag.EmbedUnavailable as exc:
+            record["substitute_reason"] = "embed_unavailable"
+            ctx["ragOn"] = False  # 남은 자리는 기다리지 않고 바로 질문은행
+            log.warning("rag examples unavailable: %s", exc)
+            return {"topic": topic, "examples": []}
+        if not found:
+            record["substitute_reason"] = "no_rag_example"
+            return {"topic": topic, "examples": []}
+        ctx["exampleIds"].update(e.id for e in found)  # 같은 종류 다음 자리는 다른 예시를 보게 (질문이 비슷해지지 않게)
+        return {"topic": topic, "examples": found}
+
+    async def generate(state: SlotState) -> dict:
+        """② 만들기: 예시 + 이력서 요약 + 회사 상황으로 LLM 이 질문 1개."""
+        kind = state["kind"]
+        if remaining() <= 1:
+            state["record"]["substitute_reason"] = "budget"
+            return {"candidate": None, "llmError": "budget"}
+        async with composeSemaphore:
+            left = remaining()  # 다른 지원자 질문 만들기를 기다린 시간도 예산에 넣는다
+            if left <= 1:
+                state["record"]["substitute_reason"] = "budget"
+                return {"candidate": None, "llmError": "budget"}
+            resume = ctx["skills"] if kind == "job" else ctx["resume"]
+            company = ctx["companyBrief"] if kind == "job" else ctx["company"]
+            try:
+                out = await llm.structured(RagQuestion, SYSTEM, ragPrompt(kind, company, resume, state["examples"],
+                                                                          [c["text"] for c in state["chosen"]],
+                                                                          state["problem"], state["topic"]),
+                                           min(settings["question_attempt_timeout_sec"], left), maxTokens=400, temperature=0.6)
+            except llm.LlmError as exc:
+                return {"candidate": None, "llmError": f"llm:{exc}"}
+        return {"candidate": out, "llmError": None}
+
+    async def check(state: SlotState) -> dict:
+        """③ 확인: 형식·요구하는 일 수·이력서 근거 → 예시 베낌·고른 질문과 중복."""
+        kind, record, attempt = state["kind"], state["record"], state["attempt"]
+        problem = state["llmError"]
+        text = None
+        if problem is None:
+            out = state["candidate"]
+            problem = checkGenerated(kind, out, ctx["resume"])
+            text = out.question.strip()
+            if problem is None:
+                try:
+                    vector = (await rag.embed([text], timeoutSec=max(min(rag.EMBED_TIMEOUT_SEC, remaining()), 1)))[0]
+                except rag.EmbedUnavailable:
+                    problem = "embed_unavailable"
+                else:
+                    if rag.maxSimilarity(vector, [e.vector for e in state["examples"]]) >= rag.COPY_SIMILARITY:
+                        problem = "copied_example"
+                    elif isRepeat(text, state["chosen"]) or rag.maxSimilarity(vector, chosenVectors(state["chosen"])) >= rag.DUPLICATE_SIMILARITY:
+                        problem = "duplicate"
+                    else:
+                        record["vector"] = vector
+                        log.info("slot %s generated with examples %s", kind, [e.id for e in state["examples"]])
+                        return accept(state, text, "generated", None, False)
+        if problem == "embed_unavailable":
+            ctx["ragOn"] = False
+        record["regen_count"] = attempt + 1
+        record["substitute_reason"] = problem
+        log.info("slot %s attempt %d failed: %s", kind, attempt + 1, problem)
+        return {"attempt": attempt + 1, "problem": PROBLEM_TEXT.get(problem, problem), "candidate": None}
+
+    async def bank(state: SlotState) -> dict:
+        """질문은행(확인된 엑셀 질문) → 예비 질문. 질문 바꾸기는 감점·장애가 아니다."""
+        kind = state["kind"]
+        if kind != "resume":
+            question = bankFallback(db, app, kind, state["chosen"], ctx)
+            if question is not None:
+                return accept(state, question.text, "excel", question, True)
+        reserve = reserveFor(db, kind, ctx["usedGroups"])
+        if reserve is not None:
+            return accept(state, reserve.text, "reserve", reserve, True)
+        return accept(state, RESERVE_LAST_RESORT, "reserve", None, True)
+
+    def afterPick(state: SlotState) -> str:
+        return "examples" if ctx["ragOn"] and state["record"]["substitute_reason"] is None else "bank"
+
+    def afterExamples(state: SlotState) -> str:
+        return "generate" if state["examples"] and regenLimit > 0 else "bank"
+
+    def afterGenerate(state: SlotState) -> str:
+        return "bank" if state["llmError"] == "budget" else "check"
+
+    def afterCheck(state: SlotState) -> str:
+        if state["accepted"]:
+            return afterAccept(state)
+        if not ctx["ragOn"] or state["attempt"] >= regenLimit:
+            return "bank"
+        return "generate"
+
+    def afterAccept(state: SlotState) -> str:
+        return "pick" if len(state["chosen"]) < len(SLOT_ORDER) else END
+
+    g = StateGraph(SlotState)
+    for name, node in (("pick", pick), ("examples", examples), ("generate", generate), ("check", check), ("bank", bank)):
+        g.add_node(name, node)
+    g.add_edge(START, "pick")
+    g.add_conditional_edges("pick", afterPick, ["examples", "bank"])
+    g.add_conditional_edges("examples", afterExamples, ["generate", "bank"])
+    g.add_conditional_edges("generate", afterGenerate, ["check", "bank"])
+    g.add_conditional_edges("check", afterCheck, ["generate", "bank", "pick", END])
+    g.add_conditional_edges("bank", afterAccept, ["pick", END])
+    return g.compile()
+
+
+async def composeAll(db: Session, app: Application, ctx: dict, deadline: float, settings: dict) -> list[dict]:
+    compiled = buildComposeGraph(db, app, ctx, deadline, settings)
+    result = await compiled.ainvoke({"chosen": []}, {"recursion_limit": COMPOSE_RECURSION_LIMIT})
+    return result["chosen"]
 
 
 RESERVE_LAST_RESORT = "가장 기억에 남는 프로젝트 하나를 골라 본인 역할을 설명해 주세요."
@@ -377,9 +456,7 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
                "resume": fence(resumeText(app.resume_snapshot or {})),
                "skills": fence(skillsText(app.resume_snapshot or {})),
                "jobTopics": jobTopics(app.posting, app.resume_snapshot or {}), "jobIndex": 0}
-        chosen: list[dict] = []
-        for kind in SLOT_ORDER:
-            chosen.append(await composeSlot(db, app, kind, chosen, ctx, deadline, settings))
+        chosen = await composeAll(db, app, ctx, deadline, settings)
 
         db.query(InterviewQuestion).filter_by(application_id=app.id).delete()
         for seq, item in enumerate(chosen, start=1):
@@ -465,7 +542,7 @@ def savePending(db: Session, app: Application, chosen: list[dict]) -> None:
             if db.query(Question.id).filter(Question.duplicate_group == group).first():
                 continue
             vector = item["vector"] if vectorsOn else None
-            if vector and rag.maxStoredSimilarity(db, item["qtype"], vector) >= rag.DUPLICATE_SIMILARITY:
+            if vector and rag.maxStoredSimilarity(db, item["qtype"], vector) >= rag.BANK_DUPLICATE_SIMILARITY:
                 continue
             question = Question(source="generated", kind=item["qtype"], category="AI 생성", text=item["text"], status="pending",
                                 answer_seconds=90, eval_items=EVAL_ITEMS_BY_KIND[item["qtype"]], duplicate_group=group)

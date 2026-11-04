@@ -1,5 +1,7 @@
 """관리자 API (API 명세서 4장 관리용 · 10장). 결과·판정을 바꾸는 주소는 두지 않는다 (AC-14)."""
 
+import re
+
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -27,7 +29,7 @@ from ..models import (
     SessionEvent,
     User,
 )
-from ..schemas import DraftAiRequest, MemoIn, PostingIn
+from ..schemas import DraftAiRequest, ManualDecisionIn, MemoIn, PostingIn
 from ..services import evaluation, posting_draft, recording, storage
 from ..services import postings as svc
 from ..settings_store import allSettings, getSetting, setSetting
@@ -198,8 +200,8 @@ def applicants(postingId: str, page: int = Query(1, ge=1), size: int = Query(50,
             "attempt_status": a.attempt_status, "analysis_status": a.analysis_status, "review_reason": a.review_reason,
             "submitted_at": iso(a.submitted_at), "completed_at": iso(a.completed_at),
             "away_count": away, "fault_count": faults,
-            "interview_score": score(r.interview_score) if r else None, "coding_score": score(r.coding_score) if r else None,
-            "total_score": score(r.total_score) if r else None, "decision": r.ai_decision if r else None,
+            "interview_score": score(r.interview_score) if r and r.scored else None, "coding_score": score(r.coding_score) if r and r.scored else None,
+            "total_score": score(r.total_score) if r and r.scored else None, "decision": r.ai_decision if r else None,
             "purge_at": iso(a.purge_at),
         })
     return {"posting": svc.postingView(p), "items": items, "has_coding_test": bool(svc.currentCriteria(p) and svc.currentCriteria(p).coding_enabled),
@@ -210,8 +212,9 @@ def resultView(r: Result | None) -> dict | None:
     if r is None:
         return None
     return {"decision": r.ai_decision, "reason": r.ai_reason, "quotes": r.ai_reason_quotes,
-            "item_scores": r.item_points, "interview_score": score(r.interview_score), "coding_score": score(r.coding_score),
-            "total_score": score(r.total_score), "pass_score": score(r.pass_score), "strengths": r.strengths,
+            "item_scores": r.item_points, "interview_score": score(r.interview_score) if r.scored else None,
+            "coding_score": score(r.coding_score) if r.scored else None,
+            "total_score": score(r.total_score) if r.scored else None, "pass_score": score(r.pass_score), "strengths": r.strengths,
             "improvements": r.improvements, "summary": r.summary, "decision_check": r.decision_check,
             "model_version": r.model_version, "prompt_version": r.prompt_version, "rubric_version": r.rubric_version,
             "decided_at": iso(r.decided_at)}
@@ -260,6 +263,7 @@ def applicantDetail(applicationId: str, db: Session = Depends(getDb), admin: Use
         "posting": svc.postingView(a.posting, withCriteria=True),
         "attempt_status": a.attempt_status, "analysis_status": a.analysis_status, "review_reason": a.review_reason,
         "release_status": a.release_status, "release_at": iso(a.release_at), "purge_at": iso(a.purge_at),
+        "review_deadline": iso(evaluation.reviewDeadline(a)) if a.analysis_status == "needs_review" else None,
         "result": resultView(result), "highlights": highlights,
         "instruction_hits": evaluation.instructionHits(evaluation.loadQuestions(db, a)),
         "resume": a.resume_snapshot, "resume_method": a.resume_method, "edited_fields": a.edited_fields,
@@ -334,24 +338,43 @@ def reprocess(applicationId: str, db: Session = Depends(getDb), admin: User = De
     if a is None or a.attempt_status == "drafting":
         raise notFound()
     if a.analysis_status != "needs_review":
-        raise ApiError(409, "NOT_NEEDS_REVIEW", "확인 필요 상태인 건만 다시 돌릴 수 있습니다.")
+        raise ApiError(409, "NOT_NEEDS_REVIEW", "평가 지연 상태인 건만 다시 돌릴 수 있습니다.")
     # 채점 지시 의심 건은 관리자가 답변을 확인했다는 기록을 따로 남기고, 그 뒤로는 그대로 채점한다
     detail = {}
     action = "analysis.reprocess"
     if a.review_reason == "instruction_suspected":
         action = evaluation.INSTRUCTION_ACK
         detail = {"hits_digest": evaluation.hitsDigest(evaluation.instructionHits(evaluation.loadQuestions(db, a)))}
+    # 사유를 지우지 않는다: 지우면 확인 필요가 된 시각도 지워져 3일 기한이 늘어난다
     a.analysis_status = "pending"
-    a.review_reason = None
     db.add(AuditLog(actor_id=admin.id, action=action, target=a.id, detail=detail))
     db.commit()
     worker.requestReprocess(a.id)
     return {"analysis_status": "running"}
 
 
+@router.post("/analysis/{applicationId}/decision")
+def manualDecision(applicationId: str, body: ManualDecisionIn, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
+    """자동 채점을 끝내지 못한 건만 관리자가 합격·불합격과 사유를 정한다. 자동 채점 결과는 바꿀 수 없다 (CONFLICTS U8)."""
+    a = db.get(Application, applicationId, with_for_update=True)
+    if a is None or a.attempt_status == "drafting":
+        raise notFound()
+    if a.analysis_status != "needs_review":
+        raise ApiError(409, "NOT_NEEDS_REVIEW", "평가 지연 상태인 건만 직접 결정할 수 있습니다.")
+    reason = body.reason.strip()
+    if len(reason) < evaluation.MANUAL_REASON_MIN:
+        raise ApiError(400, "REASON_TOO_SHORT", f"결정 사유를 {evaluation.MANUAL_REASON_MIN}자 이상 입력해 주세요.")
+    if not evaluation.decideManually(db, a, body.decision, reason, admin.id):
+        raise ApiError(409, "CRITERIA_MISSING", "이 공고의 평가 기준을 찾을 수 없습니다.")
+    db.commit()
+    return {"analysis_status": a.analysis_status, "decision": body.decision, "release_at": iso(a.release_at)}
+
+
 SETTING_HISTORY_SIZE = 10
 # 키별 허용 범위 (CONFLICTS D2). 화면에서 바꾸는 키는 max_concurrent_interviews 하나다 (화면정의서 S-R10)
 SETTING_RANGES = {"max_concurrent_interviews": (1, 20)}
+CONTACT_SETTING = "login_contact_email"  # 로그인 차단 안내에 보여 줄 문의처. 비우면 '담당자에게'
+CONTACT_PATTERN = re.compile(r"[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s.]{2,}")
 
 
 @router.get("/settings")
@@ -361,6 +384,7 @@ def getSettings(db: Session = Depends(getDb), _admin: User = Depends(requireAdmi
                .order_by(AuditLog.at.desc()).limit(SETTING_HISTORY_SIZE).all())
     return {
         "max_concurrent_interviews": getSetting(db, "max_concurrent_interviews"),
+        CONTACT_SETTING: getSetting(db, CONTACT_SETTING),
         "active_interviews": db.query(Application).filter(Application.holds_seat.is_(True)).count(),
         "history": [{"key": h.target, "from": (h.detail or {}).get("from"), "to": (h.detail or {}).get("value"), "at": iso(h.at)}
                     for h in history],
@@ -372,7 +396,7 @@ def getSettings(db: Session = Depends(getDb), _admin: User = Depends(requireAdmi
 def putSetting(key: str, body: dict, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
     if key not in SETTING_DEFAULTS:
         raise notFound()
-    if key not in SETTING_RANGES:
+    if key not in SETTING_RANGES and key != CONTACT_SETTING:
         raise ApiError(400, "INVALID_SETTING", "이 설정은 화면에서 바꿀 수 없습니다 (서버 설정 파일에서 관리).")
     if set(body) != {"value"}:
         raise ApiError(400, "INVALID_SETTING", "설정값 형식이 맞지 않습니다.")
@@ -380,6 +404,8 @@ def putSetting(key: str, body: dict, db: Session = Depends(getDb), admin: User =
     expected = type(SETTING_DEFAULTS[key][0])
     if not isinstance(value, expected) or isinstance(value, bool) != (expected is bool):
         raise ApiError(400, "INVALID_SETTING", "설정값 형식이 맞지 않습니다.")
+    if key == CONTACT_SETTING and value and not CONTACT_PATTERN.fullmatch(value):
+        raise ApiError(400, "INVALID_SETTING", "이메일 형식이 맞지 않습니다.")
     low, high = SETTING_RANGES.get(key, (None, None))
     if (low is not None and value < low) or (high is not None and value > high):
         raise ApiError(400, "INVALID_SETTING", f"{low}~{high} 사이로 입력해 주세요.")

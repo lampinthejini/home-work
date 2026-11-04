@@ -31,7 +31,9 @@ services:
   redis:
     restart: unless-stopped
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set in .env}"]
+    environment:
+      - REDISCLI_AUTH=${REDIS_PASSWORD:?set in .env}  # healthcheck 의 redis-cli 가 쓴다
     volumes: [redisdata:/data]
     networks: [internal]
     healthcheck:

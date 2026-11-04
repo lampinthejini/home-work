@@ -3,15 +3,15 @@
 WebSocket 하나로 질문·자막·상태·heartbeat 를 주고받고, 답변 음성은 같은 연결의 바이너리 프레임
 (16kHz mono PCM16, 약 1초 조각)으로 받는다 — ADR-03 대체안(WebSocket PCM), 2026-10-30 사용자 결정.
 
-상태 원장은 applications 이고, 진행 위치(current_seq · 꼬리질문 · 답변 저장 여부)를 DB 에서 읽어
-이어가기 때 끊긴 질문부터 다시 낸다. 설계(ADR-07)의 LangGraph 그래프·체크포인트는 3단계 결정 대상으로
-남겨 두었다 (보고서 참고).
+질문 순서·꼬리질문 갈림길은 LangGraph 면접 진행 그래프(graph.py, ADR-07)가 정하고, 진행 상태는
+PostgreSQL 체크포인트(thread_id = 지원 번호)에 남긴다. 이 파일의 LiveSession 은 그래프 노드가 부르는 실제 일
+(질문 보내기·답변 받기·STT·저장·꼬리질문 판단)과 연결 감시(heartbeat·이탈·장애)를 맡는다.
+상태 원장은 applications 이고, 새 연결(이어가기)마다 그래프의 locate 가 DB 를 읽어 끊긴 질문부터 다시 낸다.
 """
 
 import asyncio
 import json
 import logging
-import re
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -19,6 +19,7 @@ from typing import Literal
 
 import redis.asyncio as aioredis
 from fastapi import WebSocket, WebSocketDisconnect
+from langgraph.types import Command
 from pydantic import BaseModel
 
 from ..config import ENV
@@ -30,7 +31,7 @@ from ..services import coding_bank, llm, recording, speech, storage
 from ..services.postings import currentCriteria
 from ..settings_store import getSetting
 from ..timeutil import asKst, iso, now
-from . import lifecycle, registry
+from . import checkpoint, graph, lifecycle, registry
 
 log = logging.getLogger("huge.interview")
 
@@ -39,6 +40,7 @@ COUNTDOWN_SEC = 3
 NO_AUDIO_READ_SEC = 5  # TTS 가 없을 때 자막 표시 후 카운트다운까지 (G-04)
 SERVER_GRACE_SEC = 3
 RESUME_LIMIT_MESSAGE = "연결 끊김으로 이어가기를 여러 번 해 응시 규칙에 따라 면접이 종료되었습니다."  # CONFLICTS D1
+FOLLOWUP_RESUME_CHARS = 600  # T4 에 함께 주는 이력서 요약 길이 (판단 시간 안에 들어가게)
 TTS_AVG_SEC = 3.0  # 꼬리질문 음성 만들기 평균(실측 2.9초, 2026-10-30). 2단계에서 최근 평균으로 바꾼다
 EMPTY_ANSWER_PATTERNS = ("모르겠습니다", "잘모르겠", "모릅니다", "패스", "넘어가")
 AWAY_LABELS = {"visibility": "다른 탭으로 전환", "blur": "다른 창으로 이동", "fullscreen": "전체 화면 해제", "navigate": "다른 주소로 이동"}
@@ -116,7 +118,7 @@ class LiveSession:
         with dbSession() as db:
             self.settings = {k: getSetting(db, k) for k in (
                 "heartbeat_interval_sec", "heartbeat_miss_limit", "unload_lookback_sec", "stt_retry_limit",
-                "stt_attempt_timeout_sec", "next_question_target_sec", "followup_min_sec", "followup_total_limit",
+                "stt_attempt_timeout_sec", "next_question_target_sec", "followup_target_sec", "followup_min_sec", "followup_total_limit",
                 "followup_answer_sec", "question_compose_budget_sec")}
 
     # ---------- 보내기 ----------
@@ -209,7 +211,8 @@ class LiveSession:
     async def judgeConnectionLoss(self, reason: str, lookbackExtra: float = 0) -> None:
         with dbSession() as db:
             app = db.get(Application, self.appId)
-            if app.attempt_status not in st.IN_PROGRESS:
+            # 판단을 기다리는 15초 사이에 동의 철회·탈퇴로 지원 건이 지워졌을 수 있다 (2026-11-03 E2E 에서 발견)
+            if app is None or app.attempt_status not in st.IN_PROGRESS:
                 return
             recent = lifecycle.recentEventTypes(db, app, int(self.settings["unload_lookback_sec"] + lookbackExtra))
             if st.judgeDisconnect(recent) == "not_fault":
@@ -507,28 +510,34 @@ class LiveSession:
         return row is not None and db.query(Answer).filter_by(interview_question_id=row.id).count() > 0
 
     async def runInterview(self) -> None:
-        await self.prepareQuestions()
-        while True:
-            with dbSession() as db:
-                app = db.get(Application, self.appId)
-                seq = app.current_seq
-                if seq > BASE_QUESTION_COUNT:
-                    break
-                base = self.baseRow(db, seq)
-                baseAnswered = self.isAnswered(db, base)
-                followup = self.followupRow(db, seq)
-                followupAnswered = self.isAnswered(db, followup)
-            if not baseAnswered:
-                transcript, sttSec, answerEndedAt = await self.askAndCollect(base)
-                followup = await self.decideFollowup(base, transcript, sttSec, answerEndedAt)
-                followupAnswered = False
-            if followup is not None and not followupAnswered:
-                await self.askAndCollect(followup)
-            with dbSession() as db:
-                app = db.get(Application, self.appId)
-                app.current_seq = seq + 1
-                db.commit()
-        await self.finishInterview()
+        """면접 진행 그래프를 돌린다 (graph.py). 답변 기다리기에서 그래프가 멈추면 여기서 답변을 받고 잇는다."""
+        compiled = graph.buildInterviewGraph(self, checkpoint.saver())
+        config = graph.graphConfig(self.appId)
+        result = await compiled.ainvoke({"seq": 0}, config)  # 새 연결은 처음부터: locate 가 원장을 읽어 이어 낼 질문을 찾는다
+        while result.get("__interrupt__"):
+            endReason = await self.collectAnswer()
+            result = await compiled.ainvoke(Command(resume=endReason), config)
+
+    def locate(self) -> dict:
+        """원장(applications · interview_questions · answers)에서 지금 낼 질문을 찾는다."""
+        with dbSession() as db:
+            app = db.get(Application, self.appId)
+            seq = app.current_seq
+            if seq > BASE_QUESTION_COUNT:
+                return {"seq": seq, "rowId": None, "kind": None}
+            base = self.baseRow(db, seq)
+            if not self.isAnswered(db, base):
+                return {"seq": seq, "rowId": base.id, "kind": "base"}
+            followup = self.followupRow(db, seq)
+            if followup is not None and not self.isAnswered(db, followup):
+                return {"seq": seq, "rowId": followup.id, "kind": "follow_up"}
+            return {"seq": seq, "rowId": None, "kind": None}
+
+    def advance(self, seq: int) -> None:
+        with dbSession() as db:
+            app = db.get(Application, self.appId)
+            app.current_seq = seq + 1
+            db.commit()
 
     async def finishInterview(self) -> None:
         with dbSession() as db:
@@ -571,7 +580,12 @@ class LiveSession:
         await self.send({"type": "question", "seq": row.seq, "kind": row.kind, "text": row.text, "audio_url": audioUrl,
                          "answer_sec": row.answer_sec, "progress": f"{row.seq} / {BASE_QUESTION_COUNT}", "resend": resend})
 
-    async def askAndCollect(self, row: InterviewQuestion) -> tuple[str, float, float]:
+    def questionRow(self, rowId: str) -> InterviewQuestion:
+        with dbSession() as db:
+            return db.get(InterviewQuestion, rowId)
+
+    async def beginQuestion(self, rowId: str) -> None:
+        """질문 내기: 응시 횟수·기준 잠금, 경고창이 닫히기를 기다린 뒤 질문을 보낸다."""
         with dbSession() as db:
             app = db.get(Application, self.appId)
             if app.attempt_consumed_at is None:
@@ -579,14 +593,16 @@ class LiveSession:
                 criteria = currentCriteria(app.posting)
                 if criteria is not None:
                     criteria.locked = True  # 첫 응시가 시작되면 평가 기준 잠금 (JOB-07)
-            fresh = db.get(InterviewQuestion, row.id)
-            fresh.asked_at = now()
+            row = db.get(InterviewQuestion, rowId)
+            row.asked_at = now()
             db.commit()
         await self.ackEvent.wait()
         self.enter("answering")
         self.current = {"row": row, "seq": row.seq, "answer_no": row.answer_order, "answer_sec": row.answer_sec}
         await self.sendQuestion(row)
-        endReason = "done"
+
+    async def collectAnswer(self) -> str:
+        """답변 기다리기 (그래프가 interrupt 로 멈춘 동안). 끝난 이유: done · timeout."""
         while True:
             if self.state != "answering":
                 # 연결이 끊겼다 → 판단이 끝날 때까지 이 답변을 저장하지 않는다 (이어가기 때 같은 질문을 처음부터)
@@ -597,23 +613,26 @@ class LiveSession:
                 continue
             timeout = self.deadline - time.monotonic()
             if timeout <= 0:
-                endReason = "timeout"
-                break
+                return "timeout"
             try:
                 await asyncio.wait_for(self.answerEvent.wait(), timeout=min(timeout, 1.0))
                 if not self.warned:
-                    break
+                    return "done"
                 self.answerEvent.clear()
             except TimeoutError:
                 continue
+
+    async def finishAnswer(self, rowId: str, endReason: str) -> dict:
+        """글자로 바꾸기(STT) → 답변 저장 → 최종 자막."""
         self.enter("processing")
-        answerEndedAt = time.monotonic()
+        answeredAt = time.monotonic()
+        row = self.questionRow(rowId)
         pcm = bytes(self.pcm)
         transcript, words, sttSec = await self.transcribeWithRetry(pcm)
         await self.saveAnswer(row, pcm, transcript, words, sttSec, endReason)
         await self.send({"type": "caption", "seq": row.seq, "answer_no": row.answer_order, "chunk_no": 10_000,
                          "text": transcript, "is_final": True})
-        return transcript, sttSec, answerEndedAt
+        return {"answeredAt": answeredAt, "sttSec": sttSec}
 
     async def transcribeWithRetry(self, pcm: bytes) -> tuple[str, list, float]:
         if len(pcm) < 16000 * 2 * 0.3:  # 0.3초 미만 = 무음 답변
@@ -645,48 +664,73 @@ class LiveSession:
                           is_empty=isEmptyAnswer(transcript)))
             db.commit()
 
-    async def decideFollowup(self, base: InterviewQuestion, transcript: str, sttSec: float, answerEndedAt: float) -> InterviewQuestion | None:
-        """꼬리질문 판단 시간은 남은 시간만큼만 준다 (TRD 7-5). 질문당 1개 · 전체 4개는 서버가 센다."""
-        target = self.settings["next_question_target_sec"]
-        budget = target - (time.monotonic() - answerEndedAt) - TTS_AVG_SEC
+    def followupBudget(self, answeredAt: float) -> float:
+        """꼬리질문 판단 시간 = 꼬리질문 목표 시간 − 지난 시간 − TTS 평균 (TRD 7-5, 목표 시간은 CONFLICTS U7)."""
+        return self.settings["followup_target_sec"] - (time.monotonic() - answeredAt) - TTS_AVG_SEC
+
+    def answerText(self, db, rowId: str) -> str:
+        answer = db.query(Answer).filter_by(interview_question_id=rowId).first()
+        return ((answer.transcript if answer else "") or "").strip()
+
+    def followupPreflight(self, rowId: str, answeredAt: float) -> str | None:
+        """규칙으로 정할 수 있으면 LLM 을 부르지 않는다 (AI 아키텍처 P4). 건너뛸 이유, 아니면 None."""
         with dbSession() as db:
             app = db.get(Application, self.appId)
+            base = db.get(InterviewQuestion, rowId)
             if app.followup_count >= self.settings["followup_total_limit"]:
-                return None
-        if budget < self.settings["followup_min_sec"] or isEmptyAnswer(transcript):
-            log.info("followup skipped seq=%s: budget=%.1fs empty=%s", base.seq, budget, isEmptyAnswer(transcript))
-            return None
-        prompt = f"질문: {base.text}\n지원자 답변: {transcript[:2000]}\n이 답변에 꼬리질문이 필요한지 판단하라."
-        try:
-            decision = await llm.structured(FollowupDecision, FOLLOWUP_SYSTEM, prompt, timeoutSec=budget, maxTokens=200, temperature=0.3)
-        except llm.LlmError as exc:
-            log.info("followup skipped seq=%s: llm %s", base.seq, exc)
-            return None
-        question = (decision.question or "").strip()
-        if not decision.need or not (8 <= len(question) <= 220) or not re.search(r"[가-힣]", question):
-            log.info("followup skipped seq=%s: reason=%s question_len=%d", base.seq, decision.reason_code, len(question))
-            return None
+                return "total_limit"
+            if self.followupRow(db, base.seq) is not None:
+                return "per_question_limit"
+            if isEmptyAnswer(self.answerText(db, rowId)):
+                return "empty_answer"
+        if self.followupBudget(answeredAt) < self.settings["followup_min_sec"]:
+            return "no_time"
+        return None
+
+    async def followupDecide(self, rowId: str, answeredAt: float) -> dict:
+        """T4 꼬리질문 판단 (RT 레인, 남은 시간을 timeout 으로). 이력서 기반 질문은 이력서 요약을 근거로 함께 준다."""
+        from ..services.evaluation import fence
+        from ..services.question_compose import resumeText
+
         with dbSession() as db:
             app = db.get(Application, self.appId)
+            base = db.get(InterviewQuestion, rowId)
+            transcript = self.answerText(db, rowId)
+            resume = fence(resumeText(app.resume_snapshot or {}))[:FOLLOWUP_RESUME_CHARS] if base.qtype == "resume" else ""
+            questionText = base.text
+        prompt = f"질문: {questionText}\n지원자 답변: {fence(transcript)[:2000]}\n"
+        if resume:
+            prompt += f"이력서 요약(근거로만 쓴다): {resume}\n"
+        prompt += "이 답변에 꼬리질문이 필요한지 판단하라."
+        try:
+            decision = await llm.structured(FollowupDecision, FOLLOWUP_SYSTEM, prompt, timeoutSec=self.followupBudget(answeredAt),
+                                            maxTokens=200, temperature=0.3)
+        except llm.LlmError as exc:
+            return {"skipCause": f"llm:{exc}"}
+        return {"reasonCode": decision.reason_code, "question": decision.question or ""}
+
+    async def createFollowup(self, rowId: str, reasonCode: str, question: str, answeredAt: float) -> str:
+        """꼬리질문 저장 → 같은 질문 줄에서 TTS. 늦으면 자막만으로 낸다 (INT-01)."""
+        with dbSession() as db:
+            app = db.get(Application, self.appId)
+            base = db.get(InterviewQuestion, rowId)
             row = InterviewQuestion(application_id=self.appId, seq=base.seq, kind="follow_up", answer_order=2, qtype=base.qtype,
                                     text=question, source="generated", answer_sec=self.settings["followup_answer_sec"],
-                                    eval_items=base.eval_items, followup_reason=decision.reason_code[:64])
+                                    eval_items=base.eval_items, followup_reason=reasonCode[:64])
             db.add(row)
             app.followup_count += 1
             db.commit()
-            db.refresh(row)
-        remaining = target - (time.monotonic() - answerEndedAt)
+            followupId, seq = row.id, base.seq
+        remaining = self.settings["followup_target_sec"] - (time.monotonic() - answeredAt)
         if remaining > 1:
             try:
                 wav, seconds = await speech.synthesize(question, timeoutSec=remaining)
-                key = f"questions/{self.appId}/{base.seq}-followup.wav"
+                key = f"questions/{self.appId}/{seq}-followup.wav"
                 await asyncio.to_thread(storage.putObject, key, wav, "audio/wav")
                 with dbSession() as db:
-                    fresh = db.get(InterviewQuestion, row.id)
+                    fresh = db.get(InterviewQuestion, followupId)
                     fresh.audio_key, fresh.audio_sec = key, seconds
                     db.commit()
-                    db.refresh(fresh)
-                    row = fresh
             except (speech.SpeechError, OSError):
-                pass  # 늦으면 자막만으로 낸다 (INT-01)
-        return row
+                pass
+        return followupId

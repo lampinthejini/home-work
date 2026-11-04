@@ -16,7 +16,7 @@ from ..errors import ApiError
 from ..models import AuditLog, LoginSession, User
 from ..schemas import LoginRequest, MePatch, PasswordChangeRequest, PasswordResetConfirm, PasswordResetRequest, SignupRequest, WithdrawRequest
 from ..security import COOKIE_NAME, createSession, dropSession, hashPassword, safeNext, tokenHash, verifyPassword
-from ..services import admission, withdrawal
+from ..services import admission, login_block, withdrawal
 from ..settings_store import getSetting
 from ..timeutil import asKst, iso, now
 
@@ -59,25 +59,36 @@ def signup(body: SignupRequest, db: Session = Depends(getDb)):
 # 없는 계정도 같은 시간만큼 해시 검증을 해서, 응답 시간으로 가입 여부를 알 수 없게 한다
 DUMMY_HASH = hashPassword("dummy-password-for-timing")
 COOKIE_SECURE = ENV.publicOrigin.startswith("https://")
+INVALID_MESSAGE = "이메일 또는 비밀번호가 올바르지 않습니다. 계속 안 되면 잠시 뒤 다시 시도해 주세요."
+
+
+def countAdminFailure(db: Session, user: User) -> None:
+    """관리자 계정만 잠근다. 뚫렸을 때 피해가 크고, 일부러 잠가도 10분 불편에 그친다."""
+    user.failed_logins += 1
+    if user.failed_logins >= getSetting(db, "login_fail_limit"):
+        user.locked_until = now() + timedelta(minutes=getSetting(db, "login_lock_min"))
+        user.failed_logins = 0
 
 
 @router.post("/auth/login")
-def login(body: LoginRequest, response: Response, db: Session = Depends(getDb)):
+def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(getDb)):
+    ipKey = login_block.guardKey(request)
+    block = login_block.activeBlock(db, ipKey)
     # 실패 횟수를 세는 동안 같은 계정의 다른 로그인 시도를 기다리게 한다 (병렬 시도로 잠금 우회 방지)
     user = db.query(User).filter(User.email == body.email.strip().lower()).with_for_update().first()
-    if user and user.locked_until and asKst(user.locked_until) > now():
-        raise ApiError(423, "ACCOUNT_LOCKED", f"로그인을 5회 실패해 잠겼습니다. {iso(user.locked_until)} 이후 다시 시도해 주세요.")
+    isAdmin = user is not None and user.role == "admin"
+    adminLocked = isAdmin and user.locked_until is not None and asKst(user.locked_until) > now()
     valid = verifyPassword(user.password_hash if user else DUMMY_HASH, body.password) and user is not None
-    if not valid:
-        if user is not None:
-            user.failed_logins += 1
-            if user.failed_logins >= getSetting(db, "login_fail_limit"):
-                user.locked_until = now() + timedelta(minutes=getSetting(db, "login_lock_min"))
-                user.failed_logins = 0
-                db.commit()
-                raise ApiError(423, "ACCOUNT_LOCKED", f"로그인을 5회 실패해 잠겼습니다. {iso(user.locked_until)} 이후 다시 시도해 주세요.")
-            db.commit()
-        raise ApiError(401, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다.")
+    if adminLocked or not valid:
+        if isAdmin and not adminLocked:
+            countAdminFailure(db, user)
+        if ipKey:
+            block = login_block.recordFailure(db, ipKey)
+        failure = login_block.blockedError(db, block) if block else ApiError(401, "INVALID_CREDENTIALS", INVALID_MESSAGE)
+        db.commit()
+        raise failure
+    if block and not isAdmin:
+        raise login_block.blockedError(db, block)
     user.failed_logins = 0
     user.locked_until = None
     db.commit()

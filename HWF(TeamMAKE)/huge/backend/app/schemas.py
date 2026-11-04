@@ -1,6 +1,7 @@
 """요청 형식. 모델에 없는 칸이 오면 거절한다 (extra="forbid", TRD 4-3)."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -51,6 +52,11 @@ class WithdrawRequest(Strict):
 class MePatch(Strict):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     phone: str | None = Field(default=None, pattern=r"^01[0-9]-\d{3,4}-\d{4}$")
+
+
+class ManualDecisionIn(Strict):
+    decision: Literal["pass", "fail"]
+    reason: str = Field(max_length=1000)
 
 
 class MemoIn(Strict):

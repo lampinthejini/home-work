@@ -21,6 +21,9 @@ router = APIRouter()
 backgroundTasks: set[asyncio.Task] = set()
 
 
+UPLOAD_SLOTS = asyncio.Semaphore(2)
+
+
 def spawn(coro) -> None:
     task = asyncio.get_running_loop().create_task(coro)
     backgroundTasks.add(task)
@@ -101,25 +104,28 @@ def consent(applicationId: str, body: ConsentRequest, db: Session = Depends(getD
 
 
 async def acceptUpload(db: Session, user: User, file: UploadFile, applicationId: str | None) -> ResumeUpload:
-    limitBytes = getSetting(db, "upload_max_mb") * 1024 * 1024
-    data = await file.read(limitBytes + 1)
-    if len(data) > limitBytes:
-        raise ApiError(413, "FILE_TOO_LARGE", "이력서를 불러오는 데 실패했습니다.")
-    contentType = resume_extract.detectType(file.filename or "", data[:16])
-    if contentType is None:
-        raise ApiError(400, "UNSUPPORTED_FILE", "이력서를 불러오는 데 실패했습니다.")
-    try:
-        textPages, scannedPages, _ = await asyncio.to_thread(resume_extract.countPages, data, contentType)
-    except Exception as exc:  # noqa: BLE001 — 깨진 PDF
-        raise ApiError(400, "UNSUPPORTED_FILE", "이력서를 불러오는 데 실패했습니다.") from exc
-    upload = ResumeUpload(user_id=user.id, application_id=applicationId, file_key="", file_name=(file.filename or "resume")[:255],
-                          content_type=contentType, pages_text=textPages, pages_scanned=scannedPages)
-    upload.estimated_seconds = resume_extract.estimateSeconds(textPages, scannedPages, getSetting(db, "ocr_sec_per_page"), getSetting(db, "resume_llm_sec"))
-    db.add(upload)
-    db.flush()
-    upload.file_key = f"resumes/{user.id}/{upload.id}"
-    await asyncio.to_thread(storage.putObject, upload.file_key, data, contentType)
-    db.commit()
+    async with UPLOAD_SLOTS:  # 파일 전체를 메모리에 올리므로 동시에 2건까지
+        limitBytes = getSetting(db, "upload_max_mb") * 1024 * 1024
+        data = await file.read(limitBytes + 1)
+        if len(data) > limitBytes:
+            raise ApiError(413, "FILE_TOO_LARGE", "이력서를 불러오는 데 실패했습니다.")
+        contentType = resume_extract.detectType(file.filename or "", data[:16])
+        if contentType is None:
+            raise ApiError(400, "UNSUPPORTED_FILE", "이력서를 불러오는 데 실패했습니다.")
+        if contentType != "application/pdf" and len(data) > resume_extract.OCR_MAX_IMAGE_BYTES:
+            raise ApiError(413, "FILE_TOO_LARGE", "이력서를 불러오는 데 실패했습니다.")
+        try:
+            textPages, scannedPages, _ = await resume_extract.countPages(data, contentType)
+        except resume_extract.BoxError as exc:
+            raise ApiError(400, exc.code, "이력서를 불러오는 데 실패했습니다.") from exc
+        upload = ResumeUpload(user_id=user.id, application_id=applicationId, file_key="", file_name=(file.filename or "resume")[:255],
+                              content_type=contentType, pages_text=textPages, pages_scanned=scannedPages)
+        upload.estimated_seconds = resume_extract.estimateSeconds(textPages, scannedPages, getSetting(db, "ocr_sec_per_page"), getSetting(db, "resume_llm_sec"))
+        db.add(upload)
+        db.flush()
+        upload.file_key = f"resumes/{user.id}/{upload.id}"
+        await asyncio.to_thread(storage.putObject, upload.file_key, data, contentType)
+        db.commit()
     spawn(resume_extract.runExtraction(upload.id))
     return upload
 

@@ -1,0 +1,30 @@
+{
+  "cell_edits": [
+    {"sheet": "테스트 케이스", "cell": "J10", "value": "일부 자동화: backend/tests/test_password_policy.py (서버 규칙만 확인. 화면 체크리스트 ✓/✕ 실시간 표시는 자동 테스트 없음)"},
+    {"sheet": "테스트 케이스", "cell": "J15", "value": "일부 자동화: e2e/tests/auth.spec.ts (가입된 이메일 + 틀린 비밀번호만), backend/tests/test_api_auth.py (5번 틀리면 잠금). 없는 이메일 케이스는 자동 테스트 없음"},
+    {"sheet": "테스트 케이스", "cell": "H53", "value": "마이크 레벨 아래 답변 임시 자막이 한두 줄로 표시 (임시 자막은 쌓인 음성 중 최근 20초 분량을 변환한 것, 최종 글자는 전체 음성)"},
+    {"sheet": "테스트 케이스", "cell": "H51", "value": "자막 표시 + 질문 음성 재생 → 음성 끝나면 3-2-1 카운트다운 → 녹음 시작(응시 화면 머리글 오른쪽 \"● 녹화 중\")"},
+    {"sheet": "테스트 케이스", "cell": "J58", "value": "자동 테스트: backend/tests/test_interview_graph.py (test_followupLimitIsCountedAcrossInterview, Python 3.11 이상에서 실행. 로컬 Python 3.10에서는 skip)"},
+    {"sheet": "테스트 케이스", "cell": "J60", "value": "자동 테스트: backend/tests/test_interview_graph.py (내용 없는 답변이면 꼬리질문 없음, Python 3.11 이상에서 실행. 로컬 Python 3.10에서는 skip)"},
+    {"sheet": "테스트 케이스", "cell": "J61", "value": "자동 테스트 없음: backend/tests/test_followup.py 는 꼬리질문 목표 시간 설정값(운영 5·10초, 개발 20초)만 확인하고, 판단이 늦어지면 다음 질문으로 넘어가는 동작은 확인하지 않음"},
+    {"sheet": "테스트 케이스", "cell": "E63", "value": "동시 면접 수가 상한(N)이면 다음 지원자는 안내 모달을 받고, 상태는 '면접 준비 중' 그대로이며 응시 횟수가 줄지 않는가"},
+    {"sheet": "테스트 케이스", "cell": "H63", "value": "계정 2: 안내 모달(OV-05), API 429, 상태 '면접 준비 중' 그대로, 응시 횟수 그대로\n원인을 \"인원이 찼다\"고 단정하는 문구 없음"},
+    {"sheet": "테스트 케이스", "cell": "J68", "value": "자동 테스트: backend/tests/test_resume_limit.py (관리자 기록 열 ⚡3 표시는 자동 테스트 없음)"},
+    {"sheet": "테스트 케이스", "cell": "J73", "value": "일부 자동화: e2e/tests/interview.spec.ts (전체 화면 해제로 1회·2회만 확인. ① Ctrl+Tab 탭 전환 케이스는 자동 테스트 없음)"},
+    {"sheet": "테스트 케이스", "cell": "J76", "value": "일부 자동화: e2e/tests/interview.spec.ts (전체 화면 해제로 이탈 1회·2회만 확인. ② 면접 1회 + 코딩테스트 1회 합산 케이스는 자동 테스트 없음)"},
+    {"sheet": "테스트 케이스", "cell": "H79", "value": "[면접 시작]을 누르면 start API 409 POSTING_CLOSED가 나오고, 화면은 서버가 돌려준 마감 문구를 오류 토스트로 보여 줌 (마감 시각에 화면이 상태를 다시 읽지 않아 버튼 비활성은 현재 구현 안 됨)\n상태 미응시(마감)"},
+    {"sheet": "테스트 케이스", "cell": "H81", "value": "이어가기 요청이 resume API 409 POSTING_CLOSED로 거절되고, 이어가기 화면(S-A15)이 마감 안내 화면으로 바뀜 (마이페이지 버튼은 마감 시각에 자동으로 바뀌지 않음)\n상태 '응시 종료(마감)'"},
+    {"sheet": "테스트 케이스", "cell": "H101", "value": "\"합계 95% — 합계가 95%입니다. 100%로 맞춰 주세요\" 빨간 표시, [다음] 비활성"},
+    {"sheet": "테스트 케이스", "cell": "J106", "value": "일부 자동화: backend/tests/test_recording.py (만료 410·감사 로그 recording.play), e2e/tests/interview.spec.ts (재생 성공까지만 확인)"},
+    {"sheet": "테스트 케이스", "cell": "J107", "value": "일부 자동화: backend/tests/test_admin_ops.py (상한 범위·변경 이력), backend/tests/test_api_apply.py (상한이면 입장 429). 상한 변경이 두 번째 계정 입장에 바로 반영되는 흐름 전체는 자동 테스트 없음"},
+    {"sheet": "테스트 케이스", "cell": "G109", "value": "공개 후(10:00 이후. 공개 점검이 5분마다 돌아 10:05까지 걸릴 수 있음) 결과 상세 화면·API 응답 확인"},
+    {"sheet": "테스트 케이스", "cell": "J109", "value": "일부 자동화: e2e/tests/full.spec.ts (판정 문구와 점수 미표시만 확인. 강점·개선점 각 최대 3개는 확인하지 않음)"},
+    {"sheet": "테스트 케이스", "cell": "H136", "value": "① PDF 리더로 추출(OCR 없음) ② 깨진 쪽만 OCR ③ OCR ④ 서버 한도 초과(FILE_TOO_LARGE)로 실패 모달 (전용 문구가 없어 제목과 같은 문장 \"이력서를 불러오는 데 실패했습니다.\"가 본문에도 한 번 더 나옴). 읽는 쪽 수 10쪽까지 〔미확정: CONFLICTS OCR 10쪽 상한〕"},
+    {"sheet": "테스트 케이스", "cell": "J132", "value": "일부 자동화: backend/tests/test_notifications.py (알림 숨기기 3개 테스트. 알림 클릭 시 화면 주소 이동 ②③은 자동 테스트 없음) (CONFLICTS T37·S6)"},
+    {"sheet": "테스트 케이스", "cell": "J133", "value": "일부 자동화: backend/tests/test_followup.py (이유 코드 형식·목표 시간 설정값 확인. 목표 시간 안에 꼬리질문이 표시되는 동작은 자동 테스트 없음) (CONFLICTS U7)"},
+    {"sheet": "테스트 케이스", "cell": "J139", "value": "자동 테스트: backend/tests/test_interview_graph.py (Python 3.11 이상에서만 실행, 로컬 Python 3.10에서는 skip), e2e/tests/outage.spec.ts (CONFLICTS B1)"},
+    {"sheet": "테스트 케이스", "cell": "G140", "value": "면접 시작 직후 api 재시작 또는 화면을 한 번도 연결하지 않고 150초까지 대기 (서버 재시작은 시작할 때 바로 처리)"},
+    {"sheet": "테스트 케이스", "cell": "H140", "value": "시작·이어가기 90초 뒤 api 정리 작업(1분마다)이 장애 중단으로 돌려 실제로는 90~150초 안에 장애 중단, 이어가기 가능, 이어가기 횟수에 안 셈. 그 사이 마이페이지 카드는 '응시 진행 중' 〔미확정: CONFLICTS C11〕"}
+  ],
+  "append_rows": []
+}

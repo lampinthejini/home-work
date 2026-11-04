@@ -1,20 +1,21 @@
-# 설계와 다르게 구현한 부분 · 문서 충돌 (승인 요청)
+# 설계와 다르게 구현한 부분 · 문서 충돌
 
-CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습니다. **확정이 아니라 승인 대기**입니다.
-각 행의 "권장"은 개발 측 제안이며, 반대 결정이 나면 그에 맞게 고칩니다.
+CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습니다.
+**2026-11-04 사용자 결정: 개인용으로 진행한다.** 아래 항목은 구현대로 확정해 `개인용/` 문서에 반영했고, 미구현 항목(V2·V3·F6·S5)은 이후 범위로 둔다. 팀 원본은 고치지 않는다.
+**새 충돌은 여기에 적고 사용자 확인을 받은 뒤 문서를 고친다.**
 
 ## A. 문서 간 충돌
 
 | # | 문서 | 내용 | 구현 | 권장 |
 |---|---|---|---|---|
-| A1 | TRD vs API 명세서 | STT 실패 재시도 뒤 처리: TRD는 '일시 중지(장애)', API 명세서는 `stt_retry` 메시지로 같은 질문 재답변 | TRD 따름 (1회 재시도 후 `paused`·server_error) | API 명세서를 TRD에 맞춰 수정 |
-| A2 | 화면정의서 vs API 명세서 | 로그인 후 `next` 이동: 화면 경로 vs API 경로 혼재 | 화면 경로만 허용(safeNext, 같은 사이트 경로만) | API 명세서 문구 정리 |
+| A1 | TRD vs API 명세서 | STT 실패 재시도 뒤 처리: TRD는 '일시 중지(장애)', API 명세서는 `stt_retry` 메시지로 같은 질문 재답변 | TRD 따름 (처음 1번 + 재시도 2번 뒤 `paused`·server_error) | API 명세서 v1.2 반영 |
+| A2 | 화면정의서 vs API 명세서 | 로그인 후 `next` 이동: 화면 경로 vs API 경로 혼재 | 화면 경로만 허용(safeNext, 같은 사이트 경로만) | API 명세서 v1.2 반영 |
 
 ## B. 기술 구조 변경 (1단계 한정 포함)
 
 | # | 설계 | 구현 | 이유 |
 |---|---|---|---|
-| B1 | LangGraph 면접 흐름 | DB에 상태를 저장하는 상태 기계 (`interview/engine.py`) | 질문 10개 + 꼬리질문 고정 흐름이라 그래프 도구가 필요 없음, 재시작 복구가 쉬움 |
+| B1 | LangGraph 면접 흐름 | ~~DB에 상태를 저장하는 상태 기계~~ → **2026-11-03 사용자 요청으로 LangGraph 도입.** 면접 진행 그래프(`interview/graph.py`: 질문 내기 → 답변 기다리기 interrupt → STT → 꼬리질문 하위 그래프(규칙 확인 → T4 → 검증 → 만들기·TTS) → 다음/코딩), PostgreSQL 체크포인트(thread_id = 지원 번호). 질문 만들기 그래프(`question_compose.buildComposeGraph`: 고르기 → 예시 찾기 → 만들기 → 확인 → 다시 만들기/질문은행/예비). 남은 차이: ① 질문 만들기 그래프는 **api 안**에서 돌고(설계는 worker) **체크포인트 없이** 메모리에서만 돈다(DB 세션·벡터가 상태에 들어가고, 실패하면 처음부터 다시 만들므로). ② 이어가기는 체크포인트가 아니라 원장(applications)을 읽는 `locate` 노드로 끊긴 질문부터 다시 낸다(AI 아키텍처 6.1 '원장은 applications'). ③ LangGraph interrupt 는 Python 3.11 이상 필요(이미지 3.11, 로컬 3.10 에서는 그래프 테스트 4개를 건너뜀) | 해결(구조), ①② 이대로 확정 |
 | B2 | Celery 작업 큐 | ~~asyncio 백그라운드 작업 (1단계)~~ → 2단계-A 에서 채점·메일·스케줄·코드 실행을 Celery(worker·worker-eval·worker-sandbox·scheduler)로 옮김. 면접 중 질문 구성·감시는 api 안 asyncio 그대로 | 해결 |
 | B3 | 이력서 구조화 전용 모델 | llm-rt(Qwen3 4B) 재사용 | GPU 6GB 한 장에 모델 하나만 올릴 수 있음 |
 | B4 | 코딩 실행은 worker 가 담당 | ~~api 가 docker.sock 으로 실행 상자 생성, api 컨테이너는 root~~ → 2단계-C 에서 `worker-sandbox`(Celery 큐 sandbox)로 옮김. api 는 소켓 없이 uid 65534. worker-sandbox 도 uid 65534 + 그룹 0(소켓이 root:root 660) | 해결. 단 docker.sock 을 가진 컨테이너는 사실상 호스트 권한이라 worker-sandbox 는 내부망에만 둠 |
@@ -22,13 +23,13 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | B6 | RAG·임베딩·녹화·자동 보호 | ~~RAG·임베딩~~ 은 구현(U5), ~~녹화~~ 는 3단계에서 구현. 자동 보호는 미구현 (F6) | OCR 은 U4 로 1단계에 넣음 |
 | B7 | 실행 상자 입력 전달 | 환경 변수로 코드·입력 전달 (파일 마운트 없음) | 읽기 전용 루트 + 네트워크 차단 상태에서 가장 단순 |
 | B8 | 질문 음성 저장 키 | `application_id` 기준 경로 | 지원 단위 삭제(보관 만료)와 맞춤 |
-| B9 | Docker 메모리 58GB 가정 | 개발 PC 16GB 에서 동작 확인 | 동시 면접 상한은 설정값으로 조절 |
+| B9 | Docker 메모리 58GB 가정 | Docker 메모리 24GB 필요 (S8) | 동시 면접 상한은 설정값으로 조절 |
 
 ## C. 화면·동작 세부
 
 | # | 설계 | 구현 | 비고 |
 |---|---|---|---|
-| C1 | 질문 슬롯 순서 미지정 | 인성 → 이력서 → 기업 → 직무 순 | 확인 필요 |
+| C1 | 질문 슬롯 순서 미지정 | 인성 → 회사 → 이력서 ×2 → 직무 ×4 → 인성 → 회사 순 (`question_compose.py` SLOT_ORDER) | 이대로 확정 |
 | C2 | 답변 시간 화면 기준 | 서버도 마감 시각을 재서 넘으면 끊음 | 조작 방지 |
 | C3 | [시작] 후 전체 화면 | 전체 화면을 먼저 요청하고 시작 API 호출 | 브라우저가 사용자 동작 직후에만 전체 화면 허용 |
 | C4 | 같은 세션 재연결 | 세션은 한 번만 연결 가능(4409). 끊기면 '이어가기'로 새 세션 | 중복 창 방지 |
@@ -37,14 +38,14 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | C7 | 관리자 점수·판정 | ~~1단계 "—"~~ → 2단계-A 에서 점수·판정·리포트 표시 | 해결 |
 | C8 | 비밀번호 찾기 | ~~"준비 중" 표시~~ → 3단계에서 S-C03 구현 (C-7 참고) | 해결 |
 | C10 | 동의 철회·회원 탈퇴 | ~~계정 탭에 "다음 단계에서 제공" 안내~~ → 3단계에서 구현 (C-7 참고) | 해결 |
-| C11 | 진행 중인데 연결된 세션이 없는 응시 (서버 재시작·시작 후 화면이 한 번도 연결 안 됨) | 90초 뒤 '원인 미상 장애'로 장애 중단 처리 → 이어가기 가능 | TRD 7-2 '원인 미상은 지원자에게 유리하게'를 적용. 확인 필요 |
+| C11 | 진행 중인데 연결된 세션이 없는 응시 (서버 재시작·시작 후 화면이 한 번도 연결 안 됨) | 90초 뒤(1분 주기 작업이라 실제 90~150초, 서버 재시작은 기동 때 즉시) '원인 미상 장애'로 장애 중단 처리 → 이어가기 가능 | TRD 7-2 '원인 미상은 지원자에게 유리하게'를 적용. 이대로 확정 |
 
 ## C-2. 결정이 필요한 항목 (에이전트 검토에서 나옴)
 
 | # | 내용 | 영향 | 권장 |
 |---|---|---|---|
-| D1 | 장애 이어가기 횟수 제한이 문서에 없다 | 네트워크를 일부러 끊으면 코딩 시간이 멈춘 채 여러 번 이어갈 수 있다 (관리자 화면에는 ⚡n 으로 표시됨) | 사용자 결정(2026-10-30): **3회.** 설정 `resume_limit`=3. 지원자 쪽 끊김(네트워크·장치 등)만 세고 서버 오류·원인 미상(재시작)은 세지 않음. 4번째 끊김은 이어가기 대신 응시 종료(`ended`, end_detail `resume_limit`) → 답변한 문항까지 채점. 이어가기 화면에 남은 횟수 표시. **PRD·TRD 반영 요청 필요** |
-| D2 | 운영 설정값 범위 | ~~설정 API가 형식만 검사~~ → max_concurrent_interviews 는 1~20. 다른 키는 화면에 없고 형식만 검사 | 사용자 확인(2026-10-30): 상한 20 그대로 |
+| D1 | 장애 이어가기 횟수 제한이 문서에 없다 | 네트워크를 일부러 끊으면 코딩 시간이 멈춘 채 여러 번 이어갈 수 있다 (관리자 화면에는 ⚡n 으로 표시됨) | 사용자 결정(2026-10-30): **3회.** 설정 `resume_limit`=3. 지원자 쪽 끊김(네트워크·장치 등)만 세고 서버 오류·원인 미상(재시작)은 세지 않음. 4번째 끊김은 이어가기 대신 응시 종료(`ended`, end_detail `resume_limit`) → 답변한 문항까지 채점. 이어가기 화면에 남은 횟수 표시. PRD v1.7·TRD v1.6 반영 |
+| D2 | 운영 설정값 범위 | ~~설정 API가 형식만 검사~~ → max_concurrent_interviews 는 1~20. 다른 키는 화면에 없고 400 (F10) | 사용자 확인(2026-10-30): 상한 20 그대로 |
 | D3 | 꼬리질문 품질 | Qwen3 4B 는 아주 짧은 답변("여러 방법을 써 봤다")에서 꼬리질문을 건너뛰는 경우가 있다. 프롬프트 기준을 구체화해 모호한 답변 감지는 개선됨 | 2단계 8B 평가 모델 도입 때 다시 측정 |
 
 ## C-3. 에이전트 검토 반영 (2026-10-30)
@@ -59,7 +60,7 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 - 비밀번호 변경 시 다른 로그인 끊기, 로그인 시도 동시성·응답 시간 차이 보완, HTTPS 에서 Secure 쿠키
 - 화면: 응시 오버레이 포커스 가두기·뒤 화면 비활성, 모바일 안내 배너(§4.8), 입력 칸 오류·필수 연결, 대비 보정, 응시 헤더 48px·로고 링크 제거
 
-## C-4. 사용자 결정으로 바꾼 설계 (2026-10-30) — 문서 담당자에게 반영 요청 필요
+## C-4. 사용자 결정으로 바꾼 설계 (2026-10-30)
 
 | # | 결정 | 영향받는 문서 | 구현 |
 |---|---|---|---|
@@ -68,56 +69,59 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | U4 | **이력서 읽기 순서: 리더 → 빈칸 채우기 → 안 되면 OCR** (OCR 3단계 → 1단계) | TRD 7-6 (pdfplumber·쪽당 50자 기준) · AI 아키텍처 | ① PyMuPDF(읽는 순서 정렬) → 깨졌거나 모자란 쪽만 pdfplumber ② LLM 항목 정리 ③ 두 리더 모두 실패한 쪽·사진은 OCR, 정리 뒤 성명·학력/경력이 비면 나머지 쪽도 OCR 해서 **빈 칸만** 채움. OCR 은 PaddleOCR 한국어(CPU, 별도 컨테이너 `ocr`) |
 | U5 | **질문 10개를 RAG 로 먼저 만들고, 못 만들면 질문은행** (모든 종류) | TRD 7-4 ②③: 인성·직무는 질문 DB 에서 먼저 고르고 후보가 모자랄 때만 새로 만듦 · AI 아키텍처 6.1 (T2 '은행 우선, 부족분 생성') | 자리마다 ① 공고·이력서로 찾을 글 → BGE-M3 → pgvector 로 같은 종류 기존 질문 3개 ② 기존 질문(예시) + 이력서 요약 + 회사의 상황(공고 본문)으로 LLM 이 질문 1개 ③ 형식·요구하는 일 2개 이하·이력서 근거·예시와 0.9 이상이면 베낌·고른 질문과 0.9 이상이면 중복 ④ 3번 실패·60초 초과·임베딩 서버 없음 → 질문은행(엑셀) → 예비 질문 |
 | U6 | **AI 공고 초안의 '주로 맡을 일'은 선택** (2026-11-03) | 화면정의서 S-R02 질문 7 (필수 ✓) → **화면정의서 v0.6 반영 완료(2026-11-03, 담당자 요청)** | 비우거나 공백만 넣어도 받음. 프롬프트에 '(지정 없음)'으로 알려 AI 가 직무·기술·강조점에 맞게 주요 업무를 씀. 직접 입력한 말은 AI 가 다듬어 씀. AI 부서 소개가 짧아 대체 문구를 쓸 때는 칩별 미리 정한 문구 · 직접 입력은 규칙으로 줄임('사내 챗봇을 운영함' → '사내 챗봇 운영') · 맡을 일이 없으면 전용 문구 3개 중 하나 |
+| U7 | **꼬리질문을 낼 때만 목표 시간을 따로 둔다** (2026-11-03 사용자 결정 ①) | TRD 7-5 · AI 아키텍처 Q-1: 답변 완료 → 다음 질문 `next_question_target_sec` 5초(p95), 꼬리질문 판단 시간은 그 안에서 동적 배분 | 새 설정 `followup_target_sec` (운영 10초 · 개발 20초). 꼬리질문 판단 시간 = 이 값 − 지난 시간 − TTS 평균(3초). 꼬리질문이 없으면 다음 질문은 그대로 5초 목표. 이유: 실측(2026-11-03) 꼬리질문까지 4.7~6.7초(T4 + TTS)라 5초 안에서는 판단 시간이 0~1초로 `followup_min_sec`(2초)보다 짧아 꼬리질문이 거의 안 나옴. TRD v1.6 반영 |
+| U8 | **자동 채점을 끝내지 못한 건은 3일 안에 결정, 없으면 평가 미완료 불합격** (2026-11-04 사용자 결정) | PRD EVL-05·EVL-08·AC-14, 시나리오 '지원자 책임이 아닌 장애로는 감점하지 않는다': 관리자는 판정을 정하지 않고 평가 지연 건은 끝없이 기다림 | 6시간마다 자동 재채점(채점 지시 의심 건 제외), 3일 안에 관리자 직접 결정(`POST /admin/analysis/{aid}/decision`, `decision_check=manual`), 지나면 AI 가 정상일 때 마지막 재채점까지 실패해야 `incomplete` 불합격, 7일이면 장애 중에도 닫음(채점 지시 의심 건은 3일, 서비스가 멈췄다 돌아왔으면 24시간 더). 고정 문구만 쓰고 LLM 호출 없음. 점수 없는 결과는 점수 통계에서 뺀다. 동의 문구 v1.5. 개인용 문서 반영 |
 | U3 | **이력서만 제출한 상태는 '지원 완료'로 보이지 않게** | 화면정의서 S-A01 지원 상태 배지("준비 중 이후 [지원 완료 ✓]") · T-11 토스트 | 공고 목록 배지를 실제 응시 상태로 표시, '준비 중' → **'면접 준비 중'**, 버튼 [지원 완료] → [이력서 제출] |
 
-AI 초안 구현 메모 (확인 필요):
+AI 초안 구현 메모 (확정):
 - API 명세서는 '채점용 LLM'으로 초안을 쓰라고 하지만, 1단계에는 채점용 8B 모델이 없어 llm-rt(Qwen3 4B)를 쓴다. 실측 8초.
 - 출처 값 `ai_draft` 는 TRD `source` 목록에 없다 (기존 충돌 A-10). API 명세서를 따랐다.
-- `bias_warnings` 는 화면정의서 O-05 대로 규칙 기반 사전(나이·성별·혼인·외모·출신)으로 판단한다.
+- `bias_warnings` 는 화면정의서 O-05 대로 규칙 기반 사전(나이·성별·혼인·외모·출신)으로 판단한다. 현재 사전 그대로 사용자 확정(2026-11-04).
 - 진행 상태는 api 프로세스 메모리에 둔다. 재시작되면 '실패'로 보이고 [다시 시도] 할 수 있다.
 - 공고 삭제 시 평가 기준이 함께 지워지지 않아 500 이 나던 기존 버그를 고쳤다 (테스트도 외래 키 검사를 켬).
 
-이력서 OCR 구현 메모 (확인 필요):
+이력서 OCR 구현 메모 (확정):
 - '읽을 수 있는 쪽' 기준을 TRD 의 '글자 50자 이상'에서 **'의미 있는 글자 50자 이상 + 깨진 글자 흔적 5% 미만'** 으로 넓혔다. 글꼴이 깨져 (cid:12)·ÇÑ±¹ 같은 글자가 나오는 PDF 도 OCR 로 보내기 위해서다.
 - API 명세서의 `ocr` 단계, `ocr_confidence`, `ocr_low_conf_fields`(0.80 미만), `LOW_CONFIDENCE`(평균 0.5 미만) 실패를 그대로 따랐다. 확인 화면은 화면정의서 S-A05 대로 🔍 + 주황 배경, 고치거나 [확인]을 누르면 해제.
 - 실측(개발 PC, 1쪽): 텍스트 PDF 4.3초 · 스캔 PDF 12.6초 · 사진 8.6초 (LLM 정리 포함). OCR 만 4~10초/쪽이라 `ocr_sec_per_page`=8 은 그대로 둔다.
 - 한계: 저해상도 사진은 띄어쓰기가 사라져 "한국대학교컴퓨터공학과학사"처럼 학교·전공이 한 칸에 들어갈 수 있다. 신뢰도는 높게(0.98) 나와 주황 표시가 안 붙으므로, 확인 화면의 "원본과 비교" 안내에 기대고 있다.
-- 쪽 수 상한 10쪽 (그 뒤는 읽지 않음). 문서에 상한이 없어 확인 필요.
+- 쪽 수 상한 10쪽 (그 뒤는 읽지 않음). 이대로 확정.
 - 한컴 PDF처럼 선 없는 표: 공백 압축, 두 줄로 갈린 기간 잇기, '자기소개서' 제목 뒤는 원문 그대로(최대 5000자) 넣고 LLM 은 나머지만 정리, 채우지 않은 양식 프로젝트(<프로젝트명>·00월 00일) 제거, 띄어 쓴 한글 이름 붙이기. 실제 6쪽 이력서 13.3초.
 
-## C-5. 2단계-A 채점·결과 공개 (2026-10-30) — 확인 필요
+## C-5. 2단계-A 채점·결과 공개 (2026-10-30)
 
 | # | 문서 내용 | 구현 | 이유 |
 |---|---|---|---|
-| S1 | **TRD 8-2 ④ · PRD EVL-05: AI(LLM)가 합격·불합격을 정한다** | **코드가 `총점 ≥ 합격 기준`으로 정하고, LLM(T10)은 이유만 쓴다** | AI 아키텍처 v1.4 + 사용자 결정. 같은 점수면 언제나 같은 결과(재현성). PRD·TRD 담당자에게 문구 반영 요청 필요 |
+| S1 | **TRD 8-2 ④ · PRD EVL-05: AI(LLM)가 합격·불합격을 정한다** | **코드가 `총점 ≥ 합격 기준`으로 정하고, LLM(T10)은 이유만 쓴다** | AI 아키텍처 v1.4 + 사용자 결정. 같은 점수면 언제나 같은 결과(재현성). PRD v1.7·TRD v1.6 반영 |
 | S2 | PRD EVL-07: 답변마다 미리 채점 | 응시가 끝난 뒤 한 번에 채점 | GPU 4B 는 면접 중 꼬리질문에 쓰고 있어, 면접 중 채점을 겹치면 응답이 늦어짐. 실측 몇 분 안에 끝남 |
 | S3 | T5 출력의 항목별 `comment` | 넣지 않음 (점수 + 근거 문장만) | 토큰·시간을 줄이려고. 설명은 T6 총평이 맡음 |
-| S4 | T10 근거 문장을 "글자 그대로" 옮겨 씀 | **근거 목록의 번호만 내고 코드가 문장을 채움** | CPU 8B(초당 약 5토큰)가 긴 한국어 문장을 옮기다 400토큰을 넘거나 한 글자씩 틀려 실측에서 2건 모두 '확인 필요'로 빠짐. 근거는 T5 에서 답변 안에 있는지 이미 확인한 문장만 고를 수 있으므로 "근거는 답변에 있어야 한다"는 취지는 그대로 |
+| S4 | T10 근거 문장을 "글자 그대로" 옮겨 씀 | **근거 목록의 번호만 내고 코드가 문장을 채움** | CPU 8B(초당 약 5토큰)가 긴 한국어 문장을 옮기다 400토큰을 넘거나 한 글자씩 틀려 실측에서 2건 모두 '평가 지연'으로 빠짐. 근거는 T5 에서 답변 안에 있는지 이미 확인한 문장만 고를 수 있으므로 "근거는 답변에 있어야 한다"는 취지는 그대로 |
 | S5 | `mail_daily_limit` (하루 메일 상한) | 미구현 | 개발용 Mailpit 만 씀. 실제 메일 서버를 붙일 때 추가 |
 | S6 | 알림 링크 | 마감 1일 전 관리자 알림은 `/admin/applicants?posting=…`, 결과 공개는 `/mypage/results/{id}` | 화면정의서에 링크 주소가 없어 실제 화면 주소로 맞춤 |
-| S7 | 평가 30분 한도 | 응시 끝난 시각(또는 [다시 돌리기]를 누른 시각)부터 잼. 넘으면 `analysis_timeout` 으로 '확인 필요' + 관리자 알림 | TRD 8-3. 오래전에 끝난 응시는 첫 실패 즉시 '확인 필요'가 됨 |
+| S7 | 평가 30분 한도 | 응시 끝난 시각(또는 [다시 돌리기]를 누른 시각)부터 잼. 넘으면 `analysis_timeout` 으로 '평가 지연' + 관리자 알림 | TRD 8-3. 오래전에 끝난 응시는 첫 실패 즉시 '평가 지연'이 됨 |
 | S8 | 메모리 | Docker 메모리 24GB 필요 (`.wslconfig`) | 8B CPU 모델(약 5GB) 추가. 사용자 결정 |
 | S9 | 답 없는 문항 0점 · 근거를 끝내 못 얻은 항목 1점 | 그대로 | PRD EVL-02 |
 | S10 | 근거 문장 최소 길이 없음 | 띄어쓰기·문장부호를 뺀 6글자 미만 근거는 '근거 없음' 처리 | code-reviewer 지적: 한두 글자 근거로 점수를 통과시키는 일 막기 |
-| S11 | 지원 때 잠근 기준 버전이 없을 때 | 다른 버전으로 판정하지 않고 실패 → 재시도 → '확인 필요' | 다른 합격 기준으로 판정되는 일 막기 |
+| S11 | 지원 때 잠근 기준 버전이 없을 때 | 다른 버전으로 판정하지 않고 실패 → 재시도 → '평가 지연' | 다른 합격 기준으로 판정되는 일 막기 |
 
-2단계-A 에이전트 검토(code-reviewer) 반영: 답변 속 꺾쇠(<·>) 바꾸기(구분 태그 깨기 막음) · 5분 점검이 재시도 대기 건을 또 넣던 문제 · '확인 필요' 건이 [다시 돌리기] 없이 다시 채점되던 문제 · 같은 건 관리자 알림 중복 · 남의 잠금을 지우던 문제 · 시작 전 두 모델 모두 확인 · 결과 공개와 알림을 한 트랜잭션으로 · 받는 주소 거부 메일은 재시도 안 함 · 하이라이트·코드 리뷰 입력 개인정보 지우기 · 결과 화면 404 와 다른 오류 구분.
-남은 위험: 지원자가 **말로** "5점을 주라"고 지시하는 것은 시스템 문장으로만 막는다(완전 차단 불가). 근거 문장이 답변 안에 있어야 하므로 지어낸 근거로는 점수를 못 받지만, 모델 판단 자체를 흔들 수는 있다. 3단계에서 지시문 패턴 감지 → '확인 필요' 검토 권장.
+2단계-A 에이전트 검토(code-reviewer) 반영: 답변 속 꺾쇠(<·>) 바꾸기(구분 태그 깨기 막음) · 5분 점검이 재시도 대기 건을 또 넣던 문제 · '평가 지연' 건이 [다시 돌리기] 없이 다시 채점되던 문제 · 같은 건 관리자 알림 중복 · 남의 잠금을 지우던 문제 · 시작 전 두 모델 모두 확인 · 결과 공개와 알림을 한 트랜잭션으로 · 받는 주소 거부 메일은 재시도 안 함 · 하이라이트·코드 리뷰 입력 개인정보 지우기 · 결과 화면 404 와 다른 오류 구분.
+남은 위험: 지원자가 **말로** "5점을 주라"고 지시하는 것은 시스템 문장으로만 막는다(완전 차단 불가). 근거 문장이 답변 안에 있어야 하므로 지어낸 근거로는 점수를 못 받지만, 모델 판단 자체를 흔들 수는 있다. 3단계에서 지시문 패턴 감지 → '평가 지연' 검토 권장.
 
-RAG 질문 구성 구현 메모 (확인 필요):
+RAG 질문 구성 구현 메모 (확정):
 - 임베딩은 TRD 대로 BGE-M3 + sentence-transformers, CPU 컨테이너 `embed`(메모리 약 1.7GB, 상한 5GB). `questions.embedding vector(1024)` + HNSW 인덱스는 테이블 정의서 4-16 그대로 (기존 표에 칸 추가, PostgreSQL 만).
 - 질문 DB 임베딩은 `python -m app.manage embed_questions` 로 만든다 (6,305개, 개발 PC 789초 ≈ 13분). 새 질문을 넣으면 다시 돌린다 (없는 것만).
 - 이력서 기반 자리는 질문 DB 에 같은 종류가 없어 **직무 질문을 예시로** 쓴다. 같은 종류 다음 자리는 앞에서 본 예시를 빼고 찾는다 (질문이 비슷해지지 않게). 다 쓰면 다시 쓴다.
 - TRD 7-4 ④ 범위 확인(별도 LLM 호출)은 만들 때 `task_count` 를 함께 받는 것으로 합쳤다 (60초 안에 10자리를 만들기 위해). 질문은행으로 바꿀 때는 LLM 을 부르지 않는다.
 - 만든 질문을 질문 DB 에 `generated` 로 다시 넣는 것(AI 아키텍처 6.1 '회사 은행에 추가')은 하지 않았다. 질문 DB 가 지원자 이력서에서 나온 질문으로 차는 것을 막기 위해서다. **2026-10-30 사용자 방향: 개인적이지 않고 괜찮다고 판단되는 질문은 넣는 쪽.** 판단 규칙 확정 후 구현 (미구현).
 - 중복 판정 기준 0.9 는 사용자 확인(2026-10-30)으로 그대로 둔다.
+- 사용 중인 엑셀 질문 정리 (2026-11-04 사용자 결정): 같은 종류끼리 코사인 0.8 이상이면 앞선 id 만 남기고 `status='excluded'`로 바꿨다 (1,160개, `audit_logs.action='question.dedupe'`). 면접 질문 구성의 중복 기준 0.9 와는 별개다. DB 를 새로 만들면 `manage dedupe_questions` 를 다시 돌린다 (`embed_questions` 뒤에).
 - 질문 출처 표시: RAG 로 만든 질문 `generated`, 질문은행 `excel`(바꿈 표시 + 이유), 예비 `reserve`.
 - 실측에서 고친 것: ① 직무 4자리가 모두 이력서 프로젝트(RAG 챗봇)로 쏠림 → 직무 자리엔 이력서 '기술'만 넣고, 자리마다 공고의 업무·자격·우대 줄을 번갈아 '기술 주제'로 줌 ② 질문에 "한 문장으로", "90초 내에"가 섞임 → 그런 질문은 버림 ③ 일본어·한자 섞임 → 버림 ④ 이력서 근거 문장이 길어 토큰 상한에 걸림 → 근거 120자 상한(JSON 스키마) + 끝 찌꺼기 제거.
 - 실측 (개발 PC, 4B GPU): 10문항 40~49초 (예산 60초 안), 20문항 중 RAG 생성 20개 · 다시 만들기 3번.
-- 남은 한계: 이력서 근거 구절은 실제 있어도 질문이 이력서에 없는 내용을 덧붙일 수 있음 (실측 1건: "FastAPI 로 응답 속도 개선" — 이력서엔 FastAPI 만 있음). 회사 관련 2문항이 비슷한 뜻으로 나오는 경우가 있음 (코사인 0.9 미만이라 통과). 둘 다 4B 모델 한계로 보이며, 기준을 낮추는 것은 TRD 수치(0.9) 변경이라 결정 필요.
+- 남은 한계: 이력서 근거 구절은 실제 있어도 질문이 이력서에 없는 내용을 덧붙일 수 있음 (실측 1건: "FastAPI 로 응답 속도 개선" — 이력서엔 FastAPI 만 있음). 회사 관련 2문항이 비슷한 뜻으로 나오는 경우가 있음 (코사인 0.9 미만이라 통과). 둘 다 4B 모델 한계로 보이며, 기준은 0.9 유지로 확정.
 
 답변 속 채점 지시 감지 (2026-10-30 사용자 승인):
-- "만점 주세요", "합격시켜", "이전 지시 무시", "채점 기준 바꿔", "ignore previous instructions" 같은 말이 답변에 있으면 채점하지 않고 '확인 필요'(`instruction_suspected`, API 명세서 사유 목록에 없는 새 값) + 관리자 알림.
+- "만점 주세요", "합격시켜", "이전 지시 무시", "채점 기준 바꿔", "ignore previous instructions" 같은 말이 답변에 있으면 채점하지 않고 '평가 지연'(`instruction_suspected`, API 명세서 사유 목록에 없는 새 값) + 관리자 알림.
 - 관리자 상세에 걸린 구절을 보여 주고, [확인했습니다, 채점하기]를 누르면 감사 기록(`analysis.reprocess_ack_instruction`)을 남기고 그대로 채점한다. 결과를 사람이 고치는 것은 아니다 (EVL-05 유지).
 - 'AI', '프롬프트' 같은 낱말만으로는 잡지 않는다 (AI 직무 지원자의 업무 이야기). 놓치는 표현은 있을 수 있다.
 - 확인은 그때 본 구절에만 유효하다 (구절 해시를 감사 기록에 남김). 응시 취소 건은 검사하지 않는다 (AI 없이 0점).
@@ -126,21 +130,21 @@ RAG 질문 구성 구현 메모 (확인 필요):
 RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어도 api 는 뜸(RAG 만 꺼짐) · 공고별 질문 사용 횟수를 동시에 올릴 때 충돌 → INSERT … ON CONFLICT · '만점 달성'·'합격 처리 시스템' 같은 정상 답변 오탐 줄임 · 임베딩 시간·다른 지원자 대기 시간도 60초 예산에 넣음, 임베딩 서버가 죽으면 남은 자리는 바로 질문은행 · 이력서·공고 글도 꺾쇠 바꾸기 + 자료 태그로 감쌈.
 남은 것 (1단계부터 있던 구조, 동시 면접이 늘면 손볼 것): 질문 구성 중 DB 조회가 api 이벤트 루프에서 동기로 돈다 (지금 규모 수 ms) · 질문 음성(TTS) 만들기는 60초 예산 밖에서 차례로 돈다.
 
-## C-6. 2단계-B·C (2026-10-30) — 확인 필요
+## C-6. 2단계-B·C (2026-10-30)
 
-| # | 항목 | 구현 | 결정·확인 필요 |
+| # | 항목 | 구현 | 결정 |
 |---|---|---|---|
-| F1 | 통계 기한 | ~~지운 건은 통계에서 빠짐~~ → **사용자 승인(2026-10-30)으로 `stats_archive` 테이블 추가.** 지울 때 공고·응시 월별 숫자(지원·응시·판정·합격 수, 총점 합, 점수 구간, 항목 합, 이어가기, 부정행위 취소)만 더해 두고 `/admin/stats` 가 남은 건과 합쳐 보여 줌. 지원 건·회원 칸 없음, 공고 FK 없음(공고를 지워도 숫자 유지) | 해결. **테이블 정의서에 새 테이블 반영 요청 필요** |
+| F1 | 통계 기한 | ~~지운 건은 통계에서 빠짐~~ → **사용자 승인(2026-10-30)으로 `stats_archive` 테이블 추가.** 지울 때 공고·응시 월별 숫자(지원·응시·판정·합격 수, 총점 합, 점수 구간, 항목 합, 이어가기, 부정행위 취소)만 더해 두고 `/admin/stats` 가 남은 건과 합쳐 보여 줌. 지원 건·회원 칸 없음, 공고 FK 없음(공고를 지워도 숫자 유지) | 해결. 테이블 정의서 v1.1 반영 |
 | F2 | 동의 기록 | 테이블 정의서 4-9 대로 지원 건이 지워져도 남김(ON DELETE SET NULL) + subject_hash(이메일 SHA-256) 추가, 기존 행도 채움 | 문서대로 맞춤. 3년 뒤 삭제 작업은 아직 없음 |
 | F3 | 녹화 삭제 | ~~녹화 기능이 없어 아직 없음~~ → 3단계에서 응시 끝 + 3일 삭제 구현 (C-7 R2) | 해결 |
 | F4 | 예비 질문 수 | ~~모두 5개 미만~~ → 질문 엑셀 2개에서 회사 이름·특정 직무가 없는 질문을 골라 채움: 인성 5 · 기업 5 · 이력서 5 · 직무 6 (`question_bank.RESERVE_QUESTIONS`, '엑셀' 표시) | 해결. 팀이 더 모으면 교체·추가 |
 | F4-2 | 질문은행 데이터 | 엑셀에서 온 질문 가운데 **다른 회사 이름**("왜 Goldman Sachs인가요?", "SAP에 적합한 이유", "아마존 고객 추천 시스템")이나 면접과 무관한 글("W3Schools 서비스를 어떻게 이용하나요?", "평균 연봉은 얼마인가요?")이 active 로 들어가 있음. RAG 가 실패해 질문은행으로 바꿀 때 그대로 나갈 수 있음 (U1 '회사명 표기 안 함'과도 어긋남) | 사용자 결정(2026-10-30): **규칙으로 거름.** `question_bank.excludedReason` — 다른 회사 이름(영문·한글 목록)·무관 글(연봉·자격증·W3Schools 등)이면 status 'excluded'. load_questions 때마다 다시 적용. 기술 이름(TensorFlow·AWS·Amazon SageMaker)과 Chi-Square·메타데이터·애플리케이션은 남김. 실 DB 319개 제외 (회사 30·직무 273·인성 16). 남은 회사 관련 질문은행 22개 |
-| F5 | 비교 범위 | 서로 다른 공고도 비교는 되지만 "기준이 달라 비교 어려움" 경고. 목록 화면에서는 같은 공고 안에서만 고름 | 문서에 규정 없음 |
-| F6 | admission_guard | API 명세서 settings 응답의 `admission_guard`(자동 보호로 입장 막음)는 그런 기능이 없어 넣지 않음 | 기능이 필요하면 정의 필요 |
+| F5 | 비교 범위 | 서로 다른 공고도 비교는 되지만 "기준이 달라 비교 어려움" 경고. 목록 화면에서는 같은 공고 안에서만 고름 | 이대로 확정 |
+| F6 | admission_guard | API 명세서 settings 응답의 `admission_guard`(자동 보호로 입장 막음)는 그런 기능이 없어 넣지 않음 | 미구현, 이후 범위 |
 | F7 | 다음 전형 | 1차 합격자는 결과 공개 전에도 관리자에게 보임 (지원자 목록과 같은 기준). 연락처를 보여 주므로 열 때마다 감사 로그 `passed.view` | 사용자 확인(2026-10-30): 이대로 |
-| F9 | 판정이 없는 건의 삭제일 | 작성 중·준비 중·미응시 마감 건은 결과가 없어 purge_at 이 비어 있음 → **공고의 1차 결과 공개일 + 7일**에 함께 지움. '확인 필요'로 멈춘 건은 지우지 않음(관리자가 처리해야 공개일·삭제일이 정해짐) | 사용자 확인(2026-10-30): 이대로 |
+| F9 | 판정이 없는 건의 삭제일 | 작성 중·준비 중·미응시 마감 건은 결과가 없어 purge_at 이 비어 있음 → **공고의 1차 결과 공개일 + 7일**에 함께 지움. '평가 지연' 건은 최대 7일 안에 결과가 정해지고(U8) 그때 공개일·삭제일도 정해짐 | 사용자 확인(2026-10-30): 이대로 |
 | F10 | 화면 밖 설정 | 설정 API 로는 화면에 있는 `max_concurrent_interviews` 만 바꿀 수 있고, 그 밖의 키는 400 (서버 설정 파일에서 관리, 화면정의서 S-R10) | 사용자 확인(2026-10-30): 이대로 |
-| F8 | 설정 기록 | 설정 변경 기록은 별도 테이블(4-25 app_setting_history) 대신 감사 로그에 전·후 값을 남겨 읽음 (화면정의서 S-R10 "감사 로그의 설정 변경 기록") | 사용자 확인(2026-10-30): 이대로. 테이블 정의서 반영 요청 필요 |
+| F8 | 설정 기록 | 설정 변경 기록은 별도 테이블(4-25 app_setting_history) 대신 감사 로그에 전·후 값을 남겨 읽음 (화면정의서 S-R10 "감사 로그의 설정 변경 기록") | 사용자 확인(2026-10-30): 이대로. 테이블 정의서 v1.1 반영 |
 
 2-B·C 에이전트 검토(code-reviewer) 반영: 판정 없는 건(작성 중 등) 이력서 파일이 영원히 남던 문제(F9) · 통계가 암호화 칸까지 전부 읽고 IN 목록이 커지던 문제 → 필요한 칸만·JOIN · 브로커가 죽으면 [실행]이 500 → 503 · Redis 오류가 코딩 제출을 500 으로 만들던 문제 · 다시 채점할 때 이미 채점한 문항을 덮던 문제 · 부팅마다 동의 FK 를 지우고 다시 만들던 문제 · 화면 밖 설정을 아무 값이나 받던 문제 · 동의자 표시를 서버 키 HMAC 으로(솔트 없는 SHA-256 은 이메일 대입으로 되돌릴 수 있음) · 메일 실패 사유 속 주소 가림.
 남긴 것: [실행]이 40초를 넘겨 끝나면 그 실행 결과가 Redis 에 최대 10분 남는다 (지원자 본인 코드 출력, 내부망 전용).
@@ -150,88 +154,96 @@ RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어
 | # | 항목 | 문서 | 구현 | 이유 · 결정 필요 |
 |---|---|---|---|---|
 | R1 | 녹화 저장 방식 | API 명세서 6장: 같은 구간 조각을 이어 써서 구간마다 파일 하나 | 조각마다 객체 하나(`recordings/{지원}/{구간}/00000.webm` …), 재생할 때 순서대로 이어 보냄. `recordings.file_key` 는 이 접두어 | S3(RustFS)는 이어 쓰기가 없음. 받는 쪽에서 보면 파일 하나와 같음 |
-| R2 | 녹화 재생 Range | API 명세서 2-6: Range 206 | 녹화는 Range 없이 처음부터 흘려보냄 (답변 음성은 그대로) | MediaRecorder WebM 은 탐색 정보가 없어 Range 를 줘도 건너뛰기가 잘 안 됨. 하이라이트도 녹화엔 없음 |
+| R2 | 녹화 재생 Range | API 명세서 2-6: Range 206 | 녹화는 Range 없이 처음부터 흘려보냄 (답변 음성도 Range 없음) | MediaRecorder WebM 은 탐색 정보가 없어 Range 를 줘도 건너뛰기가 잘 안 됨. 하이라이트도 녹화엔 없음 |
 | R3 | 녹화 삭제 시각 | 응시 끝 + 3일 | 재생은 기한이 지나면 바로 410, 파일은 **매시 30분** 작업이 지움 (최대 1시간 늦음) | 매일 03:00 에 묶으면 최대 하루 늦어짐 |
-| R4 | 녹화 내용 | "카메라 녹화" | 카메라 영상 + 마이크 소리 (약 300kbps, 10초 조각) | 사용자 결정(2026-11-02): 소리도 함께 녹화 |
-| R5 | 업로드 실패 알림 | "3번 실패하면 장애 후보" (보내는 방법 없음) | WebSocket `{type:"upload_failed"}` → 장애 중단. **원인은 화면 말이 아니라 서버 기록으로 정함**: 저장소가 실패하면 서버가 503 `STORAGE_UNAVAILABLE` + `session_events` `upload_error` 를 남기고, 최근 60초 안에 그 기록이 있으면 `server_error`(이어가기 횟수에 안 셈), 없으면 `upload_failed`(지원자 쪽, 횟수에 셈). 4xx 거절(용량 초과 등)은 장애로 보지 않고 그 조각만 버림 | 사용자 위임(2026-11-02)으로 해결. API 명세서 7장 메시지 목록에 `upload_failed` 추가 요청 필요 |
+| R4 | 녹화 내용 | "카메라 녹화" | 카메라 영상 + 마이크 소리 (약 300kbps, 10초 조각) | 사용자 결정(2026-11-02): 소리도 함께 녹화. 동의 ①②·시작 안내 문구를 R4·S1 에 맞추고 `consent_version` v1.4 (사용자 결정 2026-11-04). 평가 미완료 안내를 더해 v1.5 (U8), 이어가기 3회·'응시 취소' 용어로 v1.6, 재채점·7일 상한으로 v1.7 |
+| R5 | 업로드 실패 알림 | "3번 실패하면 장애 후보" (보내는 방법 없음) | WebSocket `{type:"upload_failed"}` → 장애 중단. **원인은 화면 말이 아니라 서버 기록으로 정함**: 저장소가 실패하면 서버가 503 `STORAGE_UNAVAILABLE` + `session_events` `upload_error` 를 남기고, 최근 60초 안에 그 기록이 있으면 `server_error`(이어가기 횟수에 안 셈), 없으면 `upload_failed`(지원자 쪽, 횟수에 셈). 4xx 거절(용량 초과 등)은 장애로 보지 않고 그 조각만 버림 | 사용자 위임(2026-11-02)으로 해결. API 명세서 v1.2 반영 |
 | R6 | 녹화 상한 | 없음 | 조각 5MB, 구간 400MB, 응시 끝난 뒤 60초까지만 마지막 조각을 받음, 첫 조각은 WebM 머리글 확인 | 저장소 남용 방지 |
 | P1 | 재설정 메일 | S-C03 · 테이블 정의서 5장 `pw_reset:{토큰 해시}` 30분 | 그대로 + **같은 주소로 1분에 한 통**, 새 링크를 보내면 이전 링크 무효, 바꾸면 모든 기기 로그아웃. 링크(토큰)는 DB·알림 표에 남기지 않고 메일 작업으로만 넘김. 비밀번호 규칙에 걸리면 토큰은 그대로 둠 | 메일 폭탄·옛 링크 재사용 방지. 로그인 잠금(5회)은 풀지 않음 |
 | P2 | 재설정 메일 처리 | — | 가입 여부 확인·메일 넣기는 **응답을 보낸 뒤** 처리 (응답 시간으로 가입 여부를 알 수 없게) | — |
 | W1 | 철회·탈퇴 건의 통계 | F1 은 보관 기간 삭제 때 익명 숫자를 남김 | 사용자 결정(2026-11-02): **응시가 끝난 건(완료·종료·취소·마감 종료·미응시 마감)만 `stats_archive` 에 더함.** 작성 중·준비 중·진행 중·장애 중단 상태에서 철회·탈퇴한 건은 넣지 않음 | 해결 |
-| W2 | 계정 탭 동의 목록 | `GET /me/applications` 에 동의 여부 칸 없음 | 항목마다 `consented` (철회 안 한 동의가 있는지) 추가 | API 명세서 반영 요청 필요 |
+| W2 | 계정 탭 동의 목록 | `GET /me/applications` 에 동의 여부 칸 없음 | 항목마다 `consented` (철회 안 한 동의가 있는지) 추가 | API 명세서 v1.2 반영 |
 | W3 | 동의 없는 지원 철회 | 없음 | 409 `NO_CONSENT` | — |
 | W4 | 탈퇴 오류 | `POST /me/withdraw` 오류 코드 없음 | 400 `WRONG_PASSWORD` · 400 `CONFIRM_TEXT`. 관리자는 403 | — |
 | W5 | 진행 중 응시 철회 | — | 자리 반환 → WebSocket `terminate`(`withdrawn`) → 삭제 순서. 응시 화면은 "동의 철회로 응시가 취소되었습니다" 오버레이 | — |
 | M1 | 메모 감사 로그 | 테이블 정의서 감사 action `memo_create`·`memo_update`·`memo_delete` | 기존 표기에 맞춰 `memo.create` · `memo.update` · `memo.delete` (본문은 남기지 않고 memo_id 만). 녹화 재생은 `recording.play` | 기존 감사 로그가 모두 점 표기 (`answer.listen` 등) |
 
-## C-8. 화면정의서 v0.6 대조에서 나온 PRD·TRD 차이 (2026-11-03) — 확인 필요
+## C-8. 화면정의서 v0.6 대조에서 나온 PRD·TRD 차이 (2026-11-03)
 
 화면정의서 §1.3 H-01~H-10 가운데 여기에 없던 것만 적음. 나머지는 이미 있음: H-01=S1, H-02=U1, H-04=U3, H-05=C5, H-09=D1, H-10=B6·F6(자동 보호 미구현이라 OV-05 문구가 동시 면접 상한만 말함).
 
 | # | 문서 | 실제 구현 | 이유·상태 |
 |---|---|---|---|
-| V1 | PRD JOB-01 '회사 소개' (화면정의서 H-03) | 화면 이름 '부서 소개'. DB·API 칸 `company_intro` 는 그대로. AI 초안(S-R02)의 소개 메모는 선택 | 사용자 결정(2026-11-02). 한 기업 전용이라 회사 소개 대신 부서 소개. PRD 수정 요청 필요 |
-| V2 | PRD JOB-08 · TRD 5-1 · API 명세서 `POST /admin/postings/import` 공고 불러오기 (화면정의서 H-06) | 없음 (T34 `external_id` 칸만 있음) | 미구현. 필요하면 범위 결정 필요 |
-| V3 | PRD ADM-02 지원자 상세에서 "표준 양식 이력서와 원본 파일" (화면정의서 H-07) | 원본 파일은 저장소에 보관(`resume_uploads.file_key`)하지만 관리자 화면·API 에서 볼 수 없음. 표준 양식 이력서와 제출 방식만 보임 | 미구현. 관리자 원본 보기 API 가 필요하면 추가 |
-| V4 | TRD 5-2 답변 음성 WebRTC 실시간 전송 · 포트 UDP 40000~40019 (화면정의서 H-08) | WebSocket 이진 메시지(16kHz PCM)로 전송. WebRTC·UDP 포트 없음 | 1단계부터 이렇게 구현(README 에만 적혀 있었음). STT 가 서버에서 조각을 받아 처리하는 구조라 WebRTC 미디어 서버 없이 단순화. TRD 수정 또는 승인 필요 |
+| V1 | PRD JOB-01 '회사 소개' (화면정의서 H-03) | 화면 이름 '부서 소개'. DB·API 칸 `company_intro` 는 그대로. AI 초안(S-R02)의 소개 메모는 선택 | 사용자 결정(2026-11-02). 한 기업 전용이라 회사 소개 대신 부서 소개. PRD v1.7 반영 |
+| V2 | PRD JOB-08 · TRD 5-1 · API 명세서 `POST /admin/postings/import` 공고 불러오기 (화면정의서 H-06) | 없음 (T34 `external_id` 칸만 있음) | 미구현, 이후 범위 |
+| V3 | PRD ADM-02 지원자 상세에서 "표준 양식 이력서와 원본 파일" (화면정의서 H-07) | 원본 파일은 저장소에 보관(`resume_uploads.file_key`)하지만 관리자 화면·API 에서 볼 수 없음. 표준 양식 이력서와 제출 방식만 보임 | 미구현, 이후 범위 |
+| V4 | TRD 5-2 답변 음성 WebRTC 실시간 전송 · 포트 UDP 40000~40019 (화면정의서 H-08) | WebSocket 이진 메시지(16kHz PCM)로 전송. WebRTC·UDP 포트 없음 | 1단계부터 이렇게 구현(README 에만 적혀 있었음). STT 가 서버에서 조각을 받아 처리하는 구조라 WebRTC 미디어 서버 없이 단순화. TRD v1.6 반영 |
+
+## C-9. 로그인 차단 (2026-11-04, 사용자 결정)
+
+| # | 항목 | 정의서(이전) | 구현 |
+|---|---|---|---|
+| L1 | 로그인 실패 제한 | 계정별 5번 실패 시 10분 잠금 | 로그인 실패는 계정과 무관하게 IP 별로 세어, 1시간 안에 5번 틀리면 그 IP 의 로그인을 막는다(없는 이메일도 세고, 성공해도 횟수를 지우지 않는다). 안내에 문의 코드를 보여 주고, 관리자가 대시보드에서 해제하거나 24시간 뒤 자동으로 풀린다. 지원자 계정은 잠그지 않는다. 관리자는 막힌 IP 에서도 비밀번호가 맞으면 들어오며, 관리자 계정은 5번 틀리면 10분 잠기되 일반 실패와 같은 문구를 보인다. 지정 IP(`LOGIN_EXEMPT_IPS`, 개발자)는 차단에서 뺀다 |
+| L2 | 표 | 없음 | `login_blocks` 추가, `users.failed_logins`·`locked_until` 은 관리자만 씀 |
+| L3 | 한계 | — | 다른 IP 를 계속 쓰는 공격은 지원자 계정에 대해 막지 못함(비밀번호 규칙·느린 해시로 늦춤). 이 PC 접속은 차단 제외. 외부 공개 시 앞단 프록시가 `X-Forwarded-For` 를 덮어써야 함 |
 
 ## T. 테이블 정의서(`Final_project_테이블정의서.pdf`, 2026-10-29)와 실제 DB 차이 — 2026-11-02 점검
 
 실제 Postgres 구조(`information_schema`)와 정의서를 한 칸씩 비교했다. **기능이 빠진 것보다 같은 기능을 다른 이름·구조로 만든 경우가 대부분**이다.
-사용자 결정(2026-11-02): 차이를 먼저 기록하고, **바꿔도 동작에 영향이 없는 것(덧붙이기)만 구현을 정의서에 맞춘다.** 이름·타입·구조 변경은 핵심 흐름(면접·이어가기·채점)을 다시 짜야 해서 하지 않고, 정의서 쪽 수정을 팀과 협의한다.
-"처리" 열: **맞춤** = 이번에 구현을 정의서에 맞춤 · **정의서 수정 요청** = 구현 유지, 정의서를 고쳐야 함 · **승인됨** = 앞선 항목에서 이미 결정.
+사용자 결정(2026-11-02): 차이를 먼저 기록하고, **바꿔도 동작에 영향이 없는 것(덧붙이기)만 구현을 정의서에 맞춘다.** 이름·타입·구조 변경은 핵심 흐름(면접·이어가기·채점)을 다시 짜야 해서 하지 않고, 개인용 정의서(v1.1)를 구현에 맞췄다.
+"처리" 열: **맞춤** = 이번에 구현을 정의서에 맞춤 · **정의서 v1.1 반영** = 구현 유지, 개인용 정의서를 고침 · **승인됨** = 앞선 항목에서 이미 결정.
 
 ### T-1. 공통 규칙
 
 | # | 정의서 | 실제 | 처리 |
 |---|---|---|---|
 | T1 | 상태 값에 CHECK 제약 | 제약 없음 (앱 코드만 막음) | **맞춤** — 값이 정해진 상태 칸에 CHECK 추가 (값은 실제 코드 기준. 정의서와 값이 다른 것은 T2) |
-| T2 | 값 이름 | `job_codes.status` `open`(정의서 `active`) · `questions.source` `excel`(정의서 `db`) · 설정·질문 상태 값 추가(`questions.status` `pending`·`excluded` 등) · `session_events.judged` `cheating`·`info` | 정의서 수정 요청 |
-| T3 | 암호화 칸은 `_enc` 이름 + `bytea` | 이름에 `_enc` 없음, `text` 에 Base64(nonce+암호문+태그). DBeaver 에서 암호화 칸인지 이름으로 구분 안 됨 | 정의서 수정 요청 (이름을 바꾸면 모델·쿼리 전부 수정). 확인 도구 `python -m app.devtools` 로 보완 |
-| T4 | 암호화 범위 | 정의서보다 넓음: `results.ai_reason`·`ai_reason_quotes`·`strengths`·`improvements`·`summary`·`public_view`, `item_scores.quote`, `highlights.quote`, `applications.resume_name`, `saved_resumes.name` 도 암호화 | 정의서 수정 요청 (답변 인용·평가 문장도 개인정보) |
-| T5 | id 는 `uuid`, 로그만 `bigserial` | `varchar(36)` 문자열 uuid. `interview_questions`·`questions`·`evaluation_criteria`·`item_scores`·`highlights`·`coding_submissions` 는 정수 자동 증가 | 정의서 수정 요청 (타입 변경은 FK·데이터 변환 필요) |
-| T6 | `jsonb` | `json` | 정의서 수정 요청 (jsonb 전용 검색·인덱스를 쓰지 않음) |
-| T7 | 구조 변경은 Alembic 으로만 | `create_all` + `app/migrate.py` 의 `ALTER TABLE ... IF NOT EXISTS` | 정의서 수정 요청. 공동 개발로 넘어갈 때 Alembic 도입 검토 |
-| T8 | LangGraph 체크포인트 테이블 3개 | 없음 (B1: LangGraph 미사용) | B1 승인 대기와 같이 처리 |
+| T2 | 값 이름 | `job_codes.status` `open`(정의서 `active`) · `questions.source` `excel`(정의서 `db`) · 설정·질문 상태 값 추가(`questions.status` `pending`·`excluded` 등) · `session_events.judged` `cheating`·`info` | 정의서 v1.1 반영 |
+| T3 | 암호화 칸은 `_enc` 이름 + `bytea` | 이름에 `_enc` 없음, `text` 에 Base64(nonce+암호문+태그). DBeaver 에서 암호화 칸인지 이름으로 구분 안 됨 | 정의서 v1.1 반영 (이름을 바꾸면 모델·쿼리 전부 수정). 확인 도구 `python -m app.devtools` 로 보완 |
+| T4 | 암호화 범위 | 정의서보다 넓음: `results.ai_reason`·`ai_reason_quotes`·`strengths`·`improvements`·`summary`·`public_view`, `item_scores.quote`, `highlights.quote`, `applications.resume_name`, `saved_resumes.name` 도 암호화 | 정의서 v1.1 반영 (답변 인용·평가 문장도 개인정보) |
+| T5 | id 는 `uuid`, 로그만 `bigserial` | `varchar(36)` 문자열 uuid. `interview_questions`·`questions`·`evaluation_criteria`·`item_scores`·`highlights`·`coding_submissions` 는 정수 자동 증가 | 정의서 v1.1 반영 (타입 변경은 FK·데이터 변환 필요) |
+| T6 | `jsonb` | `json` | 정의서 v1.1 반영 (jsonb 전용 검색·인덱스를 쓰지 않음) |
+| T7 | 구조 변경은 Alembic 으로만 | `create_all` + `app/migrate.py` 의 `ALTER TABLE ... IF NOT EXISTS` | 정의서 v1.1 반영. 공동 개발로 넘어갈 때 Alembic 도입 검토 |
+| T8 | LangGraph 체크포인트 테이블 3개 | ~~없음~~ → 2026-11-03 B1 도입으로 `checkpoints`·`checkpoint_blobs`·`checkpoint_writes`(+ 라이브러리의 `checkpoint_migrations`)를 api 시작 때 만듦. 보관 삭제·철회·탈퇴 때 지원 번호로 함께 지움(deletion_logs `checkpoints` 수) | 맞춤 |
 
 ### T-2. 테이블 단위
 
 | # | 정의서 | 실제 | 처리 |
 |---|---|---|---|
-| T9 | `user_resumes` | `saved_resumes` (`name` 추가, `method`·`upload_id` 없음) | 정의서 수정 요청 |
-| T10 | `coding_problems` (문제·숨은 테스트를 DB 에 암호화 저장) | 테이블 없음. 문제는 코드(`services/coding_bank.py`), 제출은 `problem_key` | 정의서 수정 요청. 문제 은행을 관리자가 바꾸는 기능이 생기면 테이블로 옮김 |
+| T9 | `user_resumes` | `saved_resumes` (`name` 추가, `method`·`upload_id` 없음) | 정의서 v1.1 반영 |
+| T10 | `coding_problems` (문제·숨은 테스트를 DB 에 암호화 저장) | 테이블 없음. 문제는 코드(`services/coding_bank.py`), 제출은 `problem_key` | 정의서 v1.1 반영. 문제 은행을 관리자가 바꾸는 기능이 생기면 테이블로 옮김 |
 | T11 | `app_setting_history` | 없음, 감사 로그로 대신 | 승인됨 (F8) |
 | T12 | — | `stats_archive` | 승인됨 (F1) |
-| T13 | 로그인 세션은 Redis `session:{쿠키}` | `login_sessions` 테이블 (토큰 해시) | 정의서 수정 요청 (Redis 재시작에도 로그인 유지, 모든 기기 로그아웃이 쉬움) |
-| T14 | 면접 세션은 Redis `interview:session:{sid}` | `interview_sessions` 테이블 | 정의서 수정 요청 (재시작 복구) |
-| T15 | `questions.use_count` | `question_usage` (공고별 사용 횟수) | 정의서 수정 요청 (같은 공고 지원자끼리 질문이 겹치지 않게) |
-| T16 | 로그인 실패 횟수·잠금은 Redis | `users.failed_logins`·`locked_until` | 정의서 수정 요청 |
-| T17 | 환경 점검 통과는 Redis `precheck:` | `applications.precheck_valid_until` | 정의서 수정 요청 |
+| T13 | 로그인 세션은 Redis `session:{쿠키}` | `login_sessions` 테이블 (토큰 해시) | 정의서 v1.1 반영 (Redis 재시작에도 로그인 유지, 모든 기기 로그아웃이 쉬움) |
+| T14 | 면접 세션은 Redis `interview:session:{sid}` | `interview_sessions` 테이블 | 정의서 v1.1 반영 (재시작 복구) |
+| T15 | `questions.use_count` | `question_usage` (공고별 사용 횟수) | 정의서 v1.1 반영 (같은 공고 지원자끼리 질문이 겹치지 않게) |
+| T16 | 로그인 실패 횟수·잠금은 Redis | `users.failed_logins`·`locked_until` | 정의서 v1.1 반영 |
+| T17 | 환경 점검 통과는 Redis `precheck:` | `applications.precheck_valid_until` | 정의서 v1.1 반영 |
 
 ### T-3. 칸 단위
 
 | # | 테이블 | 차이 | 처리 |
 |---|---|---|---|
-| T18 | users | 동의 3칸(`age_14_plus`·`terms_agreed_at`·`privacy_agreed_at`) → `agreements` 한 칸 · `password_change_required` → `must_change_password` · `phone` 비워 둘 수 있음 | 정의서 수정 요청 |
+| T18 | users | 동의 3칸(`age_14_plus`·`terms_agreed_at`·`privacy_agreed_at`) → `agreements` 한 칸 · `password_change_required` → `must_change_password` · `phone` 비워 둘 수 있음 | 정의서 v1.1 반영 |
 | T19 | users | `email_verified_at`·`updated_at` 없음 | **맞춤** (칸 추가. 이메일 인증은 아직 기능 없음) |
-| T20 | applications | 이름: `applicant_id`→`user_id` · `exit_count`→`away_count` · `needs_review_reason`→`review_reason` · `resume_snapshot_enc`→`resume_snapshot` · `resume_edited_fields`→`edited_fields` · `ended_at`→`completed_at` | 정의서 수정 요청 |
-| T21 | applications | 정의서에만: `criteria_id`(실제 `criteria_version`) · `result_status`(합불은 `results` 에만) · `analysis_attempts` · `resume_confirmed_at` · `coding_deadline_at`(실제 남은 초 `coding_remaining_sec`) | 정의서 수정 요청 |
+| T20 | applications | 이름: `applicant_id`→`user_id` · `exit_count`→`away_count` · `needs_review_reason`→`review_reason` · `resume_snapshot_enc`→`resume_snapshot` · `resume_edited_fields`→`edited_fields` · `ended_at`→`completed_at` | 정의서 v1.1 반영 |
+| T21 | applications | 정의서에만: `criteria_id`(실제 `criteria_version`) · `result_status`(합불은 `results` 에만) · `analysis_attempts` · `resume_confirmed_at` · `coding_deadline_at`(실제 남은 초 `coding_remaining_sec`) | 정의서 v1.1 반영 |
 | T22 | applications | `needs_review_since`·`updated_at` 없음 | **맞춤** |
-| T23 | applications | 실제에만: `phase`·`current_seq`·`followup_count`·`interruption_at/reason/judged`·`end_detail`·`questions_status`·`interview_started_at`·`submitted_at`·`resume_name`·`resume_upload_id` | 정의서 수정 요청 (면접 엔진 상태) |
-| T24 | consents | `user_id` 없음 · 동의자 표시는 SHA-256 이 아니라 서버 키 HMAC | 정의서 수정 요청 (HMAC 은 보안 수정, 2-B·C 검토) |
-| T25 | evaluation_criteria | `locked_at` 대신 `locked`(참/거짓) · `rubric_version` 은 `results` 에만 | `locked_at` **맞춤**(칸 추가, `locked` 유지) · 나머지 정의서 수정 요청 |
-| T26 | interview_questions | 이름: `text_snapshot`→`text` · `category`→`qtype` · `answer_seconds`→`answer_sec` · `tts_key`→`audio_key` · `replaced`→`substituted` · `generation_attempts`→`regen_count` · `question_id`→`source_question_id`. 꼬리질문은 `parent_id` 가 아니라 같은 `seq` + `answer_order=2` | 정의서 수정 요청 |
-| T27 | answers | 정의서에만: `answer_no_count`·`stt_retries`·`stt_retry_sent` · 실제에만: `application_id`·`words`·`audio_sec`·`stt_elapsed_sec`·`end_reason` | 정의서 수정 요청 |
+| T23 | applications | 실제에만: `phase`·`current_seq`·`followup_count`·`interrupted_at`·`interruption_reason`·`interruption_judged`·`end_detail`·`questions_status`·`interview_started_at`·`submitted_at`·`resume_name`·`resume_upload_id` | 정의서 v1.1 반영 (면접 엔진 상태) |
+| T24 | consents | `user_id` 없음 · 동의자 표시는 SHA-256 이 아니라 서버 키 HMAC | 정의서 v1.1 반영 (HMAC 은 보안 수정, 2-B·C 검토) |
+| T25 | evaluation_criteria | `locked_at` 대신 `locked`(참/거짓) · `rubric_version` 은 `results` 에만 | `locked_at` **맞춤**(칸 추가, `locked` 유지) · 나머지 정의서 v1.1 반영 |
+| T26 | interview_questions | 이름: `text_snapshot`→`text` · `category`→`qtype` · `answer_seconds`→`answer_sec` · `tts_key`→`audio_key` · `replaced`→`substituted` · `generation_attempts`→`regen_count` · `question_id`→`source_question_id`. 꼬리질문은 `parent_id` 가 아니라 같은 `seq` + `answer_order=2` | 정의서 v1.1 반영 |
+| T27 | answers | 정의서에만: `answer_no_count`·`stt_retries`·`stt_retry_sent` · 실제에만: `application_id`·`words`·`audio_sec`·`stt_elapsed_sec`·`end_reason` | 정의서 v1.1 반영 |
 | T28 | answers | `is_empty` 없음 · `started_at` 칸은 있으나 항상 비어 있음 | **맞춤** (`is_empty` 추가, `started_at` 은 첫 음성 조각이 온 시각) |
-| T29 | questions | 정의서 `category`(직무·인성…) = 실제 `kind`, 실제 `category` 는 엑셀 분류 · `duplicate_group` 정수→글자 · `created_at` 없음 · `status`·`row_no` 추가 | 정의서 수정 요청 |
-| T30 | session_events | `kind`·`reason`·`phase`·`duration_sec` → `type`·`detail`·`session_id` | 정의서 수정 요청 |
-| T31 | resume_uploads | `purpose`·`ocr_confidence`·`ocr_low_conf_fields` 없음(OCR 정보는 `result` 안 `_ocr`) · `created_at`→`started_at` · `content_type` 추가 | 정의서 수정 요청 |
+| T29 | questions | 정의서 `category`(직무·인성…) = 실제 `kind`, 실제 `category` 는 엑셀 분류 · `duplicate_group` 정수→글자 · `created_at` 없음 · `status`·`row_no` 추가 | 정의서 v1.1 반영 |
+| T30 | session_events | `kind`·`reason`·`phase`·`duration_sec` → `type`·`detail`·`session_id` | 정의서 v1.1 반영 |
+| T31 | resume_uploads | `purpose`·`ocr_confidence`·`ocr_low_conf_fields` 없음(OCR 정보는 `result` 안 `_ocr`) · `created_at`→`started_at` · `content_type` 추가 | 정의서 v1.1 반영 |
 | T32 | posting_revisions | `summary` 없음 (화면은 칸 이름·전후 값으로 만듦) | **맞춤** |
-| T33 | audit_logs | `target_type`·`target_id` → `target` + `detail` · action 점 표기(M1) | 정의서 수정 요청 |
-| T34 | job_postings | `external_id` 없음 (공고 불러오기 미구현) · 글 칸 NOT NULL(빈 글자 기본값) | `external_id` **맞춤**(칸만 추가) · 나머지 정의서 수정 요청 |
+| T33 | audit_logs | `target_type`·`target_id` → `target` + `detail` · action 점 표기(M1) | 정의서 v1.1 반영 |
+| T34 | job_postings | `external_id` 없음 (공고 불러오기 미구현) · 글 칸 NOT NULL(빈 글자 기본값) | `external_id` **맞춤**(칸만 추가) · 나머지 정의서 v1.1 반영 |
 | T35 | app_settings | `updated_by` 없음 | **맞춤** |
-| T36 | coding_submissions | `problem_id`→`problem_key` · `submitted_at` 대신 `final`(참/거짓) · `grade_status` 추가 | 정의서 수정 요청 |
-| T37 | notifications | `hidden_at` 추가 (🔔 숨기기, 2026-11-02 사용자 선택 A) | 정의서 수정 요청 |
+| T36 | coding_submissions | `problem_id`→`problem_key` · `submitted_at` 대신 `final`(참/거짓) · `grade_status` 추가 | 정의서 v1.1 반영 |
+| T37 | notifications | `hidden_at` 추가 (🔔 숨기기, 2026-11-02 사용자 선택 A) | 정의서 v1.1 반영 |
 | T38 | recordings · deletion_logs · memos · item_scores · highlights | 거의 같음 (`item_scores.application_id` 추가 정도) | — |
 
 **맞춤 결과 (2026-11-02):** 칸 9개(`users.email_verified_at`·`updated_at`, `applications.needs_review_since`·`updated_at`, `evaluation_criteria.locked_at`, `posting_revisions.summary`, `job_postings.external_id`, `app_settings.updated_by`, `answers.is_empty`) + CHECK 23개(`models.CHECK_VALUES`). 기존 Postgres 는 `migrate.py` 가 부팅 때 더함(기존 행이 어긋나면 그 제약만 건너뛰고 경고). 이미 잠긴 기준의 `locked_at` 은 그 공고의 첫 응시 시각으로 채움(응시 기록이 지워진 공고는 비어 있음). `answers.started_at` 은 첫 음성 조각이 온 시각. 검증: 단위 203개, E2E 빠른 묶음 5개, 끝까지 응시 1개 통과.
