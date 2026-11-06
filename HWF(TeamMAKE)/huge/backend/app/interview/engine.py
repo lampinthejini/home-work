@@ -27,7 +27,7 @@ from ..db import SessionLocal
 from ..domain import status as st
 from ..domain.scoring import normalizeForQuote
 from ..models import Answer, Application, InterviewQuestion, InterviewSession
-from ..services import coding_bank, llm, recording, speech, storage
+from ..services import llm, recording, speech, storage
 from ..services.postings import currentCriteria
 from ..settings_store import getSetting
 from ..timeutil import asKst, iso, now
@@ -91,6 +91,18 @@ def dbSession():
 def isEmptyAnswer(text: str) -> bool:
     compact = normalizeForQuote(text)
     return len(compact) < 4 or any(p in compact for p in EMPTY_ANSWER_PATTERNS) and len(compact) < 20
+
+
+def followupLimitCause(db, app: Application, base: InterviewQuestion, totalLimit: int) -> str | None:
+    """꼬리질문 상한: 전체 · 질문당 1개 · 질문 종류별 1개. 앞 질문이 상한을 다 써서 직무 질문이 빠지지 않게 종류별로 나눈다 (INT-06)."""
+    if app.followup_count >= totalLimit:
+        return "total_limit"
+    followups = db.query(InterviewQuestion).filter_by(application_id=app.id, kind="follow_up")
+    if followups.filter_by(seq=base.seq).first() is not None:
+        return "per_question_limit"
+    if followups.filter_by(qtype=base.qtype).first() is not None:
+        return "type_limit"
+    return None
 
 
 class LiveSession:
@@ -554,12 +566,14 @@ class LiveSession:
         await self.runCoding()
 
     async def sendCodingPhase(self) -> None:
+        from ..services import coding
+
         with dbSession() as db:
             app = db.get(Application, self.appId)
-            problems = [coding_bank.publicView(no, key) for no, key in enumerate(coding_bank.SELECTED, start=1)]
+            started = lifecycle.resumeCodingTimer(db, app)
             await self.send({"type": "phase", "to": "coding", "coding": {
-                "problems": problems, "remaining_sec": lifecycle.codingRemaining(app),
-                "started": app.coding_started_at is not None, "away_count": app.away_count,
+                "problems": coding.problemViews(db, app), "remaining_sec": lifecycle.codingRemaining(app),
+                "started": started, "away_count": app.away_count,
                 "auto_start_sec": getSetting(db, "coding_intro_auto_start_sec")}})
 
     async def runCoding(self) -> None:
@@ -677,10 +691,9 @@ class LiveSession:
         with dbSession() as db:
             app = db.get(Application, self.appId)
             base = db.get(InterviewQuestion, rowId)
-            if app.followup_count >= self.settings["followup_total_limit"]:
-                return "total_limit"
-            if self.followupRow(db, base.seq) is not None:
-                return "per_question_limit"
+            limitCause = followupLimitCause(db, app, base, self.settings["followup_total_limit"])
+            if limitCause:
+                return limitCause
             if isEmptyAnswer(self.answerText(db, rowId)):
                 return "empty_answer"
         if self.followupBudget(answeredAt) < self.settings["followup_min_sec"]:

@@ -71,3 +71,29 @@ test("지원자: 못 읽는 파일은 이유를 알려 주고 직접 입력으�
     await expect(page).toHaveURL(/\/resume\/confirm/);
     await context.close();
 });
+
+test("지원자: 서버 문제로 추출이 끊기면 파일 탓이 아닌 안내를 보여 준다", async ({ browser }) => {
+    const state = readState();
+    const internalEmail = uniqueEmail("e2e-exam");
+    await signupByApi(internalEmail, password, "서버오류");
+    const ctx = await apiAs(internalEmail, password);
+    const applied = await ctx.post("/api/applications", { data: { posting_id: state.postingId } });
+    const applicationId = (await applied.json()).application_id;
+    const consent = await ctx.post(`/api/applications/${applicationId}/consent`, { data: CONSENT });
+    expect(consent.status(), await consent.text()).toBe(201);
+    await ctx.dispose();
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await loginByUi(page, internalEmail, password);
+    await expect(page).not.toHaveURL(/\/login/);
+    await page.goto(`/apply/${applicationId}/resume`);
+    await page.getByText("파일 업로드", { exact: false }).first().click();
+
+    // 재시작을 기다리지 않고, 재시작 뒤 서버가 돌려주는 상태만 흉내 낸다
+    await page.route("**/resume/extract-status", (route) =>
+        route.fulfill({ json: { stage: "failed", fail_reason: "INTERNAL", elapsed_seconds: 1 } }));
+    await page.locator("input[type='file']").setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: PDF });
+    await expect(page.getByRole("dialog").getByText("서버 문제로 처리를 끝내지 못했습니다. 다시 올려 주세요.")).toBeVisible();
+    await context.close();
+});

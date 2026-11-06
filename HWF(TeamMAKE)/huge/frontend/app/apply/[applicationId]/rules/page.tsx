@@ -107,7 +107,7 @@ function Rules() {
                     </>
                 )}>
                     <p>지금 동시에 면접을 보는 지원자가 많습니다. 잠시 후 다시 시도해 주세요.</p>
-                    <p className="small muted">응시 횟수는 쓰이지 않았고 상태는 &apos;준비 중&apos; 그대로입니다. 접수 마감({longDateTime(app.posting.close_at)}) 전까지 언제든 다시 시도할 수 있습니다.</p>
+                    <p className="small muted">응시 횟수는 쓰이지 않았고 상태는 &apos;면접 준비 중&apos; 그대로입니다. 접수 마감({longDateTime(app.posting.close_at)}) 전까지 언제든 다시 시도할 수 있습니다.</p>
                 </Modal>
             )}
         </div>

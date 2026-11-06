@@ -401,7 +401,7 @@ flowchart TD
 
 1.  답변이 끝나면(transcribe) STT로 글자를 만든다. STT가 실패하면 `stt_retry_limit`(현재 2)번 다시 해 보고, 그래도 실패하면 면접을 장애 중단(`paused`, server_error)으로 멈춘다(CONFLICTS A1, TRD 7-2). 〔논의사항 2번〕 STT 결과로 eval_text를 만들고 답변을 DB에 저장한다. 채점은 이 시점에 돌리지 않고 응시가 끝난 뒤 한 번에 한다(S2). 응시가 끝났는데 채점이 없거나 멈춘 건은 5분마다 도는 점검 작업이 다시 넣는다(TRD 10장).
 
-2.  followup 하위 그래프의 preflight가 한도와 규칙을 먼저 확인한다. 꼬리질문은 본질문당 1개, 전체 `followup_total_limit` 4개까지다. 무응답이거나 내용이 없으면 LLM을 부르지 않고 SKIP한다. 남은 판단 시간이 `followup_min_sec`(운영 2초·개발 3초)보다 짧아도 SKIP한다.
+2.  followup 하위 그래프의 preflight가 한도와 규칙을 먼저 확인한다. 꼬리질문은 본질문당 1개, 질문 종류(인성·회사·이력서·직무)별 1개, 전체 `followup_total_limit` 4개까지다. 무응답이거나 내용이 없으면 LLM을 부르지 않고 SKIP한다. 남은 판단 시간이 `followup_min_sec`(운영 2초·개발 3초)보다 짧아도 SKIP한다.
 
 3.  규칙을 통과하면 decide에서 T4를 **RT 레인**으로 호출한다. 판단 시간은 `followup_target_sec`(운영 10초·개발 20초) − 지난 시간 − TTS 평균 3초이고, 이 값을 호출 timeout으로 쓴다(U7). 꼬리질문이 없을 때 다음 질문까지의 목표는 `next_question_target_sec` 5초(p95)이나, 13-2 측정으로 지킬 목표값일 뿐 코드가 강제하지 않는다.
 
@@ -527,11 +527,11 @@ Celery 큐와 worker는 compose.app.yml 기준으로 아래와 같다(B2).
 | # | 분류 | 문서·위치 | 내용 | 권장 |
 |---|---|---|---|---|
 | 1 | 확정(현행 유지) | 6.1 (B1 ①②) | 질문 만들기 그래프는 api 안·체크포인트 없음(TRD 7-4는 worker). 이어가기는 체크포인트가 아니라 locate가 원장을 읽음(TRD 7-5는 체크포인트로 이어 감). | 구현대로 TRD 7-4·7-5 개정 승인 |
-| 2 | 구현 확인 필요 | 6.2 (A1) | CONFLICTS A1은 "1회 재시도 후"라고 적었으나 코드는 최초 1회 + `stt_retry_limit` 2회 재시도 = 최대 3번 시도한다 (`interview/engine.py:640`, `config.py:71` 값 2, 주석 `engine.py:647` "2번 다시 해도 실패"). 기술 아키텍처 6-3·R-10은 "2회 재시도"라 코드와 같다. | CONFLICTS A1 설명을 "2회 재시도"로 고치거나 설정값을 1로 낮추는 결정 |
+| 2 | 처리함 | 6.2 (A1) | **2026-11-06:** CONFLICTS A1 은 지금 '처음 1번 + 재시도 2번'으로 적혀 있어 코드와 같다. (이전 기록) CONFLICTS A1은 "1회 재시도 후"라고 적었으나 코드는 최초 1회 + `stt_retry_limit` 2회 재시도 = 최대 3번 시도한다 (`interview/engine.py:640`, `config.py:71` 값 2, 주석 `engine.py:647` "2번 다시 해도 실패"). 기술 아키텍처 6-3·R-10은 "2회 재시도"라 코드와 같다. | CONFLICTS A1 설명을 "2회 재시도"로 고치거나 설정값을 1로 낮추는 결정 |
 | 3 | 구현 확인 필요 | 5장 T2, 6.1 (U5, C1) | CONFLICTS U5는 "모든 종류가 질문은행 → 예비"인데 코드는 이력서 기반 자리에서 질문은행을 건너뛰고 바로 예비 질문으로 간다 (`services/question_compose.py:374`). 원본 설계(QST-05)와는 같다. 또 CONFLICTS C1은 슬롯 순서를 "인성 → 이력서 → 기업 → 직무"라고 하나 코드의 `SLOT_ORDER`는 인성 → 기업 → 이력서 → 이력서 → 직무 4 → 인성 → 기업이다 (`question_compose.py:35`). | CONFLICTS 설명을 코드에 맞춤. 슬롯 순서는 C1 평가 지연으로 유지 |
 | 4 | 구현 확인 필요 | 3장, 3.1, 5장 (모델 배치) | 코드는 T5·T6~T8을 GPU 4B(lane `rt`)로 돌리고 8B(`eval`)는 T10뿐이다 (`services/evaluation.py:4,7`, `services/llm.py:24`, `compose.ai.yml:30`). CONFLICTS에 이 배치를 직접 적은 항목은 없고(S2·E에 간접), TRD 6-2는 채점을 CPU 8B로 적는다. 이 문서는 코드대로 적었다. | CONFLICTS에 배치 항목 추가, TRD 6-2·6-3 개정 |
 | 5 | 구현 확인 필요 | 3장, 3.1 실측 | CONFLICTS 요약은 TTS 를 GPU 로 적었으나 `compose.ai.yml:80-87`의 tts는 GPU 예약이 없는 CPU 서비스다(주석도 "Supertonic 2, CPU"). 실측 "GPU 메모리 5.4/6GB (3개 모델 동시)"의 세 모델이 무엇인지도 CONFLICTS에 없다. 이 문서는 TTS를 CPU로 적었다. | TTS 배치 확인 후 한쪽으로 통일 |
-| 6 | 구현 확인 필요 | 3장 임베딩 | `compose.ai.yml:67` 주석은 embed 메모리 "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 기술 아키텍처 원본은 2.5GB. | 실측 후 한 값으로 |
+| 6 | 구현 확인 필요 | 3장 임베딩 | **2026-11-06:** embed 실측 1.86GiB(상한 5GiB, 대기 중). (이전 기록) `compose.ai.yml:67` 주석은 embed 메모리 "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 기술 아키텍처 원본은 2.5GB. | 실측 후 한 값으로 |
 | 7 | 구현 확인 필요 | 2장 P6·P7, 3장, 4장, 5장 공통 | 원본의 AIClient·Gateway(레인 스케줄러·선점)·manifest 해시·seed=42·`AIHIRE_AI_MODE`는 확인한 코드(`services/llm.py` 전체, `services/evaluation.py`, `config.py`)에 없다. 레인은 `rt`·`eval` 두 서버를 고르는 값이다. 이 문서는 설계 구조로 남기고 '구현 메모'를 달았다. | 설계 유지(미구현)로 할지, 단순화한 구현에 맞춰 4장을 줄일지 결정 |
 | 8 | 확정(2026-11-04) | 3.1 슬롯 | 지금(N=1)은 `--parallel 2` 그대로 둔다. 동시 면접 상한을 2건으로 올릴 때 `LLM_RT_PARALLEL` 을 3으로 올린다. 슬롯당 4096 토큰을 유지하려면 `LLM_RT_CTX` 도 12288 로 함께 올려야 하고 GPU 메모리를 더 쓰므로 그때 측정한다. 원본의 `-fa on`·KV 캐시 q8_0 옵션은 compose에 없다. | — |
 | 9 | 구현 확인 필요 | 5장 T4 | 설계는 T4 출력에 ASK/SKIP·anchor 인용과 anchor 원문 검증을 요구하나 코드는 `reason_code`와 `question`만 받고 anchor 검증이 없다 (`interview/engine.py:53-61`). validate는 길이·언어·금지 주제만 본다 (`interview/graph.py:70-81`). | 설계(anchor 검증)를 낮출지, 구현에 anchor 검증을 추가할지 결정 |
@@ -542,3 +542,9 @@ Celery 큐와 worker는 compose.app.yml 기준으로 아래와 같다(B2).
 | 14 | 확정(현행 유지) | 3.1 (F6) | 자동 보호(admission_guard)는 미구현이라 요구사항(INT-08)은 이후 범위로 둔다. | 필요하면 기능 정의 |
 | 15 | 기타 | 5장 T9 | API 명세서는 공고 초안에 '채점용 LLM'을 쓰라고 하나 구현은 llm-rt 4B다(실측 8초). 출처 값 `ai_draft`는 TRD `source` 목록에 없다. 진행 상태가 api 메모리에 있어 재시작 시 '실패'로 보인다. | API 명세서·TRD 문구 정리 |
 | 16 | 기타 | 파일 전체 | 이 파일의 기존 도면(1장, 4장, 6.1)은 원본 변환 때 생긴 이스케이프(`\[`·`\<br/\>`)가 남아 있고 코드 블록이 없다. 새로 그린 두 도면만 mermaid 코드 블록이다. | 원본 도면을 코드 블록으로 정리 |
+
+## 2026-11-06 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- 논의사항 2·6 을 지금 상태로 고쳤다.

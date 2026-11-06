@@ -1,7 +1,7 @@
 // 회원가입 · 로그인 · 로그아웃 · 비밀번호 찾기(재설정 메일은 Mailpit) — 화면정의서 S-C01~S-C03
 import { expect, request, test } from "@playwright/test";
 
-import { BASE_URL, loginByUi, randomPassword, uniqueEmail, waitForMail } from "../helpers";
+import { BASE_URL, loginByUi, randomPassword, signupByApi, uniqueEmail, waitForMail } from "../helpers";
 
 test("회원가입 → 로그인 → 비밀번호 찾기 메일 → 새 비밀번호로 로그인 → 탈퇴", async ({ page }) => {
     const email = uniqueEmail("e2e-auth");
@@ -85,4 +85,22 @@ test("회원가입 → 로그인 → 비밀번호 찾기 메일 → 새 비밀�
         expect((await api.post("/api/auth/login", { data: { email, password: newPassword } })).status()).toBe(401);
         await api.dispose();
     });
+});
+
+test("로그인하면 가려던 화면(next)으로 가고, 이미 로그인했으면 /login 에서 홈으로 간다", async ({ page }) => {
+    const email = uniqueEmail("e2e-auth");
+    const password = randomPassword();
+    await signupByApi(email, password, "이동시험");
+
+    await page.goto("/login?next=/mypage");
+    await page.getByLabel("이메일").fill(email);
+    await page.locator("input[autocomplete='current-password']").fill(password);
+    await page.getByRole("button", { name: "로그인" }).click();
+    await expect(page).toHaveURL(/\/mypage$/);
+    // 뒤늦은 이동이 덮어쓰지 않는지 잠시 더 본다
+    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/\/mypage$/);
+
+    await page.goto("/login");
+    await expect(page).toHaveURL(/\/jobs$/);
 });

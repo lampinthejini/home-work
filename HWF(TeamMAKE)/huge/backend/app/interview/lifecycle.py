@@ -28,6 +28,20 @@ def recentEventTypes(db: Session, app: Application, lookbackSec: int) -> set[str
     return {t for t, at in rows if asKst(at) >= since}
 
 
+def codingStarted(db: Session, app: Application) -> bool:
+    """안내 화면을 지나 시간을 쓰기 시작했는가. 멈춘 동안에는 coding_started_at 이 비어도 남은 시간이 줄어 있다."""
+    return app.coding_started_at is not None or (app.coding_remaining_sec or 0) < getSetting(db, "coding_limit_sec")
+
+
+def resumeCodingTimer(db: Session, app: Application) -> bool:
+    """이미 시작한 코딩테스트로 다시 연결되면 안내 화면 없이 남은 시간부터 잰다 (COD-04). 시작했는지를 돌려준다."""
+    started = codingStarted(db, app)
+    if started and app.coding_started_at is None:
+        app.coding_started_at = now()
+        db.commit()
+    return started
+
+
 def pauseCodingTimer(app: Application) -> None:
     if app.phase == "coding" and app.coding_started_at is not None and app.coding_remaining_sec is not None:
         elapsed = (now() - asKst(app.coding_started_at)).total_seconds()
@@ -100,7 +114,7 @@ def enterCoding(db: Session, app: Application) -> None:
     if app.coding_remaining_sec is None:
         app.coding_remaining_sec = getSetting(db, "coding_limit_sec")
         app.coding_started_at = None  # 안내 화면에서 [시작]하거나 60초 뒤 자동 시작할 때 잰다 (G-03)
-    for problemNo, key in enumerate(coding_bank.SELECTED, start=1):
+    for problemNo, key in enumerate(coding_bank.pickProblems(app.id), start=1):
         if db.query(CodingSubmission).filter_by(application_id=app.id, problem_no=problemNo).first() is None:
             db.add(CodingSubmission(application_id=app.id, problem_no=problemNo, problem_key=key,
                                     code=coding_bank.PROBLEMS[key]["starter"]))

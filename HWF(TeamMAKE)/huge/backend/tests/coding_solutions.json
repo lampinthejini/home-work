@@ -1,0 +1,12 @@
+{
+    "basic_token_count": "def solution(text: str) -> int:\n    return len(text.split())\n",
+    "basic_top_word": "def solution(words: list[str]) -> str:\n    counts = {}\n    for word in words:\n        counts[word] = counts.get(word, 0) + 1\n    return min(counts, key=lambda word: (-counts[word], word))\n",
+    "basic_mask_digits": "def solution(text: str) -> str:\n    return ''.join('*' if ch in '0123456789' else ch for ch in text)\n",
+    "basic_accuracy": "def solution(preds: list[int], labels: list[int]) -> float:\n    if not preds:\n        return 0.0\n    same = sum(1 for p, l in zip(preds, labels) if p == l)\n    return round(same / len(preds), 2)\n",
+    "basic_unique_keep_order": "def solution(items: list[int]) -> list[int]:\n    return list(dict.fromkeys(items))\n",
+    "applied_window_max": "def solution(nums: list[int], k: int) -> int:\n    window = sum(nums[:k])\n    best = window\n    for i in range(k, len(nums)):\n        window += nums[i] - nums[i - k]\n        best = max(best, window)\n    return best\n",
+    "applied_top_k_words": "def solution(words: list[str], k: int) -> list[str]:\n    counts = {}\n    for word in words:\n        counts[word] = counts.get(word, 0) + 1\n    return sorted(counts, key=lambda word: (-counts[word], word))[:k]\n",
+    "applied_chunk_tokens": "def solution(tokens: list[int], size: int, overlap: int) -> list[list[int]]:\n    chunks = []\n    start = 0\n    while start < len(tokens):\n        chunks.append(tokens[start:start + size])\n        if start + size >= len(tokens):\n            break\n        start += size - overlap\n    return chunks\n",
+    "applied_merge_intervals": "def solution(intervals: list[list[int]]) -> list[list[int]]:\n    merged = []\n    for start, end in sorted(intervals):\n        if merged and start <= merged[-1][1]:\n            merged[-1][1] = max(merged[-1][1], end)\n        else:\n            merged.append([start, end])\n    return merged\n",
+    "applied_longest_unique": "def solution(text: str) -> int:\n    last = {}\n    start = 0\n    best = 0\n    for i, ch in enumerate(text):\n        if ch in last and last[ch] >= start:\n            start = last[ch] + 1\n        last[ch] = i\n        best = max(best, i - start + 1)\n    return best\n"
+}

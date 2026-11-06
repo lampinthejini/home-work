@@ -33,6 +33,7 @@ const FAIL_TEXT: Record<string, string> = {
     PDF_BROKEN: "파일이 손상되어 열 수 없습니다. 원본에서 PDF로 다시 저장해 올려 주세요.",
     PDF_TOO_COMPLEX: "파일이 너무 복잡해 읽지 못했습니다. PDF로 다시 저장하거나 사진으로 올려 주세요.",
     OCR_FAILED: "글자 인식을 끝내지 못했습니다. 잠시 뒤 다시 올려 주세요.",
+    INTERNAL: "서버 문제로 처리를 끝내지 못했습니다. 다시 올려 주세요.",
 };
 
 function ResumeMethod() {

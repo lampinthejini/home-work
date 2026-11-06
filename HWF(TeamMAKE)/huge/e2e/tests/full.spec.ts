@@ -1,10 +1,13 @@
 // 끝까지 응시: 기본 질문 10개 + 꼬리질문 → (코딩테스트) → 응시 완료 → AI 채점 → 결과 공개 → 지원자 결과 화면·메일
 // 실제 LLM 이 질문을 만들고 채점하므로 한 테스트에 10분 안팎이 걸린다. 빠른 묶음(npm test)에서는 빠지고
 // npm run test:full 에서 돈다 (@slow).
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { apiAs, BASE_URL, loginByUi, randomPassword, readState, releaseResultNow, signupByApi, uniqueEmail, waitForMail } from "../helpers";
-import { answerAllQuestions, applyAndStartInterview } from "./flow";
+import { apiAs, BASE_URL, loginByUi, randomPassword, readProblemKeys, readState, releaseResultNow, signupByApi, uniqueEmail, waitForMail } from "../helpers";
+import { setEditorCode, answerAllQuestions, applyAndStartInterview } from "./flow";
 
 type Result = { decision: "pass" | "fail"; total_score: string; pass_score: string; interview_score: string | null; coding_score: string | null };
 type Detail = {
@@ -12,20 +15,8 @@ type Detail = {
     result: Result | null; coding: { problem_no: number; passed: number | null; total: number | null }[];
 };
 
-// 숨겨진 테스트까지 모두 통과하는 정답 (services/coding_bank.py). 2번은 10만 개 입력이 있어 O(n) 으로 푼다
-const SOLUTIONS: Record<number, string> = {
-    1: "def solution(text: str) -> int:\n    return len(text.split())\n",
-    2: [
-        "def solution(nums: list[int], k: int) -> int:",
-        "    window = sum(nums[:k])",
-        "    best = window",
-        "    for i in range(k, len(nums)):",
-        "        window += nums[i] - nums[i - k]",
-        "        best = max(best, window)",
-        "    return best",
-        "",
-    ].join("\n"),
-};
+// 숨겨진 테스트까지 모두 통과하는 정답. 문제는 지원 건마다 다르므로 배정된 문제 키로 찾는다 (backend/tests/test_coding_bank.py 가 정답을 검증한다)
+const SOLUTIONS = JSON.parse(readFileSync(path.join(__dirname, "..", "..", "backend", "tests", "coding_solutions.json"), "utf-8")) as Record<string, string>;
 
 let admin: APIRequestContext;
 
@@ -40,21 +31,6 @@ test.afterAll(async () => {
 
 async function detail(applicationId: string): Promise<Detail> {
     return (await admin.get(`/api/admin/applicants/${applicationId}`)).json() as Promise<Detail>;
-}
-
-/**
- * 편집기(Monaco)에 코드를 넣는다. 키보드로 치면 편집기가 괄호·들여쓰기를 자동으로 붙여 코드가 망가지고,
- * 외부 붙여넣기는 앱이 막으므로(COD-07) 편집기 모델에 직접 넣는다. 화면의 onChange·자동 저장은 그대로 돈다.
- */
-async function setEditorCode(page: Page, problemNo: number, code: string) {
-    await page.waitForFunction((no) => {
-        const monaco = (window as unknown as { monaco?: { editor: { getModels(): { uri: { path: string } }[] } } }).monaco;
-        return !!monaco?.editor.getModels().some((m) => m.uri.path.endsWith(`problem-${no}.py`));
-    }, problemNo);
-    await page.evaluate(({ no, text }) => {
-        const monaco = (window as unknown as { monaco: { editor: { getModels(): { uri: { path: string }; setValue(v: string): void }[] } } }).monaco;
-        monaco.editor.getModels().find((m) => m.uri.path.endsWith(`problem-${no}.py`))!.setValue(text);
-    }, { no: problemNo, text: code });
 }
 
 async function waitForDecision(applicationId: string): Promise<Detail> {
@@ -165,7 +141,7 @@ test.describe("@slow 끝까지 응시", () => {
             await test.step(`문제 ${no}: 코드 작성 → [실행] 공개 예시 통과`, async () => {
                 await page.getByRole("tab", { name: new RegExp(`^문제 ${no} ·`) }).click();
                 await expect(page.getByRole("heading", { name: new RegExp(`^문제 ${no}\\.`) })).toBeVisible();
-                await setEditorCode(page, no, SOLUTIONS[no]);
+                await setEditorCode(page, no, SOLUTIONS[readProblemKeys(applicationId)[no - 1]]);
                 await page.getByRole("button", { name: "▶ 실행" }).click();
                 const result = page.locator(".result");
                 // 실행은 격리 상자(worker-sandbox)에서 돈다

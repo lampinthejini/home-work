@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { canRecord } from "@/lib/recording";
 import { detectBrowser, isSupportedBrowser, levelMeter, loadDeviceChoice, measureMbps, openStream, playTestTone, saveDeviceChoice, stopStream, type DeviceChoice } from "@/lib/media";
 
 type CheckState = "checking" | "ok" | "fail" | "idle";
@@ -18,6 +19,8 @@ const FAIL_HINT: Record<keyof Checks, string> = {
     ai_server: "AI 서버를 확인하지 못했습니다. 잠시 후 [다시 점검]을 눌러 주세요.",
 };
 
+const RECORD_FAIL_HINT = "이 브라우저에서는 카메라 녹화를 할 수 없습니다. Chrome 또는 Edge 최신 버전으로 응시해 주세요.";
+
 const MIC_LEVEL = 0.12; // 레벨 막대 기준 (0~1)
 const MIC_GAP_MS = 400; // 이보다 짧은 쉼은 끊긴 것으로 보지 않음
 
@@ -30,6 +33,7 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
     const [choice, setChoice] = useState<DeviceChoice>(() => (typeof window === "undefined" ? {} : loadDeviceChoice()));
     const [permissionDenied, setPermissionDenied] = useState(false);
+    const [recordFailed, setRecordFailed] = useState(false);
     const [speakerPlayed, setSpeakerPlayed] = useState(false);
     const [round, setRound] = useState(0);
     const video = useRef<HTMLVideoElement>(null);
@@ -55,7 +59,9 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
                 setPermissionDenied(false);
                 if (video.current) video.current.srcObject = s;
                 const hasVideo = s.getVideoTracks().some((t) => t.readyState === "live");
-                set("camera", hasVideo ? "ok" : "fail");
+                const recordable = canRecord(s);
+                setRecordFailed(!recordable);
+                set("camera", hasVideo && recordable ? "ok" : "fail");
                 setDevices(await navigator.mediaDevices.enumerateDevices());
                 heardSince.current = null;
                 stopMeter = levelMeter(s, (value) => {
@@ -185,7 +191,7 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
                                     <button type="button" className="btn btn-secondary btn-sm" disabled={!speakerPlayed} onClick={() => set("speaker", "fail")}>안 들려요</button>
                                 </div>
                             )}
-                            {checks[key] === "fail" && <span className="small" style={{ color: "var(--color-danger)" }}>{FAIL_HINT[key]}</span>}
+                            {checks[key] === "fail" && <span className="small" style={{ color: "var(--color-danger)" }}>{key === "camera" && recordFailed ? RECORD_FAIL_HINT : FAIL_HINT[key]}</span>}
                         </div>
                     ))}
                 </div>

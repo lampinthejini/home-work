@@ -10,7 +10,6 @@ from conftest import ADMIN_PASSWORD, APPLICANT_PASSWORD, signup
 from app.crypto import ipHash
 from app.models import AuditLog, LoginBlock, User
 from app.services import login_block
-from app.settings_store import setSetting
 from app.timeutil import now
 
 IP = "203.0.113.7"
@@ -188,19 +187,14 @@ def test_expiredRowsArePurged(client, sessionFactory):
         assert rowOf(db) is None and rowOf(db, OTHER_IP) is None and rowOf(db, third) is not None
 
 
-def test_messageGivesContactAndCode(client, sessionFactory):
-    assert "담당자에게" in failFiveTimes(client).json()["message"]
+def test_messageGivesCodeAndNoEmail(client, sessionFactory):
+    message = failFiveTimes(client).json()["message"]
     with sessionFactory() as db:
-        setSetting(db, "login_contact_email", "help@example.com")
         code = rowOf(db).code
-        db.commit()
-    message = attempt(client).json()["message"]
-    assert "help@example.com" in message and code in message
+    assert code in message and "담당자에게 알려 주세요" in message
+    assert "@" not in message
 
 
-def test_contactEmailIsEditableAndValidated(adminClient):
-    url = "/admin/settings/login_contact_email"
-    assert adminClient.put(url, json={"value": "not-an-email"}).status_code == 400
-    assert adminClient.put(url, json={"value": "help@example.com"}).status_code == 200
-    assert adminClient.get("/admin/settings").json()["login_contact_email"] == "help@example.com"
-    assert adminClient.put(url, json={"value": ""}).status_code == 200
+def test_contactEmailSettingIsGone(adminClient):
+    assert adminClient.put("/admin/settings/login_contact_email", json={"value": "help@example.com"}).status_code == 404
+    assert "login_contact_email" not in adminClient.get("/admin/settings").json()

@@ -5,6 +5,7 @@
                     PUBLISH caption:{sid} 로 돌려준다. GPU 가 바쁘면 그 차례는 건너뛴다 (TRD 5-2).
 """
 
+import asyncio
 import json
 import os
 import threading
@@ -21,6 +22,12 @@ MODEL_NAME = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE", "int8_float16")
 CAPTION_INTERVAL_SEC = float(os.environ.get("CAPTION_INTERVAL_SEC", "3"))
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+# 면접에서 자주 나오는데 잘못 받아 적기 쉬운 말. 받아 적은 글이 꼬리질문과 채점에 그대로 쓰인다 (논의사항 E16).
+# initial_prompt 는 condition_on_previous_text=False 이면 첫 구간에만 쓰이므로 구간마다 들어가는 hotwords 를 쓴다.
+HOTWORDS = (
+    "니즈 군집화 결측치 임베딩 옵티마이저 손실함수 과적합 파인튜닝 트랜스포머 프롬프트 파이프라인 온프레미스 벡터DB "
+    "RAG LLM API GPU LangGraph FastAPI PyTorch"
+)
 
 app = FastAPI(title="huge-stt")
 model = WhisperModel(MODEL_NAME, device="cuda", compute_type=COMPUTE_TYPE)
@@ -40,6 +47,7 @@ def runTranscribe(audio: np.ndarray, withWords: bool) -> dict:
         beam_size=5 if withWords else 1,
         word_timestamps=withWords,
         condition_on_previous_text=False,
+        hotwords=HOTWORDS,
     )
     texts = []
     words = []
@@ -49,6 +57,11 @@ def runTranscribe(audio: np.ndarray, withWords: bool) -> dict:
             for w in seg.words:
                 words.append({"start": round(w.start, 2), "end": round(w.end, 2), "word": w.word})
     return {"text": " ".join(t for t in texts if t), "words": words}
+
+
+def transcribeWithGpu(audio: np.ndarray) -> dict:
+    with gpuLock:
+        return runTranscribe(audio, withWords=True)
 
 
 @app.get("/health")
@@ -63,8 +76,8 @@ async def transcribe(request: Request):
         raise HTTPException(400, "PCM16 length must be even")
     audio = pcmToFloat(pcm)
     started = time.monotonic()
-    with gpuLock:
-        result = runTranscribe(audio, withWords=True)
+    # 변환은 수 초 걸린다. 사건 루프에서 돌리면 그동안 /health 도 답하지 못한다
+    result = await asyncio.to_thread(transcribeWithGpu, audio)
     result["elapsed_sec"] = round(time.monotonic() - started, 3)
     result["audio_sec"] = round(len(audio) / SAMPLE_RATE, 2)
     return result

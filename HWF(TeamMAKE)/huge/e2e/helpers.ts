@@ -11,6 +11,7 @@ export const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:8025
 export const API_CONTAINER = process.env.E2E_API_CONTAINER ?? "huge-app-api-1";
 export const E2E_ADMIN_EMAIL = "e2e-admin@test.local";
 export const STATE_FILE = path.join(__dirname, ".state.json");
+const DEFAULT_WEIGHTS = { expertise: 30, logic: 25, relevance: 20, delivery: 10, culture_fit: 15 };
 
 export type E2eState = {
     adminEmail: string; adminPassword: string;
@@ -180,4 +181,83 @@ export function seedNeedsReview(email: string, postingId: string): string {
         env: { ...process.env, MSYS_NO_PATHCONV: "1" },
         stdio: ["ignore", "pipe", "pipe"],
     }).toString().trim();
+}
+
+/** 평가 항목 기본 비율로 공고를 만들어 게시한다. 공고 번호를 돌려준다 */
+export async function publishPosting(ctx: APIRequestContext, title: string, codingEnabled: boolean): Promise<string> {
+    const openAt = new Date(Date.now() - 60 * 60_000);
+    const closeAt = new Date(Date.now() + 24 * 60 * 60_000);
+    const created = await ctx.post("/api/admin/postings", {
+        data: {
+            title, job_code: "AI_AX", company_name: "E2E", company_intro: "E2E 자동 테스트용 공고입니다.",
+            duties: "LLM 기반 서비스 개발", requirements: "Python 개발 경험", preferred: "", employment_type: "full_time",
+            location: "서울", headcount: 1, open_at: openAt.toISOString(), close_at: closeAt.toISOString(), contact_email: E2E_ADMIN_EMAIL,
+            criteria: { weights: DEFAULT_WEIGHTS, coding_enabled: codingEnabled, coding_ratio: 30, pass_score: 70 },
+        },
+    });
+    if (created.status() !== 201) throw new Error(`E2E 공고 만들기 실패: ${created.status()} ${await created.text()}`);
+    const postingId = ((await created.json()) as { posting_id: string }).posting_id;
+    const published = await ctx.post(`/api/admin/postings/${postingId}/publish`);
+    if (published.status() !== 200) throw new Error(`E2E 공고 게시 실패: ${published.status()} ${await published.text()}`);
+    return postingId;
+}
+
+/**
+ * 장애 중단 상태인 지원 건을 '코딩테스트 중 끊긴 건, 남은 시간 N초'로 바꾼다.
+ * 60분을 기다리거나 면접 10문항을 끝까지 답하지 않고 자동 제출을 확인하기 위해서다. 이어가기·자동 제출은 앱 코드가 한다.
+ */
+export function seedInterruptedCoding(applicationId: string, remainingSec: number, savedCode: string): void {
+    const script = [
+        "import os",
+        "from app.db import SessionLocal",
+        "from app.models import Application, CodingSubmission",
+        "from app.services import admission, coding_bank",
+        "db = SessionLocal()",
+        "app = db.get(Application, os.environ['E2E_APP'])",
+        "assert app.attempt_status == 'interrupted', app.attempt_status",
+        "app.phase = 'coding'",
+        "app.coding_remaining_sec = int(os.environ['E2E_SEC'])",
+        "app.coding_started_at = None",
+        "for no, key in enumerate(coding_bank.pickProblems(app.id), start=1):",
+        "    db.add(CodingSubmission(application_id=app.id, problem_no=no, problem_key=key, code=os.environ['E2E_CODE'] if no == 1 else coding_bank.PROBLEMS[key]['starter']))",
+        "db.commit()",
+        "admission.release(db, app)",
+        "db.close()",
+    ].join("\n");
+    execFileSync("docker", ["exec", "-e", `E2E_APP=${applicationId}`, "-e", `E2E_SEC=${remainingSec}`, "-e", `E2E_CODE=${savedCode}`, API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "ignore", "pipe"],
+    });
+}
+
+/** 이 지원 건에 배정된 문제 키 (문제 번호 순) */
+export function readProblemKeys(applicationId: string): string[] {
+    const script = [
+        "import json, os",
+        "from app.db import SessionLocal",
+        "from app.models import CodingSubmission",
+        "db = SessionLocal()",
+        "rows = db.query(CodingSubmission).filter_by(application_id=os.environ['E2E_APP']).order_by(CodingSubmission.problem_no).all()",
+        "print(json.dumps([r.problem_key for r in rows]))",
+    ].join("\n");
+    return JSON.parse(execFileSync("docker", ["exec", "-e", `E2E_APP=${applicationId}`, API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    }).toString()) as string[];
+}
+
+/** 서버에 저장된 코드를 읽는다 */
+export function readSavedCode(applicationId: string, problemNo: number): string {
+    const script = [
+        "import os, sys",
+        "from app.db import SessionLocal",
+        "from app.models import CodingSubmission",
+        "db = SessionLocal()",
+        "row = db.query(CodingSubmission).filter_by(application_id=os.environ['E2E_APP'], problem_no=int(os.environ['E2E_NO'])).one()",
+        "sys.stdout.buffer.write(row.code.encode('utf-8'))",
+    ].join("\n");
+    return execFileSync("docker", ["exec", "-e", `E2E_APP=${applicationId}`, "-e", `E2E_NO=${problemNo}`, API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    }).toString("utf-8");
 }

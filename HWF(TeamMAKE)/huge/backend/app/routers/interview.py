@@ -127,6 +127,8 @@ def startInterview(applicationId: str, db: Session = Depends(getDb), user: User 
 @router.post("/applications/{applicationId}/interview/resume")
 def resumeInterview(applicationId: str, db: Session = Depends(getDb), user: User = Depends(requireApplicant)):
     app = ownedApplication(db, user, applicationId, forUpdate=True)
+    if app.attempt_status == st.ENDED_CLOSED:  # 재점검 중에 마감되면 화면을 마감 안내로 바꾼다 (TC-075)
+        raise ApiError(409, "POSTING_CLOSED", "마감 시각이 지났습니다.")
     if app.attempt_status != st.INTERRUPTED:
         raise ApiError(409, "NOT_INTERRUPTED", "이어갈 수 있는 면접이 없습니다.")
     if not postingOpen(app):
@@ -229,15 +231,8 @@ async def codingView(sessionId: str, db: Session = Depends(getDb), user: User = 
     app = codingApp(db, sessionId, user)
     if app.attempt_status == st.CODING:
         autoSubmitIfOver(db, app)
-    saved = {r.problem_no: r for r in db.query(CodingSubmission).filter_by(application_id=app.id)}
-    problems = []
-    for no, key in enumerate(coding_bank.SELECTED, start=1):
-        view = coding_bank.publicView(no, key)
-        row = saved.get(no)
-        view["saved_code"] = row.code if row else view["starter"]
-        view["saved_at"] = iso(row.saved_at) if row else None
-        problems.append(view)
-    return {"started": app.coding_started_at is not None or (app.coding_remaining_sec or 0) < getSetting(db, "coding_limit_sec"),
+    problems = coding.problemViews(db, app)
+    return {"started": lifecycle.codingStarted(db, app),
             "running": app.coding_started_at is not None, "remaining_sec": lifecycle.codingRemaining(app),
             "attempt_status": app.attempt_status, "away_count": app.away_count, "problems": problems,
             "auto_start_sec": getSetting(db, "coding_intro_auto_start_sec"), "release_at": iso(app.posting.release_at)}
@@ -264,8 +259,10 @@ async def codingRun(sessionId: str, body: CodeRun, db: Session = Depends(getDb),
     app = codingApp(db, sessionId, user)
     requireCoding(app)
     autoSubmitIfOver(db, app)
-    key = coding_bank.SELECTED[body.problem_no - 1]
-    examples = coding_bank.PROBLEMS[key]["examples"]
+    row = db.query(CodingSubmission).filter_by(application_id=app.id, problem_no=body.problem_no).one_or_none()
+    if row is None:
+        raise notFound()
+    examples = coding_bank.PROBLEMS[row.problem_key]["examples"]
     try:
         result = await asyncio.to_thread(coding.runExamples, body.code, examples)
     except sandbox_runner.SandboxBusy as exc:

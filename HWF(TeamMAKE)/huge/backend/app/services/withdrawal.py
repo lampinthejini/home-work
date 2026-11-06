@@ -10,12 +10,13 @@ from ..domain import status as st
 from ..interview import registry
 from ..models import Application, AuditLog, Consent, DeletionLog, User
 from ..timeutil import now
-from . import admission, retention, storage
+from . import admission, question_compose, retention, storage
 
 
 async def withdrawApplication(db: Session, app: Application, cause: str) -> None:
     """cause: consent(동의 철회) · withdraw(탈퇴)."""
     live = app.attempt_status in st.IN_PROGRESS
+    question_compose.cancelCompose(app.id)
     db.query(Consent).filter_by(application_id=app.id, withdrawn_at=None).update({Consent.withdrawn_at: now()})
     db.commit()
     admission.release(db, app)

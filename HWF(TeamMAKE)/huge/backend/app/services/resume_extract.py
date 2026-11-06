@@ -38,6 +38,7 @@ BOX_TIMEOUT_SEC = 30
 BOX_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")  # Windows 의 Python 은 SYSTEMROOT 가 있어야 뜬다
 BOX_SLOTS = asyncio.Semaphore(2)  # CPU 를 면접과 나눠 쓰므로 동시에 2개까지
 EXTRACT_SLOTS = asyncio.Semaphore(2)  # 파일을 메모리에 든 채 LLM 을 기다리므로 동시에 2건까지
+UNFINISHED_STAGES = ("uploaded", "checking", "ocr", "structuring")
 OCR_TIMEOUT_SEC = 60
 LOW_CONF = 0.80
 FAIL_CONF = 0.5  # OCR 로만 읽었는데 평균 신뢰도가 이보다 낮으면 실패 (API 명세서 LOW_CONFIDENCE)
@@ -324,6 +325,17 @@ def setStage(db: Session, upload: ResumeUpload, stage: str, **fields) -> None:
 
 def joined(pages: list[PageText]) -> str:
     return "\n\n".join(p.text for p in sorted(pages, key=lambda p: p.no) if p.text)
+
+
+def failUnfinished(db: Session) -> int:
+    """추출은 api 프로세스 안의 작업이라 재시작하면 사라진다. 기동 때 불러 화면이 '처리 중'에 남지 않게 실패로 바꾼다."""
+    unfinished = db.query(ResumeUpload).filter(ResumeUpload.stage.in_(UNFINISHED_STAGES)).all()
+    for upload in unfinished:
+        upload.stage = "failed"
+        upload.fail_reason = "INTERNAL"
+        upload.finished_at = now()
+    db.commit()
+    return len(unfinished)
 
 
 async def runExtraction(uploadId: str) -> None:

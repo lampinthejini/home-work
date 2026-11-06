@@ -406,7 +406,7 @@ sequenceDiagram
         Note over FE,API: 장애 중단 → 환경 재점검 → interview/resume → 같은 질문 처음부터 (TRD 7-2)
     end
     API->>API: 남은 시간 = followup_target_sec − 지난 시간 − 평균 TTS 시간 (U7)
-    alt 남은 시간 ≥ followup_min_sec · 질문당 0개 · 전체 4개 미만 · 내용 있는 답변
+    alt 남은 시간 ≥ followup_min_sec · 질문당 0개 · 같은 종류 0개 · 전체 4개 미만 · 내용 있는 답변
         API->>LR: 꼬리질문 판단 (남은 시간을 timeout으로)
         LR-->>API: {reason_code, question} (reason_code ≠ none 이면 꼬리질문)
         opt 꼬리질문 있음
@@ -663,7 +663,7 @@ erDiagram
 ```
 
 - 칸 정의는 테이블 정의서를 따른다. 여기서는 소유 관계와 삭제 단위만 정한다.
-- **삭제 단위는 `applications` 1건**이다. 지원 1건을 지우면 그 아래 행, MinIO 객체, 체크포인트(thread_id = 지원 번호), Redis 키를 한 작업으로 지운다.
+- **삭제 단위는 `applications` 1건**이다. 지원 1건을 지우면 그 아래 행, RustFS 객체, 체크포인트(thread_id = 지원 번호), Redis 키를 한 작업으로 지운다.
 - 불변 데이터: `resume_snapshot`, `interview_questions`(사본), `evaluation_criteria`(잠금 후), `results`(확정 후). 앱 레벨에서 UPDATE 경로를 두지 않는다.
 
 ### 8-3. 데이터 수명주기
@@ -844,18 +844,24 @@ GPU 합계: 2.5 + 0.3 × (N + 1) + 1.0 + 0.5 ≤ 5.4GB → **N ≈ 2~3** (추정
 | 2 | 확정(현행 유지) | 6-4 표 (C11) | 진행 중인데 연결된 세션이 없는 응시를 90초 뒤 '원인 미상 장애'로 중단하는 동작은 이대로 확정했다. 코드 위치는 `jobs.py:23,33-46`(90초 유예, 1분마다 점검이라 실제 90~150초), `main.py:40-53`(재시작은 즉시)로 확인했다. | 사용자 확인 |
 | 3 | 구현 확인 필요 | 4-1, 4-2, 9-1, ADR-02 | 코드는 T5·T6~T8·이력서 정리·공고 초안을 GPU 4B(llm-rt)로, 8B(llm-eval)는 T10만 돌린다 (`services/evaluation.py:4,7`, `services/llm.py:24`, `compose.ai.yml:30`). CONFLICTS에는 이 배치를 직접 적은 항목이 없고(B3·S2·E에 간접), 원본 TRD 6-2는 채점을 CPU 8B로 적는다. 이 문서는 코드대로 적었다. | CONFLICTS에 배치 항목 추가, TRD 6-2·6-3 개정 |
 | 4 | 구현 확인 필요 | 4-1, 9-1 (TTS) | CONFLICTS 요약은 TTS 를 GPU 로 적었으나 `compose.ai.yml:80-87`의 tts는 GPU 예약이 없는 CPU 서비스다(주석도 "Supertonic 2, CPU"). 이 문서는 TTS를 CPU로 적었다. 실측 "GPU 메모리 5.4/6GB (3개 모델 동시)"의 세 모델도 CONFLICTS에 없다. | TTS 배치 확인 후 통일 |
-| 5 | 구현 확인 필요 | 9-1 (embed 메모리) | `compose.ai.yml:67` 주석은 embed "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 원본 기술 아키텍처는 2.5GB. 이 문서는 CONFLICTS(실측 1.7GB)를 따랐다. | 실측 후 한 값으로 |
-| 6 | 기타 | 4-2 (설정 잔재) | `compose.app.yml:12`·`services/storage.py:25-27`은 `S3_ENDPOINT`·`S3_ACCESS_KEY`·`S3_SECRET_KEY`를 읽지만 `config.py:15-17,41-43`에는 `MINIO_ENDPOINT`·`MINIO_ROOT_USER`·`MINIO_ROOT_PASSWORD` 필드가 남아 있다(MinIO 시절 흔적으로 보이며 이번에 확인한 범위에서 쓰는 곳은 못 찾음). | 쓰는 곳이 없으면 정리 |
+| 5 | 구현 확인 필요 | 9-1 (embed 메모리) | **2026-11-06:** embed 실측 1.86GiB(상한 5GiB, 대기 중). (이전 기록) `compose.ai.yml:67` 주석은 embed "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 원본 기술 아키텍처는 2.5GB. 이 문서는 CONFLICTS(실측 1.7GB)를 따랐다. | 실측 후 한 값으로 |
+| 6 | 처리함 | 4-2 (설정 잔재) | **2026-11-06:** `config.py` 의 쓰지 않는 `MINIO_*` 필드를 지웠다. (이전 기록) `compose.app.yml:12`·`services/storage.py:25-27`은 `S3_ENDPOINT`·`S3_ACCESS_KEY`·`S3_SECRET_KEY`를 읽지만 `config.py:15-17,41-43`에는 `MINIO_ENDPOINT`·`MINIO_ROOT_USER`·`MINIO_ROOT_PASSWORD` 필드가 남아 있다(MinIO 시절 흔적으로 보이며 이번에 확인한 범위에서 쓰는 곳은 못 찾음). | 쓰는 곳이 없으면 정리 |
 | 7 | 확정(현행 유지) | 4-3, 5-1, ADR-03 (V4) | 답변 음성 WebRTC(TRD 5-2)가 구현에서는 WebSocket 이진 PCM이다. TRD 5-2 수정 또는 승인이 필요하다. 이 문서는 구현대로 적었다. | TRD 5-2 개정 |
 | 8 | 확정(현행 유지) | 6-5, ADR-06, R-09 (S1) | 합불을 코드가 총점 ≥ 기준으로 정한다 (S1, 사용자 결정. 팀 원본 PRD v1.6·TRD v1.5 에는 옛 문구). | — |
 | 9 | 확정(현행 유지) | 2-2, 6-2, 7-1, 13장 (F6·V2·S5) | 자동 보호(admission_guard)·공고 불러오기(Open API)·하루 메일 상한(`mail_daily_limit`)은 미구현이다. 요구사항은 지우지 않고 '미구현'으로 표시해 이후 범위로 옮겼다. 운영 메일(Gmail SMTP) 연결도 개발 Mailpit 만 확인했다. | 범위 결정 |
-| 10 | 구현 확인 필요 | 6-3, 6-4 (A1) | CONFLICTS A1은 "1회 재시도 후"라고 적었으나 코드는 최초 1회 + `stt_retry_limit` 2회 재시도 = 최대 3번 시도한다 (`interview/engine.py:640`, `config.py:71`). 이 문서의 "2회 재시도"는 코드와 같다. | CONFLICTS A1 설명 수정 또는 설정값 결정 |
+| 10 | 처리함 | 6-3, 6-4 (A1) | **2026-11-06:** CONFLICTS A1 은 지금 '처음 1번 + 재시도 2번'으로 적혀 있어 코드와 같다. (이전 기록) CONFLICTS A1은 "1회 재시도 후"라고 적었으나 코드는 최초 1회 + `stt_retry_limit` 2회 재시도 = 최대 3번 시도한다 (`interview/engine.py:640`, `config.py:71`). 이 문서의 "2회 재시도"는 코드와 같다. | CONFLICTS A1 설명 수정 또는 설정값 결정 |
 | 11 | 문서 충돌 | 6-4, 14-1 (A2) | `next`(로그인 후 이동)는 화면 경로만 허용하는 것으로 10장에 적었다. API 명세서 문구 정리가 필요하다. | API 명세서 문구 정리 |
 | 12 | 확정(현행 유지) | Q-1 (U7) | `followup_target_sec`(운영 10초·개발 20초)은 사용자 결정이다 (PRD v1.7·TRD v1.6 에 반영됨. 팀 원본에는 없음). | — |
 | 13 | 구현 확인 필요 | 6-1 (질문 구성) | 질문 구성 중 DB 조회가 api 이벤트 루프에서 동기로 돈다(지금 규모 수 ms). 질문 음성(TTS) 미리 만들기는 60초 예산 밖에서 차례로 돈다. 동시 면접이 늘면 손볼 것이다. 또 CONFLICTS C1은 슬롯 순서를 "인성 → 이력서 → 기업 → 직무"라 적었으나 코드는 인성 → 기업 → 이력서 ×2 → 직무 ×4 → 인성 → 기업이다 (`services/question_compose.py:35`). | 순서는 C1 평가 지연으로 유지, CONFLICTS 설명 수정 |
 | 14 | 기타 | 14장 | 옛 충돌 표(14-1)의 일부 문서 이름(08v)은 개인용 09v로 갱신되었다. 14-3의 반영 요청은 원본 팀 문서 기준 설명이라 그대로 남겼다. | — |
 | 15 | 처리함(2026-11-04) | 4-1, 10장 네트워크 | (이전 내용) stt·tts·embed·ocr 가 internal·front 망에 계속 붙어 있고 Redis 에는 비밀번호가 없다. 침해되면 음성 조각이 밖으로 나가거나 작업 큐에 접근할 수 있다. 모델을 받은 뒤 front 망을 떼거나 Redis 비밀번호를 거는 안이 있다. | 개선 제안: 결정 필요 |
-| 16 | 구현 확인 필요 | 7-1, 10장 (APP_PROFILE) | `APP_PROFILE` 기본값이 dev 라 `.env` 에 `APP_PROFILE=prod` 와 `APP_ENCRYPTION_KEY` 를 모두 빠뜨리면 경고 없이 0 키로 시작한다(`config.py:36`, `crypto.py:24-27`). 운영 배포에 `APP_PROFILE=prod` 가 필수다. | 개선 제안: 기본값을 prod 로 하거나 키 없으면 시작 거부 |
+| 16 | 처리함 | 7-1, 10장 (APP_PROFILE) | **2026-11-06:** `APP_ENCRYPTION_KEY` 가 없으면 프로필과 상관없이 켜지지 않는다. (이전 기록) `APP_PROFILE` 기본값이 dev 라 `.env` 에 `APP_PROFILE=prod` 와 `APP_ENCRYPTION_KEY` 를 모두 빠뜨리면 경고 없이 0 키로 시작한다(`config.py:36`, `crypto.py:24-27`). 운영 배포에 `APP_PROFILE=prod` 가 필수다. | 개선 제안: 기본값을 prod 로 하거나 키 없으면 시작 거부 |
 | 17 | 구현 확인 필요 | 6-4 (heartbeat) | 연결 목록·heartbeat 시각이 api 프로세스 메모리라 api 를 2프로세스 이상으로 띄우면 살아 있는 면접을 장애로 잘못 중단한다. 또 동기 DB 호출이 이벤트 루프에서 돌아(`engine.py`) 동시 면접 상한을 크게 올리면 heartbeat 처리가 늦어질 수 있다(추정). | 13-2 측정에 부하 시험 포함 제안 |
 | 18 | 기타 | 6-8 | `release_hour` 설정은 코드가 읽지 않고 공개 시각 10:00 이 고정이다(`timeutil.py:26-30`). scheduler 가 꺼진 시간대의 매시 안내는 보충하지 않는다. | TRD 14장과 함께 정리 |
 
+## 2026-11-06 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- 삭제 단위 설명의 MinIO 를 RustFS 로 고쳤다.
+- 논의사항 5·10·16 을 지금 상태로 고쳤다.

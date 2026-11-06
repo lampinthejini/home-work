@@ -12,7 +12,7 @@ from ..db import SessionLocal
 from ..domain import status as st
 from ..interview import lifecycle
 from ..models import Application, CodingSubmission
-from ..timeutil import now
+from ..timeutil import iso, now
 from . import coding_bank, sandbox_runner
 
 log = logging.getLogger("huge.coding")
@@ -45,6 +45,17 @@ def runExamples(code: str, cases: list[tuple[str, str]]) -> dict:
     if out.get("infra"):
         raise sandbox_runner.SandboxInfraError(out["infra"])
     return out
+
+
+def problemViews(db: Session, app: Application) -> list[dict]:
+    """화면에 줄 문제 목록. 다시 연결해도 저장된 코드가 이어지도록 함께 준다 (COD-04)."""
+    problems = []
+    for row in db.query(CodingSubmission).filter_by(application_id=app.id).order_by(CodingSubmission.problem_no):
+        view = coding_bank.publicView(row.problem_no, row.problem_key)
+        view["saved_code"] = row.code
+        view["saved_at"] = iso(row.saved_at)
+        problems.append(view)
+    return problems
 
 
 def saveCodes(db: Session, app: Application, codes: dict[int, str]) -> None:

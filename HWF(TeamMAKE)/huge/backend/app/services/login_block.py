@@ -114,10 +114,9 @@ def recordFailure(db: Session, key: str) -> LoginBlock | None:
 
 
 def blockedError(db: Session, row: LoginBlock) -> ApiError:
-    contact = getSetting(db, "login_contact_email")
     until = asKst(row.blocked_until).strftime("%m월 %d일 %H:%M")
     return ApiError(429, "LOGIN_BLOCKED", f"로그인 실패가 반복되어 이 네트워크의 로그인을 제한했습니다. {until}에 자동으로 풀립니다. "
-                                          f"바로 풀려면 문의 코드 {row.code} 를 {contact + ' 로' if contact else '담당자에게'} 보내 주세요.")
+                                          f"바로 풀려면 문의 코드 {row.code} 를 담당자에게 알려 주세요.")
 
 
 def activeBlocks(db: Session) -> list[LoginBlock]:

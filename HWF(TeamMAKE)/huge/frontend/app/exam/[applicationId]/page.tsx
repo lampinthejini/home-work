@@ -76,7 +76,7 @@ function Exam() {
     const blurAt = useRef(0);
     const lastMessageAt = useRef(0);
     const remainingRef = useRef(0);
-    const deviceFailed = useRef(false);
+    const failedDevice = useRef<"mic" | "camera" | null>(null);
 
     const later = useCallback((fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)); }, []);
     const clearTimers = useCallback(() => { timers.current.forEach((t) => window.clearTimeout(t)); timers.current = []; }, []);
@@ -273,7 +273,7 @@ function Exam() {
                 stream.current = opened;
             } catch {
                 // 아직 연결 전이라 보낼 수 없다. 연결되면 바로 알린다 (서버가 장애 중단으로 처리)
-                deviceFailed.current = true;
+                failedDevice.current = "mic";
             }
             if (disposed) return;
             if (video.current && stream.current) video.current.srcObject = stream.current;
@@ -282,16 +282,29 @@ function Exam() {
             });
             if (stream.current) {
                 const rec = new PcmRecorder((pcm) => { if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(pcm); });
-                await rec.open(stream.current);
-                recorder.current = rec;
+                try {
+                    await rec.open(stream.current);
+                    if (disposed) { rec.close(); return; }
+                    recorder.current = rec;
+                } catch {
+                    rec.close();
+                    failedDevice.current = "mic";
+                }
+                if (disposed) return;
             }
             if (stream.current) {
                 phaseRef.current = session.phase ?? "interview";
                 const cam = new CameraRecorder(session.session_id, session.recording_segment, () => phaseRef.current,
                     () => { if (watching.current) send({ type: "upload_failed" }); });
-                if (cam.start(stream.current)) {
-                    camera.current = cam;
-                    setRecordingOn(true);
+                try {
+                    if (cam.start(stream.current)) {
+                        camera.current = cam;
+                        setRecordingOn(true);
+                    } else {
+                        failedDevice.current ??= "camera";
+                    }
+                } catch {
+                    failedDevice.current ??= "camera";
                 }
             }
             const socket = new WebSocket(session.ws_url);
@@ -300,7 +313,7 @@ function Exam() {
             socket.onopen = () => {
                 lastMessageAt.current = Date.now();
                 setConn("ok");
-                if (deviceFailed.current) socket.send(JSON.stringify({ type: "device_error", device: "mic", kind: "open_failed" }));
+                if (failedDevice.current) socket.send(JSON.stringify({ type: "device_error", device: failedDevice.current, kind: "open_failed" }));
             };
             socket.onmessage = (event) => { if (typeof event.data === "string") onMessage(event.data); };
             socket.onclose = (event) => {
@@ -309,7 +322,10 @@ function Exam() {
                 // 서버가 15초 뒤 판단하므로 그 뒤에 결과를 읽는다 (TRD 7-2). 이미 쓴 세션(4409)·인증 실패(4401)는 바로 읽는다
                 void settleFromServer(event.code === 4409 || event.code === 4401 ? 500 : 17_000);
             };
-        })();
+        })().catch(() => {
+            // 연결조차 만들지 못했다. 멈춘 화면에 두지 않고 서버 상태로 안내한다
+            if (!disposed) void settleFromServer(500);
+        });
 
         const heartbeat = window.setInterval(() => {
             send({ type: "heartbeat", sent_at: new Date().toISOString() });

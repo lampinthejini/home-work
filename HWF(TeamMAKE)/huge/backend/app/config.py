@@ -12,9 +12,6 @@ class Env:
     profile: str
     databaseUrl: str
     redisUrl: str
-    minioEndpoint: str
-    minioAccessKey: str
-    minioSecretKey: str
     encryptionKey: str
     llmRtUrl: str
     llmEvalUrl: str
@@ -38,9 +35,6 @@ def loadEnv() -> Env:
         profile=os.environ.get("APP_PROFILE", "dev"),
         databaseUrl=os.environ.get("DATABASE_URL", "sqlite:///./huge-dev.db"),
         redisUrl=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-        minioEndpoint=os.environ.get("MINIO_ENDPOINT", "localhost:9000"),
-        minioAccessKey=os.environ.get("MINIO_ROOT_USER", ""),
-        minioSecretKey=os.environ.get("MINIO_ROOT_PASSWORD", ""),
         encryptionKey=os.environ.get("APP_ENCRYPTION_KEY", ""),
         llmRtUrl=os.environ.get("LLM_RT_URL", "http://localhost:8081/v1"),
         llmEvalUrl=os.environ.get("LLM_EVAL_URL", "http://localhost:8082/v1"),
@@ -99,7 +93,6 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "login_lock_min": (10, 10),
     "login_block_window_min": (60, 60),
     "login_block_hours": (24, 24),
-    "login_contact_email": ("", ""),
     "release_hour": (10, 10),
     "consent_version": ("v1.7", "v1.7"),
 }

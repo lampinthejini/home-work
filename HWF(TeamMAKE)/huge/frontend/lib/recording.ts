@@ -12,6 +12,23 @@ function mimeType(): string | undefined {
     return ["video/webm;codecs=vp8,opus", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
 }
 
+function createRecorder(stream: MediaStream): MediaRecorder {
+    return new MediaRecorder(stream, { mimeType: mimeType(), videoBitsPerSecond: VIDEO_BITS });
+}
+
+/** 환경 점검용: 이 브라우저에서 실제로 녹화를 시작할 수 있는지 잠깐 켜 본다 */
+export function canRecord(stream: MediaStream): boolean {
+    if (typeof MediaRecorder === "undefined") return false;
+    try {
+        const probe = createRecorder(stream);
+        probe.start();
+        probe.stop();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export class CameraRecorder {
     private recorder: MediaRecorder | null = null;
     private chunkNo = 0;
@@ -26,11 +43,10 @@ export class CameraRecorder {
         private onFail: () => void,
     ) {}
 
-    /** 녹화를 지원하지 않는 브라우저면 false (응시는 그대로 진행) */
+    /** 녹화를 지원하지 않는 브라우저면 false. 응시 화면이 장치 오류로 처리한다 */
     start(stream: MediaStream): boolean {
         if (typeof MediaRecorder === "undefined" || this.recorder) return false;
-        const type = mimeType();
-        this.recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: VIDEO_BITS });
+        this.recorder = createRecorder(stream);
         this.recorder.ondataavailable = (event) => {
             if (event.data.size === 0 || this.failed) return;
             const no = this.chunkNo++;

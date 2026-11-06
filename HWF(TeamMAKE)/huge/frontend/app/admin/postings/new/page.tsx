@@ -17,7 +17,7 @@ function NewPosting() {
             <div className="card stack center">
                 <Mascot name="01-guide" size={120} />
                 <h2 style={{ margin: 0 }}>✨ AI로 공고 자동 만들기</h2>
-                <p className="muted">몇 가지 질문에 답하면 AI가 우리 회사에 맞는 초안을 씁니다.<br />약 1~3분 · 초안은 검토·수정 후 게시합니다.</p>
+                <p className="muted">몇 가지 질문에 답하면 AI가 우리 회사에 맞는 초안을 씁니다.<br />1분 이내 · 초안은 검토·수정 후 게시합니다.</p>
                 <Link className="btn btn-primary" href="/admin/postings/ai">AI로 만들기</Link>
             </div>
             <div className="card stack center">

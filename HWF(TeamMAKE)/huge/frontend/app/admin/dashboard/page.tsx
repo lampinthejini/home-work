@@ -19,7 +19,6 @@ type Stats = {
 type Ops = {
     needs_review: { application_id: string; name: string; posting_title: string; since: string | null; reason: string | null }[];
     mail_failed: { count: number; items: { to: string; kind: string; title: string; reason: string | null; at: string }[] };
-    mail_deferred_today: number;
     questions: { bank: number; reserve_total: number };
     reserve_questions: { category: string; count: number; below_minimum: boolean }[];
     coding_problems: Record<string, number>;
@@ -108,7 +107,7 @@ function Dashboard() {
 
     return (
         <div className="stack">
-            <div className="row between"><h2 style={{ margin: 0 }}>통계</h2><span className="small muted">최근 12개월 · 보관 기간이 지나 지운 응시는 빠집니다</span></div>
+            <div className="row between"><h2 style={{ margin: 0 }}>통계</h2><span className="small muted">최근 12개월 · 보관 기간이 지나 지운 응시도 합쳐서 보여 줍니다</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
                 {cards.map(([label, value]) => (
                     <div key={label} className="card center"><div className="small muted">{label}</div><div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div></div>
@@ -174,7 +173,6 @@ function Dashboard() {
                         <div className="tiny muted">사이트 알림(🔔)은 메일과 상관없이 남아 있습니다.</div>
                     </div>
                 )}
-                {ops.mail_deferred_today > 0 && <div className="small">오늘 하루 한도로 미룬 메일 {ops.mail_deferred_today}건</div>}
                 <hr style={{ border: 0, borderTop: "1px solid var(--color-line)", width: "100%" }} />
                 <div className="small">
                     📚 <strong>문항 현황</strong> 면접 질문 {ops.questions.bank.toLocaleString()} · 예비 질문 {ops.questions.reserve_total}

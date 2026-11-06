@@ -53,6 +53,11 @@ function ToMypage() {
     return <div className="center" style={{ marginTop: 20 }}><Link className="btn btn-primary btn-lg" href="/mypage">마이페이지로</Link></div>;
 }
 
+const PAUSED_TITLE: Record<string, string> = {
+    server_error: "일시적인 서버 오류로 면접이 멈췄습니다.",
+    device_error: "카메라나 마이크에 문제가 생겨 면접이 멈췄습니다.",
+};
+
 export function ExamOverlay({ overlay, closeAt, releaseAt, onWarnAck }: { overlay: Overlay; closeAt: string | null; releaseAt: string | null; onWarnAck: () => void }) {
     const online = useOnline();
     switch (overlay.kind) {
@@ -64,7 +69,7 @@ export function ExamOverlay({ overlay, closeAt, releaseAt, onWarnAck }: { overla
             );
         case "paused":
             return (
-                <Shell icon="⚠" title={overlay.reason === "server_error" ? "일시적인 서버 오류로 면접이 멈췄습니다." : "연결이 끊겼습니다."} labelId="ov-01">
+                <Shell icon="⚠" title={PAUSED_TITLE[overlay.reason] ?? "연결이 끊겼습니다."} labelId="ov-01">
                     <p className="center">답변은 안전하게 저장되었습니다.<br />다시 접속하면 끊긴 질문부터 이어서 진행합니다.</p>
                     <ul>
                         <li>끊긴 질문은 처음부터 새 답변 시간으로 다시 진행합니다. 감점은 없습니다.</li>

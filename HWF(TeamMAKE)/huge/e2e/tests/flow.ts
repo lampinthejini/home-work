@@ -18,10 +18,10 @@ export async function isFullscreen(page: Page): Promise<boolean> {
  * E2E 공고에 지원해 면접을 시작하고, 첫 질문의 '답변 완료' 버튼이 보일 때까지 간다. 지원 ID 를 돌려준다.
  * coding: true 면 코딩테스트가 켜진 공고에 지원한다.
  */
-export async function applyAndStartInterview(page: Page, email: string, password: string, { coding = false } = {}): Promise<string> {
+export async function applyAndStartInterview(page: Page, email: string, password: string, { coding = false, waitFirstQuestion = true, stopAtPrecheck = false, stopAtRules = false, posting = null as { id: string; title: string } | null } = {}): Promise<string> {
     const state = readState();
-    const postingId = coding ? state.codingPostingId : state.postingId;
-    const postingTitle = coding ? state.codingPostingTitle : state.postingTitle;
+    const postingId = posting?.id ?? (coding ? state.codingPostingId : state.postingId);
+    const postingTitle = posting?.title ?? (coding ? state.codingPostingTitle : state.postingTitle);
     let applicationId = "";
     await loginByUi(page, email, password);
     await expect(page).toHaveURL(/\/jobs/);
@@ -57,11 +57,15 @@ export async function applyAndStartInterview(page: Page, email: string, password
         await expect(page).toHaveURL(/\/precheck/);
     });
 
+    if (stopAtPrecheck) return applicationId;
+
     await test.step("환경 점검 5개 통과 (가짜 카메라·마이크)", async () => {
         await passPrecheck(page);
         await page.getByRole("button", { name: "다음: 시작 안내 ▶" }).click();
         await expect(page).toHaveURL(/\/rules/);
     });
+
+    if (stopAtRules) return applicationId;
 
     await test.step("시작 안내 → 전체 화면으로 면접 시작", async () => {
         await page.getByLabel("위 응시 규칙을 모두 확인했습니다.").check();
@@ -69,6 +73,8 @@ export async function applyAndStartInterview(page: Page, email: string, password
         await expect(page).toHaveURL(new RegExp(`/exam/${applicationId}$`));
         await expect.poll(() => isFullscreen(page)).toBe(true);
     });
+
+    if (!waitFirstQuestion) return applicationId;
 
     await test.step("첫 질문이 나오고 답변을 녹음한다", async () => {
         // 질문 10개를 RAG + LLM 으로 만드는 동안 '준비 중' 화면이 나올 수 있다
@@ -102,4 +108,30 @@ export async function answerAllQuestions(page: Page, { answerMs = 8000, maxAnswe
         await expect(answerButton).toBeHidden();
         test.info().annotations.push({ type: "answer", description: `${answers}번째 답변 (${progress})` });
     }
+}
+
+/**
+ * 편집기(Monaco)에 코드를 넣는다. 키보드로 치면 편집기가 괄호·들여쓰기를 자동으로 붙여 코드가 망가지고,
+ * 외부 붙여넣기는 앱이 막으므로(COD-07) 편집기 모델에 직접 넣는다. 화면의 onChange·자동 저장은 그대로 돈다.
+ */
+export async function getEditorCode(page: Page, problemNo: number): Promise<string> {
+    await page.waitForFunction((no) => {
+        const monaco = (window as unknown as { monaco?: { editor: { getModels(): { uri: { path: string } }[] } } }).monaco;
+        return !!monaco?.editor.getModels().some((m) => m.uri.path.endsWith(`problem-${no}.py`));
+    }, problemNo);
+    return page.evaluate((no) => {
+        const monaco = (window as unknown as { monaco: { editor: { getModels(): { uri: { path: string }; getValue(): string }[] } } }).monaco;
+        return monaco.editor.getModels().find((m) => m.uri.path.endsWith(`problem-${no}.py`))!.getValue();
+    }, problemNo);
+}
+
+export async function setEditorCode(page: Page, problemNo: number, code: string) {
+    await page.waitForFunction((no) => {
+        const monaco = (window as unknown as { monaco?: { editor: { getModels(): { uri: { path: string } }[] } } }).monaco;
+        return !!monaco?.editor.getModels().some((m) => m.uri.path.endsWith(`problem-${no}.py`));
+    }, problemNo);
+    await page.evaluate(({ no, text }) => {
+        const monaco = (window as unknown as { monaco: { editor: { getModels(): { uri: { path: string }; setValue(v: string): void }[] } } }).monaco;
+        monaco.editor.getModels().find((m) => m.uri.path.endsWith(`problem-${no}.py`))!.setValue(text);
+    }, { no: problemNo, text: code });
 }

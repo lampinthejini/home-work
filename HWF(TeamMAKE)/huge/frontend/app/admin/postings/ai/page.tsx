@@ -142,7 +142,7 @@ export default function AiPostingPage() {
                             <li key={label} className={i < step ? "done" : i === step ? "current" : ""}><span className="dot">{i < step ? "✓" : i + 1}</span>{label}</li>
                         ))}
                     </ol>
-                    <div><Spinner /> 보통 1~3분 걸립니다 ({elapsed}초)</div>
+                    <div><Spinner /> 보통 1분 안에 끝납니다 ({elapsed}초)</div>
                     <p className="small muted">이 화면을 떠나도 계속 작성되며, 완성되면 공고 관리의 &apos;임시저장&apos;에서 열 수 있습니다.</p>
                     <Link className="btn btn-secondary" href="/admin/postings">목록으로 가기</Link>
                 </div>

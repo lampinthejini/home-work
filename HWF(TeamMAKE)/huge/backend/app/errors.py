@@ -20,6 +20,11 @@ async def apiErrorHandler(_request: Request, exc: ApiError):
     return JSONResponse(status_code=exc.status, content={"code": exc.code, "message": exc.message})
 
 
+async def unexpectedErrorHandler(_request: Request, _exc: Exception):
+    # 원인은 응답에 넣지 않는다. 예외는 이 뒤에 서버 로그로 남는다 (Starlette 가 다시 던짐)
+    return JSONResponse(status_code=500, content={"code": "SERVER_ERROR", "message": "잠시 후 다시 시도해 주세요."})
+
+
 async def validationErrorHandler(_request: Request, exc: RequestValidationError):
     first = exc.errors()[0] if exc.errors() else {}
     field = ".".join(str(p) for p in first.get("loc", [])[1:])

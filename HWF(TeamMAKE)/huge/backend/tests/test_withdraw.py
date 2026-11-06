@@ -1,5 +1,7 @@
 """동의 철회 (APP-03)·회원 탈퇴 (화면정의서 S-A13 계정 탭, API 명세서 3장·5장, 테이블 정의서 1-6·1-7)."""
 
+import asyncio
+
 import pytest
 from conftest import APPLICANT_PASSWORD, login, signup
 from test_api_apply import applyReady, asApplicant
@@ -7,7 +9,7 @@ from test_api_apply import applyReady, asApplicant
 from app.domain import status as st
 from app.interview import registry
 from app.models import Application, AuditLog, Consent, DeletionLog, Notification, SavedResume, StatsArchive, User
-from app.services import admission, storage
+from app.services import admission, question_compose, storage, withdrawal
 
 
 @pytest.fixture()
@@ -122,3 +124,30 @@ def test_withdrawnFinishedAttemptKeepsAnonymousStats(adminClient, sessionFactory
     with sessionFactory() as db:
         row = db.query(StatsArchive).one()  # 끝난 응시는 숫자만 익명으로 남긴다
         assert (row.posting_id, row.applications, row.taken) == (postingId, 1, 1)
+
+
+def test_withdrawStopsRunningCompose(adminClient, sessionFactory, deleted, terminated):
+    """지운 지원의 질문을 계속 만들면 LLM 을 쓰느라 다른 지원자의 질문 준비가 밀린다."""
+    client, postingId = asApplicant(adminClient)
+    appId = applyReady(client, postingId)
+
+    async def scenario():
+        started = asyncio.Event()
+
+        async def slowCompose():
+            started.set()
+            await asyncio.sleep(60)
+
+        task = asyncio.create_task(slowCompose())
+        question_compose.runningTasks[appId] = task
+        await started.wait()
+        with sessionFactory() as db:
+            await withdrawal.withdrawApplication(db, db.get(Application, appId), "consent")
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    try:
+        asyncio.run(asyncio.wait_for(scenario(), timeout=5))
+        assert appId not in question_compose.runningTasks
+    finally:
+        question_compose.runningTasks.pop(appId, None)

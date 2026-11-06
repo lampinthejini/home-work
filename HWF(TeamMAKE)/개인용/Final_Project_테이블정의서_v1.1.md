@@ -823,7 +823,7 @@ UNIQUE (interview_question_id, eval_item)
 |---|---|---|---|---|
 | 1 | 구현 확인 필요 | 4-9 applications · `models.py:113-150` | 원본의 `UNIQUE (posting_id, applicant_id)`(공고마다 한 사람 1건)가 모델에 없다. 중복 지원은 사용자 단위 잠금으로만 막는다(CONFLICTS C-3). DB 제약이 없어 잠금이 뚫리면 같은 공고에 두 행이 생길 수 있다 | DB 제약 추가를 검토하거나, 지금 방식을 팀과 확정 |
 | 2 | 구현 확인 필요 | 4-9 questions_status · `models.py:127` / `models.py:477` | 칸 주석은 `none·composing·ready` 3값, CHECK 는 `failed` 를 더한 4값. 이 문서는 CHECK(4값) 를 따름 | 주석을 고칠지 확인(코드는 고치지 않음) |
-| 3 | 문서 충돌 | CONFLICTS T23 / `models.py:136` | CONFLICTS 는 `interruption_at` 으로 적었으나 실제 칸은 `interrupted_at` | CONFLICTS 정정. 이 문서는 `interrupted_at` |
+| 3 | 처리함 | CONFLICTS T23 / `models.py:136` | **2026-11-06:** CONFLICTS T23 은 지금 `interrupted_at` 으로 적혀 있다. (이전 기록) CONFLICTS 는 `interruption_at` 으로 적었으나 실제 칸은 `interrupted_at` | CONFLICTS 정정. 이 문서는 `interrupted_at` |
 | 4 | 구현 확인 필요 | 4-6 job_postings.job_code · `models.py:57` | 원본은 `job_codes.code` FK 였으나 모델은 FK 없는 글자 칸 | FK 를 걸지, 이대로 확정할지 결정 |
 | 5 | 구현 확인 필요 | 4-26 audit_logs.actor_id · `models.py:369` / 4-9 resume_upload_id · `models.py:126` / 4-13 session_id · `models.py:298` | 원본 또는 의미상 FK 인 칸이 FK 없이 글자만 저장한다(`actor_id`·`resume_upload_id`·`session_id`). 사용자 삭제 뒤 기록을 남기려는 뜻으로 보이나 CONFLICTS 에 근거 없음 | 의도 확인 후 문서에 이유 명시 |
 | 6 | 구현 확인 필요 | 4-10 consents.subject_hash · `models.py:170`, `migrate.py:57-61` | 원본은 NOT NULL, 모델은 NULL 허용. 보정 작업은 지원 건과 연결된 행만 채워 연결이 이미 끊긴 행은 비어 있을 수 있음 | NOT NULL 로 바꿀지 확인 |
@@ -835,3 +835,9 @@ UNIQUE (interview_question_id, eval_item)
 | 12 | 구현 확인 필요 | 4-13 session_events.type · 4-26 audit_logs.action | `type` 값 목록과 설정 변경 감사 action 이름은 CONFLICTS·models 에 정해진 목록이 없어 이 문서에 고정하지 않음. 감사 action 은 확인한 예만 적음 | 코드의 실제 목록을 뽑아 부록으로 둘지 결정 |
 | 13 | 기타 | 원본 4-1 users 아래 문장 | 원본이 Redis 장을 "6장"으로 적었으나 실제는 5장(바로잡음). 이 칸 자체도 이제 Redis 가 아니라 DB 를 가리킴 | — |
 | 14 | 확정(현행 유지) | 4-1 email_verified_at · 5장 | 이메일 인증, 하루 메일 상한, 공고 불러오기(`external_id`, V2)는 요구사항을 지우지 않고 현재 구현 범위 밖(미구현)으로 표시 | 범위 결정 |
+
+## 2026-11-06 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- 논의사항 3 을 처리함으로 고쳤다.

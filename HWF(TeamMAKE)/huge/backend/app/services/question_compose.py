@@ -562,6 +562,13 @@ def scheduleCompose(applicationId: str) -> None:
     runningTasks[applicationId] = asyncio.get_running_loop().create_task(compose(applicationId))
 
 
+def cancelCompose(applicationId: str) -> None:
+    """지운 지원의 질문을 계속 만들면 LLM 을 쓰느라 다른 지원자의 질문 준비가 밀린다."""
+    task = runningTasks.pop(applicationId, None)
+    if task is not None:
+        task.cancel()
+
+
 async def ensureComposed(applicationId: str, waitSec: float) -> None:
     """면접 시작 시: 아직이면 최대 waitSec 기다리고, 넘으면 LLM 없이 남은 자리를 채운다 (TRD 7-4 ⑥)."""
     task = runningTasks.get(applicationId)

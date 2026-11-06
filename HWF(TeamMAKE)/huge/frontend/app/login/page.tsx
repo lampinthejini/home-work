@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { HugeLogo, Mascot, TeamCredit } from "@/components/Brand";
 import { useApp } from "@/components/Providers";
@@ -21,9 +21,11 @@ function LoginForm() {
     const [show, setShow] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const submitted = useRef(false);
 
+    // 이미 로그인한 채 들어온 경우만 홈으로 보낸다. 로그인 직후의 이동은 서버가 준 redirect 를 따른다
     useEffect(() => {
-        if (meLoaded && me) router.replace(me.role === "admin" ? "/admin/postings" : "/jobs");
+        if (meLoaded && me && !submitted.current) router.replace(me.role === "admin" ? "/admin/postings" : "/jobs");
     }, [me, meLoaded, router]);
 
     async function submit(event: React.FormEvent) {
@@ -34,11 +36,13 @@ function LoginForm() {
         }
         setBusy(true);
         setError(null);
+        submitted.current = true;
         try {
             const res = await api<LoginResponse>("/auth/login", { body: { email, password, next } });
             await refreshMe();
             router.replace(res.redirect);
         } catch (err) {
+            submitted.current = false;
             setError((err as ApiError).message);
         } finally {
             setBusy(false);

@@ -1,6 +1,5 @@
 """관리자 API (API 명세서 4장 관리용 · 10장). 결과·판정을 바꾸는 주소는 두지 않는다 (AC-14)."""
 
-import re
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import StreamingResponse
@@ -373,8 +372,6 @@ def manualDecision(applicationId: str, body: ManualDecisionIn, db: Session = Dep
 SETTING_HISTORY_SIZE = 10
 # 키별 허용 범위 (CONFLICTS D2). 화면에서 바꾸는 키는 max_concurrent_interviews 하나다 (화면정의서 S-R10)
 SETTING_RANGES = {"max_concurrent_interviews": (1, 20)}
-CONTACT_SETTING = "login_contact_email"  # 로그인 차단 안내에 보여 줄 문의처. 비우면 '담당자에게'
-CONTACT_PATTERN = re.compile(r"[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s.]{2,}")
 
 
 @router.get("/settings")
@@ -384,7 +381,6 @@ def getSettings(db: Session = Depends(getDb), _admin: User = Depends(requireAdmi
                .order_by(AuditLog.at.desc()).limit(SETTING_HISTORY_SIZE).all())
     return {
         "max_concurrent_interviews": getSetting(db, "max_concurrent_interviews"),
-        CONTACT_SETTING: getSetting(db, CONTACT_SETTING),
         "active_interviews": db.query(Application).filter(Application.holds_seat.is_(True)).count(),
         "history": [{"key": h.target, "from": (h.detail or {}).get("from"), "to": (h.detail or {}).get("value"), "at": iso(h.at)}
                     for h in history],
@@ -396,7 +392,7 @@ def getSettings(db: Session = Depends(getDb), _admin: User = Depends(requireAdmi
 def putSetting(key: str, body: dict, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
     if key not in SETTING_DEFAULTS:
         raise notFound()
-    if key not in SETTING_RANGES and key != CONTACT_SETTING:
+    if key not in SETTING_RANGES:
         raise ApiError(400, "INVALID_SETTING", "이 설정은 화면에서 바꿀 수 없습니다 (서버 설정 파일에서 관리).")
     if set(body) != {"value"}:
         raise ApiError(400, "INVALID_SETTING", "설정값 형식이 맞지 않습니다.")
@@ -404,8 +400,6 @@ def putSetting(key: str, body: dict, db: Session = Depends(getDb), admin: User =
     expected = type(SETTING_DEFAULTS[key][0])
     if not isinstance(value, expected) or isinstance(value, bool) != (expected is bool):
         raise ApiError(400, "INVALID_SETTING", "설정값 형식이 맞지 않습니다.")
-    if key == CONTACT_SETTING and value and not CONTACT_PATTERN.fullmatch(value):
-        raise ApiError(400, "INVALID_SETTING", "이메일 형식이 맞지 않습니다.")
     low, high = SETTING_RANGES.get(key, (None, None))
     if (low is not None and value < low) or (high is not None and value > high):
         raise ApiError(400, "INVALID_SETTING", f"{low}~{high} 사이로 입력해 주세요.")

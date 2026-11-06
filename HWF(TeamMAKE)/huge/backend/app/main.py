@@ -12,11 +12,11 @@ from fastapi.responses import JSONResponse
 from . import jobs, migrate
 from .db import Base, SessionLocal, engine
 from .domain import status as st
-from .errors import ApiError, apiErrorHandler, validationErrorHandler
+from .errors import ApiError, apiErrorHandler, unexpectedErrorHandler, validationErrorHandler
 from .interview import checkpoint, lifecycle
 from .models import Application, InterviewSession
 from .routers import admin, admin_ops, admin_questions, applications, auth, interview, me, postings
-from .services import admission, llm, question_compose, storage
+from .services import admission, llm, question_compose, resume_extract, storage
 from .services.postings import seedJobCodes
 from .settings_store import getSetting
 from .timeutil import now
@@ -41,9 +41,10 @@ async def warmUp() -> None:
 
 
 def recoverAfterRestart() -> None:
-    """재시작 전 '질문 구성 중'이던 지원은 다시 구성하고, Redis 자리 수를 DB 에 맞춘다."""
+    """재시작 전 '질문 구성 중'이던 지원은 다시 구성하고, 끊긴 이력서 추출은 실패로 두고, Redis 자리 수를 DB 에 맞춘다."""
     db = SessionLocal()
     try:
+        resume_extract.failUnfinished(db)
         for app in db.query(Application).filter(Application.questions_status == "composing").all():
             app.questions_status = "none"
             db.commit()
@@ -113,6 +114,7 @@ app = FastAPI(title="Huge API (Team AIIT)", lifespan=lifespan, docs_url=None, re
 app.add_middleware(UploadSizeGuard)
 app.add_exception_handler(ApiError, apiErrorHandler)
 app.add_exception_handler(RequestValidationError, validationErrorHandler)
+app.add_exception_handler(Exception, unexpectedErrorHandler)
 for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin):
     app.include_router(module.router)
 

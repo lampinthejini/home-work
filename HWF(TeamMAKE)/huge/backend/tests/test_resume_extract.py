@@ -1,7 +1,9 @@
 import asyncio
 
 import fitz
+import pytest
 
+from app.models import ResumeUpload, User
 from app.services import resume_extract as rx
 
 
@@ -159,3 +161,40 @@ def test_cleanResult():
     assert [p["name"] for p in cleaned["projects"]] == ["AI 면접"]
     assert cleaned["education"][0]["major"] == ""
     assert rx.cleanResult({"name": "John Smith", "projects": [], "education": []})["name"] == "John Smith"
+
+
+@pytest.mark.parametrize("stage", ["uploaded", "checking", "ocr", "structuring"])
+def test_restartFailsUnfinishedUpload(sessionFactory, monkeypatch, stage):
+    """추출은 api 프로세스 안의 작업이라 재시작하면 사라진다. 화면이 '처리 중'에 남지 않게 실패로 바꾼다 (논의사항 E3)."""
+    from app import main
+
+    monkeypatch.setattr(main, "SessionLocal", sessionFactory)
+    uploadId = saveUpload(sessionFactory, stage)
+    main.recoverAfterRestart()
+    with sessionFactory() as db:
+        upload = db.get(ResumeUpload, uploadId)
+        assert (upload.stage, upload.fail_reason) == ("failed", "INTERNAL")
+        assert upload.finished_at is not None
+
+
+@pytest.mark.parametrize("stage", ["done", "failed", "cancelled"])
+def test_restartKeepsFinishedUpload(sessionFactory, monkeypatch, stage):
+    from app import main
+
+    monkeypatch.setattr(main, "SessionLocal", sessionFactory)
+    uploadId = saveUpload(sessionFactory, stage)
+    main.recoverAfterRestart()
+    with sessionFactory() as db:
+        upload = db.get(ResumeUpload, uploadId)
+        assert (upload.stage, upload.fail_reason, upload.finished_at) == (stage, None, None)
+
+
+def saveUpload(sessionFactory, stage: str) -> str:
+    with sessionFactory() as db:
+        user = User(email=f"{stage}@example.com", password_hash="x", name="김", role="applicant")
+        db.add(user)
+        db.flush()
+        upload = ResumeUpload(user_id=user.id, file_key="k", file_name="r", content_type="application/pdf", stage=stage)
+        db.add(upload)
+        db.commit()
+        return upload.id
