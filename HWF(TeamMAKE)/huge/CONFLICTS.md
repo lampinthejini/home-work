@@ -16,7 +16,7 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | # | 설계 | 구현 | 이유 |
 |---|---|---|---|
 | B1 | LangGraph 면접 흐름 | ~~DB에 상태를 저장하는 상태 기계~~ → **2026-11-03 사용자 요청으로 LangGraph 도입.** 면접 진행 그래프(`interview/graph.py`: 질문 내기 → 답변 기다리기 interrupt → STT → 꼬리질문 하위 그래프(규칙 확인 → T4 → 검증 → 만들기·TTS) → 다음/코딩), PostgreSQL 체크포인트(thread_id = 지원 번호). 질문 만들기 그래프(`question_compose.buildComposeGraph`: 고르기 → 예시 찾기 → 만들기 → 확인 → 다시 만들기/질문은행/예비). 남은 차이: ① 질문 만들기 그래프는 **api 안**에서 돌고(설계는 worker) **체크포인트 없이** 메모리에서만 돈다(DB 세션·벡터가 상태에 들어가고, 실패하면 처음부터 다시 만들므로). ② 이어가기는 체크포인트가 아니라 원장(applications)을 읽는 `locate` 노드로 끊긴 질문부터 다시 낸다(AI 아키텍처 6.1 '원장은 applications'). ③ LangGraph interrupt 는 Python 3.11 이상 필요(이미지 3.11, 로컬 3.10 에서는 그래프 테스트 4개를 건너뜀) | 해결(구조), ①② 이대로 확정 |
-| B2 | Celery 작업 큐 | ~~asyncio 백그라운드 작업 (1단계)~~ → 2단계-A 에서 채점·메일·스케줄·코드 실행을 Celery(worker·worker-eval·worker-sandbox·scheduler)로 옮김. 면접 중 질문 구성·감시는 api 안 asyncio 그대로 | 해결 |
+| B2 | Celery 작업 큐 | ~~asyncio 백그라운드 작업 (1단계)~~ → 2단계-A 에서 채점·메일·스케줄·코드 실행을 Celery(worker·worker-eval·worker-sandbox·scheduler)로 옮김. 면접 중 질문 구성·감시는 api 안 asyncio 그대로. api 안에 남은 일(2026-11-09 확인): 1분 주기 작업(자리 다시 맞추기·끊긴 자리 반환·공고 마감·고착 응시 정리, `jobs.py`), 이력서 추출(`routers/applications.py` → `resume_extract.runExtraction`), heartbeat 마지막 시각(LiveSession 메모리, api 를 2프로세스 이상 띄우면 안 됨) | 해결 |
 | B3 | 이력서 구조화 전용 모델 | llm-rt(Qwen3 4B) 재사용 | GPU 6GB 한 장에 모델 하나만 올릴 수 있음 |
 | B4 | 코딩 실행은 worker 가 담당 | ~~api 가 docker.sock 으로 실행 상자 생성, api 컨테이너는 root~~ → 2단계-C 에서 `worker-sandbox`(Celery 큐 sandbox)로 옮김. api 는 소켓 없이 uid 65534. worker-sandbox 도 uid 65534 + 그룹 0(소켓이 root:root 660) | 해결. 단 docker.sock 을 가진 컨테이너는 사실상 호스트 권한이라 worker-sandbox 는 내부망에만 둠 |
 | B5 | MinIO + SSE 암호화 | RustFS + 앱에서 AES-GCM 암호화 | 사용자 결정(MinIO 대체). SSE 대신 앱 암호화 |
@@ -67,7 +67,7 @@ CLAUDE.md §2.3·§8 에 따라 구현 중 문서와 달라진 점을 모았습�
 | U1 | **회사명은 표기하지 않는다** (한 기업 전용 면접 시스템) | PRD JOB-01(공고 필드) · 화면정의서 S-R02 #10·S-R03 1단계·S-A01/A02/A13/A14 · API 명세서 draft-ai `company_name` · 테이블 정의서 `job_postings.company_name` | 화면·입력·게시 필수 항목에서 제거. DB 열은 남겨 둠(스키마 변경 없음). 기업 질문은 '우리 회사'로 부름 |
 | U2 | **AI 공고 초안을 1단계에 넣는다** (원래 2단계) | — | S-R02 구현. `POST /admin/postings/{id}/draft-ai` · `GET …/draft-ai/status` |
 | U4 | **이력서 읽기 순서: 리더 → 빈칸 채우기 → 안 되면 OCR** (OCR 3단계 → 1단계) | TRD 7-6 (pdfplumber·쪽당 50자 기준) · AI 아키텍처 | ① PyMuPDF(읽는 순서 정렬) → 깨졌거나 모자란 쪽만 pdfplumber ② LLM 항목 정리 ③ 두 리더 모두 실패한 쪽·사진은 OCR, 정리 뒤 성명·학력/경력이 비면 나머지 쪽도 OCR 해서 **빈 칸만** 채움. OCR 은 PaddleOCR 한국어(CPU, 별도 컨테이너 `ocr`) |
-| U5 | **질문 10개를 RAG 로 먼저 만들고, 못 만들면 질문은행** (모든 종류) | TRD 7-4 ②③: 인성·직무는 질문 DB 에서 먼저 고르고 후보가 모자랄 때만 새로 만듦 · AI 아키텍처 6.1 (T2 '은행 우선, 부족분 생성') | 자리마다 ① 공고·이력서로 찾을 글 → BGE-M3 → pgvector 로 같은 종류 기존 질문 3개 ② 기존 질문(예시) + 이력서 요약 + 회사의 상황(공고 본문)으로 LLM 이 질문 1개 ③ 형식·요구하는 일 2개 이하·이력서 근거·예시와 0.9 이상이면 베낌·고른 질문과 0.9 이상이면 중복 ④ 3번 실패·60초 초과·임베딩 서버 없음 → 질문은행(엑셀) → 예비 질문 |
+| U5 | **질문 10개를 RAG 로 먼저 만들고, 못 만들면 질문은행** (모든 종류) | TRD 7-4 ②③: 인성·직무는 질문 DB 에서 먼저 고르고 후보가 모자랄 때만 새로 만듦 · AI 아키텍처 6.1 (T2 '은행 우선, 부족분 생성') | 자리마다 ① 공고·이력서로 찾을 글 → BGE-M3 → pgvector 로 같은 종류 기존 질문 3개 ② 기존 질문(예시) + 이력서 요약 + 회사의 상황(공고 본문)으로 LLM 이 질문 1개 ③ 형식·요구하는 일 2개 이하·이력서 근거·예시와 0.9 이상이면 베낌·고른 질문과 0.9 이상이면 중복 ④ 3번 실패·60초 초과·임베딩 서버 없음 → 질문은행(엑셀) → 예비 질문. 이력서 기반 자리는 질문은행을 건너뛰고 바로 예비 질문(원본 QST-05 와 같음) |
 | U6 | **AI 공고 초안의 '주로 맡을 일'은 선택** (2026-11-03) | 화면정의서 S-R02 질문 7 (필수 ✓) → **화면정의서 v0.6 반영 완료(2026-11-03, 담당자 요청)** | 비우거나 공백만 넣어도 받음. 프롬프트에 '(지정 없음)'으로 알려 AI 가 직무·기술·강조점에 맞게 주요 업무를 씀. 직접 입력한 말은 AI 가 다듬어 씀. AI 부서 소개가 짧아 대체 문구를 쓸 때는 칩별 미리 정한 문구 · 직접 입력은 규칙으로 줄임('사내 챗봇을 운영함' → '사내 챗봇 운영') · 맡을 일이 없으면 전용 문구 3개 중 하나 |
 | U7 | **꼬리질문을 낼 때만 목표 시간을 따로 둔다** (2026-11-03 사용자 결정 ①) | TRD 7-5 · AI 아키텍처 Q-1: 답변 완료 → 다음 질문 `next_question_target_sec` 5초(p95), 꼬리질문 판단 시간은 그 안에서 동적 배분 | 새 설정 `followup_target_sec` (운영 10초 · 개발 20초). 꼬리질문 판단 시간 = 이 값 − 지난 시간 − TTS 평균(3초). 꼬리질문이 없으면 다음 질문은 그대로 5초 목표. 이유: 실측(2026-11-03) 꼬리질문까지 4.7~6.7초(T4 + TTS)라 5초 안에서는 판단 시간이 0~1초로 `followup_min_sec`(2초)보다 짧아 꼬리질문이 거의 안 나옴. TRD v1.6 반영 |
 | U8 | **자동 채점을 끝내지 못한 건은 3일 안에 결정, 없으면 평가 미완료 불합격** (2026-11-04 사용자 결정) | PRD EVL-05·EVL-08·AC-14, 시나리오 '지원자 책임이 아닌 장애로는 감점하지 않는다': 관리자는 판정을 정하지 않고 평가 지연 건은 끝없이 기다림 | 6시간마다 자동 재채점(채점 지시 의심 건 제외), 3일 안에 관리자 직접 결정(`POST /admin/analysis/{aid}/decision`, `decision_check=manual`), 지나면 AI 가 정상일 때 마지막 재채점까지 실패해야 `incomplete` 불합격, 7일이면 장애 중에도 닫음(채점 지시 의심 건은 3일, 서비스가 멈췄다 돌아왔으면 24시간 더). 고정 문구만 쓰고 LLM 호출 없음. 점수 없는 결과는 점수 통계에서 뺀다. 동의 문구 v1.5. 개인용 문서 반영 |
@@ -255,6 +255,16 @@ RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어
 
 **맞춤 결과 (2026-11-02):** 칸 9개(`users.email_verified_at`·`updated_at`, `applications.needs_review_since`·`updated_at`, `evaluation_criteria.locked_at`, `posting_revisions.summary`, `job_postings.external_id`, `app_settings.updated_by`, `answers.is_empty`) + CHECK 23개(`models.CHECK_VALUES`). 기존 Postgres 는 `migrate.py` 가 부팅 때 더함(기존 행이 어긋나면 그 제약만 건너뛰고 경고). 이미 잠긴 기준의 `locked_at` 은 그 공고의 첫 응시 시각으로 채움(응시 기록이 지워진 공고는 비어 있음). `answers.started_at` 은 첫 음성 조각이 온 시각. 검증: 단위 203개, E2E 빠른 묶음 5개, 끝까지 응시 1개 통과.
 
+## C-14. 남은 논의사항 정리 (2026-11-09, 사용자 결정)
+
+- 문서마다 남아 있던 논의사항 70개 중 32개는 코드·실측으로 확인해 닫았다(TTS 는 CPU, GPU 는 llm-rt·stt, embed 1.6~1.9GB 등). 나머지는 아래 결정대로 처리했다.
+- **설정·고정값: 문서를 구현에 맞춤.** TRD 14장에서 코드가 읽지 않는 키(`release_hour`·`next_question_target_sec`·`caption_interval_sec`·`blur_threshold_sec`·`upload_retry_limit`·`compose_slots`)는 '고정값으로 확정'. api 안 1분 주기 작업, 결과 공개 5분 점검, 네트워크 하한 1Mbps 고정, 암호화 키 환경 변수, LangChain 0.3 도 그대로.
+- **AI 설계: 구현대로 확정.** Gateway·seed·anchor 검증·skip_cause 저장·채점 입력의 이력서 요약은 미구현으로 남긴다. 꼬리질문은 `reason_code` 로 판단.
+- **DB: `UNIQUE (posting_id, user_id)` 만 추가**(`uq_applications_posting_user`). 나머지 FK·NOT NULL 은 지운 뒤 기록 보존을 위해 구현대로.
+- **화면·동작 고침:** 동의 단계 오류 `APPLICATION_LOCKED` · 차별 표현 사전에 종교 · 합계 문구 중복·합격 기준 빈칸 · 동의 ⑤ '응시 취소(1차 불합격)'(`consent_version` v1.8) · 시작 전 '이어가기 3번까지' · OV-01 남은 횟수(`paused.resumes_left`) · 공개일이 지나도 결과가 없을 때 문구 · 전역 401 · 오프라인 감지(15초 뒤 연결 닫음) · 자동 저장 실패를 서버 기록(`autosave_failed`, 멈추지 않음) · 고른 스피커로 질문 음성 · 뺀 장치 대신 다른 장치로 열기(`ideal`) · 환경 점검 요청을 차례로(늦은 '장치 미확인' 응답이 통과 표시를 지우던 문제).
+- **알려진 한계로 둠:** 화면이 `navigate` 를 보내지 않음, 2xx 인데 JSON 이 아닌 응답, 모바일 분기 없음, api 1프로세스 전제.
+- 마무리(같은 날): 프론트의 'Huge' 표기는 그대로 둔다(사용자 결정). 화면정의서 §12 🔗 목록 30개는 API 명세서 v1.2 에 모두 있음을 확인했고, 빠진 '마감 때 녹음 중이던 문항 = 미응답 0점'을 TRD 10장에 더했다. ai-architecture 옛 도면 4개는 mermaid 코드 블록으로 정리했다. 문서 논의사항 열린 항목 0개.
+
 ## D. 출처 (외부 모델)
 
 - TTS Supertonic: <https://github.com/supertone-inc/supertonic> · <https://pypi.org/project/supertonic-numpy2/> · <https://huggingface.co/snowy-0wl/supertonic-2>
@@ -269,7 +279,9 @@ RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어
 | LLM 생성 속도 | 약 68 tok/s, 첫 호출(로딩 포함) 45초 → 시작 시 미리 호출(warm-up) |
 | TTS | 9.3초 음성 생성 2.9초 |
 | STT | 9.3초 음성 인식 1.5~2.0초 |
-| GPU 메모리 | 5.4 / 6 GB (3개 모델 동시) |
+| GPU 메모리 | 5.4 / 6 GB (llm-rt + stt 2개. 2026-11-09 재측정 5,469 / 6,144 MiB) |
+| 모델 배치 | GPU: llm-rt(Qwen3 4B — 질문 다듬기·꼬리질문·이력서 정리·공고 초안·T5~T8 채점)·stt. CPU: llm-eval(Qwen3 8B — T10 결과 이유만)·embed·tts·ocr |
+| embed 메모리 | 1.59 GiB(2026-11-09) · 1.86 GiB(2026-11-06), 상한 5 GiB |
 | llm-eval (Qwen3 8B, CPU 6스레드) | 약 5.4 tok/s, 메모리 약 4~5GB |
 | 채점 전체 (10문항 + 코딩 2문제, T5·T10·T6·T7·T8) | 70~181초 (목표 10분 이내). 결과 이유(T10)를 근거 번호 방식으로 바꾼 뒤 70초 |
 
@@ -281,3 +293,10 @@ RAG 단계 에이전트 검토(code-reviewer) 반영: pgvector 를 못 만들어
 ## C-12. 꼬리질문 질문 종류별 1개 (2026-11-06, 사용자 승인)
 
 - 원래 PRD INT-06 은 질문당 1개·전체 4개였다. 앞 질문이 상한을 다 써서 직무 질문에 꼬리질문이 나오지 않아 종류별 1개를 더했다(`engine.followupLimitCause`). 개인용 문서에 반영했다.
+
+## C-13. 근거 대조 90% 일치와 채점 온도 0 (2026-11-09, 사용자 결정 C)
+
+- 원래 PRD EVL-02·TRD 8-2 ② 는 근거 문장이 답변 원문에 그대로 있어야 했다(띄어쓰기·문장부호만 무시). AI 가 한두 글자 다르게 옮기면 거절돼 1점이 되고, 같은 답변의 점수가 65.00~66.60 으로 흔들렸다(논의사항 E17, 92자 중 98% 일치한 근거도 거절).
+- 바꾼 것: ① 띄어쓰기·문장부호를 뺀 글에서 같은 구절이 없으면 90% 이상 비슷한 답변 속 구절을 찾아(`scoring.matchQuote`, `QUOTE_MATCH_RATIO`) 그 구절을 근거로 저장한다. 저장되는 근거는 늘 답변에서 잘라 온 글이다. 6글자 하한은 그대로. ② T5 채점 온도 0.1 → 0.
+- 영향: 점수가 나오는 방식이 바뀐다(판정 규칙 변경). 온도 0 이 LLM 서버를 다시 띄운 뒤에도 같은 점수를 내는지는 재지 않았다. 개인용 문서 반영.
+- 남은 흔들림(2026-11-09 사용자 결정: 그대로 둠): LLM 서버가 동시에 들어온 요청을 묶어 계산하므로, 진행 중 면접과 채점이 겹치면 온도 0 이어도 점수가 조금 달라진다(실측 65.40 ↔ 66.15, 다른 일이 없을 때는 65.40 고정). 채점 시간을 나누거나 채점 전용 모델로 옮기지 않는다.

@@ -294,7 +294,10 @@ def test_generatedQuestionsSavedForReviewExceptResume(sessionFactory, world):
     assert all(q.status == "pending" and q.duplicate_group for q in saved)
     with sessionFactory() as db:
         first = db.get(Application, appId)
-        second = Application(user_id=first.user_id, posting_id=first.posting_id, attempt_status="ready", resume_snapshot=RESUME)
+        other = User(email="other@example.com", password_hash="x", name="이지원", role="applicant")  # 공고마다 한 사람 1건
+        db.add(other)
+        db.flush()
+        second = Application(user_id=other.id, posting_id=first.posting_id, attempt_status="ready", resume_snapshot=RESUME)
         db.add(second)
         db.commit()
         secondId = second.id

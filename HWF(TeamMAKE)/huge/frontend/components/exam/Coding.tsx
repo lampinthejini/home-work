@@ -62,8 +62,9 @@ export function CodingIntro({ info, onStart, awayCount }: { info: CodingInfo; on
 }
 
 /** S-A11 코딩테스트. 시간은 서버가 재고, 화면은 받은 남은 시간으로 센다 */
-export function CodingTest({ sessionId, problems, remainingSec, paused, onFinished }: {
+export function CodingTest({ sessionId, problems, remainingSec, paused, onFinished, onAutosaveFailed }: {
     sessionId: string; problems: Problem[]; remainingSec: number; paused: boolean; onFinished: (auto: boolean) => void;
+    onAutosaveFailed: (problemNo: number) => void;
 }) {
     const { toast } = useApp();
     const [active, setActive] = useState(1);
@@ -109,7 +110,8 @@ export function CodingTest({ sessionId, problems, remainingSec, paused, onFinish
             }
         }
         toast("error", "코드를 자동 저장하지 못했습니다");
-    }, [sessionId, toast, onFinished]);
+        onAutosaveFailed(problemNo);  // 서버 기록에 남긴다 (API 명세서 8장)
+    }, [sessionId, toast, onFinished, onAutosaveFailed]);
 
     useEffect(() => {
         if (paused) return;

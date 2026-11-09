@@ -11,6 +11,8 @@ export class ApiError extends Error {
     }
 }
 
+export const UNAUTHORIZED_EVENT = "huge:unauthorized";
+
 type Body = Record<string, unknown> | unknown[] | FormData | undefined;
 
 export async function api<T = unknown>(path: string, options: { method?: string; body?: Body; signal?: AbortSignal } = {}): Promise<T> {
@@ -32,6 +34,8 @@ export async function api<T = unknown>(path: string, options: { method?: string;
     if (res.status === 204) return undefined as T;
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+        // 로그인이 끝났다: 화면에 남은 사용자 정보를 지우도록 알린다 (§2.3). 로그인 확인용 /auth/* 는 제외
+        if (res.status === 401 && !path.startsWith("/auth/") && typeof window !== "undefined") window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
         throw new ApiError(res.status, data.code ?? "UNKNOWN", data.message ?? "요청을 처리하지 못했습니다.");
     }
     return data as T;

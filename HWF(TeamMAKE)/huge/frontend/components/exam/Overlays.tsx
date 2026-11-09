@@ -8,13 +8,13 @@ import { useFocusTrap } from "@/components/Ui";
 import { longDateTime } from "@/lib/format";
 
 export type Overlay =
-    | { kind: "paused"; reason: string; resumeUntil: string | null }
+    | { kind: "paused"; reason: string; resumeUntil: string | null; resumesLeft?: number | null }
     | { kind: "warn"; label: string; phase: "interview" | "coding" }
     | { kind: "cancelled" }
     | { kind: "closed" }
     | { kind: "withdrawn" }
     | { kind: "ended"; detail: string | null }
-    | { kind: "checking" };
+    | { kind: "checking"; long?: boolean };
 
 function Shell({ icon, title, children, labelId }: { icon: string; title: string; children: React.ReactNode; labelId: string }) {
     // 응시 중 오버레이는 ESC 로 닫히지 않는다 (§8). 뒤 화면은 포커스·클릭을 받지 않게 한다
@@ -64,7 +64,9 @@ export function ExamOverlay({ overlay, closeAt, releaseAt, onWarnAck }: { overla
         case "checking":
             return (
                 <Shell icon="⏳" title="연결 상태를 확인하고 있습니다" labelId="ov-checking">
-                    <p className="center muted">잠시만 기다려 주세요. 최대 20초 정도 걸립니다.</p>
+                    <p className="center muted">{overlay.long
+                        ? "면접 서버와 연결되지 않았습니다. 서버가 응시 상태를 정하는 데 2~3분 걸릴 수 있습니다. 이 화면을 닫지 말고 기다려 주세요."
+                        : "잠시만 기다려 주세요. 최대 20초 정도 걸립니다."}</p>
                 </Shell>
             );
         case "paused":
@@ -74,6 +76,9 @@ export function ExamOverlay({ overlay, closeAt, releaseAt, onWarnAck }: { overla
                     <ul>
                         <li>끊긴 질문은 처음부터 새 답변 시간으로 다시 진행합니다. 감점은 없습니다.</li>
                         <li>접수 마감 {longDateTime(overlay.resumeUntil ?? closeAt)}까지 이어갈 수 있습니다.</li>
+                        {overlay.resumesLeft != null && <li>{overlay.resumesLeft > 0
+                            ? `이번에 이어간 뒤에도 연결 끊김이 ${overlay.resumesLeft}번 더 생기면 다시 이어갈 수 있습니다.`
+                            : "이번이 마지막 이어가기입니다. 이어간 뒤 다시 끊기면 응시가 끝나고 답변한 문항까지 평가합니다."}</li>}
                         <li>연결 상태: <span className={online ? "conn conn-ok" : "conn conn-down"}>{online ? "다시 연결됨" : "연결 안 됨"}</span></li>
                     </ul>
                     <div className="center" style={{ marginTop: 20 }}>

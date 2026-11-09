@@ -373,7 +373,7 @@ v1.0 · 2026-10-29 · 최초 작성
 
 ```json
 {
-  "consent_version": "v1.7",
+  "consent_version": "v1.8",
   "items": {
     "data_collection": true,
     "ai_decision": true,
@@ -393,6 +393,8 @@ v1.0 · 2026-10-29 · 최초 작성
 ### GET /me/applications 의 `consented`
 
 `GET /me/applications`(9장)의 항목마다 `consented`(철회하지 않은 동의가 있는지)를 준다. 계정 탭의 [동의 철회] 버튼이 이 값을 본다(CONFLICTS W2).
+
+`connected`는 진행 중(`interviewing`·`coding`) 응시의 면접 화면이 지금 서버에 붙어 있는지다. 진행 중이 아니면 `false`. 화면은 진행 중인데 `false`이면 "다른 창에서 응시 중" 대신 미연결 안내를 보여 준다(2026-11-09, 논의사항 E7).
 
 ### POST /applications/{id}/resume/upload
 
@@ -577,7 +579,7 @@ v1.0 · 2026-10-29 · 최초 작성
 
 `multipart/form-data` — `segment_no`(접속 구간 번호, 1 이상), `chunk_no`(구간 안에서 0부터), `phase`(`interview` · `coding`), `file`(WebM 10초 조각, 카메라 영상과 마이크 소리, 약 300kbps). 응답 204. `segment_no`는 start·resume 응답의 `recording_segment`를 쓴다(시작 1, 이어가기마다 1씩 늘어남). MediaRecorder 조각은 구간의 첫 조각에만 헤더가 있다.
 
-- **저장 방식(CONFLICTS R1)**: 저장소(RustFS)는 이어 쓰기가 없어서 조각마다 객체 하나로 저장하고(`recordings/{지원}/{구간}/00000.webm` …), 재생할 때 순서대로 이어 보낸다. 받는 쪽에서는 구간마다 파일 하나와 같다. 같은 조각을 다시 올리면 한 번만 저장한다.
+- **저장 방식(CONFLICTS R1)**: 저장소(RustFS)는 이어 쓰기가 없어서 조각마다 객체 하나로 저장하고(`recordings/{지원}/{구간}/00000.webm` …), 재생할 때 순서대로 이어 보낸다. 받는 쪽에서는 구간마다 파일 하나와 같다. 같은 조각을 다시 올리면 한 번만 저장한다. 순서가 바뀌어 늦게 온 작은 번호 조각도 저장하고, 재생은 번호순이다(2026-11-09, 논의사항 E12).
 - **상한(CONFLICTS R6)**: 조각 5MB, 구간 400MB. 응시가 끝난 뒤 60초까지만 마지막 조각을 받는다. 구간의 첫 조각은 WebM 머리글을 확인한다. 이를 어기면 4xx이고(413 `FILE_TOO_LARGE`, 400 `INVALID_FILE`, 409 `NOT_IN_PROGRESS`, 409 `SEGMENT_MISMATCH`) 화면은 장애로 보지 않고 그 조각만 버린다.
 - **저장소 장애(CONFLICTS R5)**: 저장소에 쓰지 못하면 503 `STORAGE_UNAVAILABLE`을 돌려주고 `session_events`에 `upload_error`를 남긴다.
 - **재시도와 실패 알림**: 실패하면 화면이 1·2·4초 간격으로 3번(`upload_retry_limit`) 다시 올리고, 그래도 안 되면 WebSocket으로 `upload_failed`를 보낸다(7장). 서버는 화면이 말한 원인을 믿지 않고 서버 기록으로 정한다. 최근 60초 안에 `upload_error`가 있으면 `server_error`(서버 쪽 장애, 이어가기 횟수에 안 셈), 없으면 `upload_failed`(지원자 쪽, 횟수에 셈)로 장애 중단한다.
@@ -618,8 +620,9 @@ v1.0 · 2026-10-29 · 최초 작성
 | `blur` | `at`, `duration_ms` | 창이 포커스를 잃고 2초(`blur_threshold_sec`) 넘게 안 돌아옴. 2초 미만은 보내지 않음 |
 | `fullscreen` | `state`(`exit`), `at` | 전체 화면 해제 |
 | `navigate` | `at`, `href` | 다른 주소로 가려 함. 서버만 받을 준비가 되어 있고 화면은 보내지 않는다(실제로 떠날 때만 `unload`) |
-| `device_error` | `device`(`mic` · `camera`), `kind`(`ended` · `open_failed`) | 트랙 `ended` 이벤트, 장치 열기 실패(무음 응시 방지, CONFLICTS C-3), 녹음기(`mic`)·녹화기(`camera`)를 시작하지 못함(`open_failed`). 어느 장치가 어떻게 멈췄는지 기록하고 장애 중단한다. 그 밖의 값은 `unknown`으로 기록한다. 직전 30초 안에 `permission` 기록이 있으면 장애가 아니라 응시 종료다 |
+| `device_error` | `device`(`mic` · `camera`), `kind`(`ended` · `open_failed`) | 트랙 `ended` 이벤트, 장치 열기 실패(무음 응시 방지, CONFLICTS C-3), 녹음기(`mic`)·녹화기(`camera`)를 시작하지 못함(`open_failed`). 어느 장치가 어떻게 멈췄는지 기록하고 장애 중단한다. 그 밖의 값은 `unknown`으로 기록한다. 직전 30초 안에 `permission` 기록이 있으면 장애가 아니라 응시 종료다. `kind: ended` 는 바로 정하지 않고 3초 기다린다: 그사이 연결이 끊기면 15초 끊김 판정에 맡기고, `unload`·`permission` 기록이 생기면 응시 종료, 둘 다 없으면 장애 중단이다(창을 닫으면 장치가 먼저 꺼지기 때문, 2026-11-09 논의사항 E18). `open_failed` 는 바로 장애 중단이다 |
 | `permission` | `device`(`mic` · `camera`) | 마이크·카메라 권한을 직접 끔. 장애가 아니라 `terminate`(`ended`, detail `permission_revoked`)로 응시 종료(TRD 7-2, OV-07) |
+| `autosave_failed` | `problem_no` | 코딩 자동 저장을 3번 다시 해도 실패(8장). 서버는 기록(session_events `autosave_failed`)만 남기고 멈추지 않는다. 끊김 판정은 heartbeat 로 한다 |
 | `upload_failed` | (없음) | 녹화 조각을 3번 다시 올려도 실패(6장). 서버가 원인을 기록으로 정해 장애 중단(`paused`) 한다(CONFLICTS R5) |
 | `warn_ack` | `seq` | 1번째 이탈 경고 창에서 \[확인\]을 누름 |
 | `unload` | `at`, `detail` | 창 닫기·새로고침. 연결이 살아 있으면 여기로, 아니면 `POST /interview/{sid}/events`로 |
@@ -635,7 +638,7 @@ v1.0 · 2026-10-29 · 최초 작성
 | `caption` | `seq`, `answer_no`, `chunk_no`, `text`, `is_final` | `caption_interval_sec`마다 임시 자막, 답변 끝에 최종 글자(`chunk_no` 10000). 화면은 더 작은 `chunk_no`나 지난 `seq`를 버린다 |
 | `warn` | `count`(1), `seq`, `remaining_sec`, `phase`, `label` | 1번째 이탈. 시간을 멈추고 경고 창을 띄운다. `label`은 이탈 종류 글자(다른 탭으로 전환·다른 창으로 이동·전체 화면 해제·다른 주소로 이동) |
 | `resume` | `seq`, `remaining_sec`, `phase` | `warn_ack` 뒤 다시 시작. 질문 준비·답변 처리 중이었으면 `seq`·`remaining_sec`이 `null`이고 경고창만 닫는다. (장애 이어가기는 새 세션이므로 이 메시지가 아니라 `question`으로 다시 시작한다) |
-| `paused` | `reason`, `resume_until` | 장애로 멈춤(연결이 살아 있을 때만 도착). 화면은 OV-01. `reason`: `heartbeat_timeout` · `ws_abnormal_close` · `device_error` · `upload_failed` · `server_error` · `unknown` |
+| `paused` | `reason`, `resume_until`, `resumes_left` | 장애로 멈춤(연결이 살아 있을 때만 도착). 화면은 OV-01. `reason`: `heartbeat_timeout` · `ws_abnormal_close` · `device_error` · `upload_failed` · `server_error` · `unknown` |
 | `phase` | `to`(`coding`), `coding` → 8장 문제 목록(`problems`, `remaining_sec`, `started`, `away_count`, `auto_start_sec`) | AI 면접이 끝남 |
 | `terminate` | `reason`, `detail`, `message` | 면접이 끝남. `reason`: `completed` · `cancelled`(2번째 이탈) · `closed`(마감) · `ended`(장애 아님) · `withdrawn`(동의 철회). `detail`: `unload` · `permission_revoked` · `exit_twice` · `resume_limit`(이어가기 횟수 초과, CONFLICTS D1) · `replaced`(다른 연결로 교체) · `coding_timeout`(코딩 시간 끝). 화면이 `detail`로 OV-07·OV-03 등을 고른다(D-09). `withdrawn`일 때 화면은 "동의 철회로 응시가 취소되었습니다" 오버레이를 띄운다(CONFLICTS W5) |
 | `error` | `code`, `message` | 형식이 틀린 메시지(`BAD_MESSAGE`)·모르는 `type`(`UNKNOWN_TYPE`)·`rtc_*` 메시지(`RTC_DISABLED`). 연결은 유지 |
@@ -766,7 +769,8 @@ v1.0 · 2026-10-29 · 최초 작성
       "release_at": "2026-11-11T10:00:00+09:00",
       "result_until": null,
       "applied_at": "2026-11-03T09:40:00+09:00",
-      "consented": true
+      "consented": true,
+      "connected": false
     }
   ],
   "total": 1, "page": 1, "size": 20
@@ -1044,6 +1048,7 @@ v1.0 · 2026-10-29 · 최초 작성
 | 이력서 | `PDF_TOO_COMPLEX` | 400 | 시간(30초)·메모리 제한을 넘겼거나 리더가 비정상 종료한 PDF |
 | 이력서 | `RESUME_REQUIRED_MISSING` | 422 | 빠진 항목으로 스크롤 + 빨간 테두리 |
 | 이력서 | `RESUME_LOCKED` | 409 | 제출한 이력서는 수정할 수 없습니다 |
+| 지원 | `APPLICATION_LOCKED` | 409 | 제출한 지원서에는 동의를 다시 할 수 없습니다 |
 | 이력서 | `UPLOAD_REQUIRED` | 400 | 올린 이력서 파일을 찾을 수 없습니다 |
 | 면접 | `CAPACITY_FULL` | 429 | 동시 면접 인원이 찼습니다. 응시 기회는 그대로입니다 + \[다시 시도\] (자동 보호는 미구현, CONFLICTS F6) |
 | 면접 | `PRECHECK_REQUIRED` | 409 | 환경 점검(S-A06)으로 |
@@ -1137,17 +1142,17 @@ v1.0 · 2026-10-29 · 최초 작성
 | 1 | 처리함 | 7-6 STT 실패, CONFLICTS A1 (본문 〔논의사항 #1〕) | **2026-11-06:** CONFLICTS A1 은 지금 '처음 1번 + 재시도 2번'으로 적혀 있어 코드와 같다. (이전 기록) CONFLICTS A1 은 "1회 재시도 후 장애 중단"이라고 적었으나 코드는 처음 시도 + `stt_retry_limit`(2)번 다시 해서 최대 3번 시도한다(`engine.py:637-649`, 주석도 "2번 다시 해도 실패"). 본문은 코드(설정 `stt_retry_limit`=2)대로 적었다. | CONFLICTS A1 표현을 "2번 다시"로 고치거나, 1회로 줄일지 결정 |
 | 2 | 처리함 | 2-6 답변 음성 Range | **2026-11-06:** CONFLICTS R2 는 지금 '답변 음성도 Range 없음'으로 적혀 있어 코드와 같다. (이전 기록) CONFLICTS R2는 "답변 음성은 그대로(Range 지원)"라고 하는데 `admin.py:393-401`의 답변 음성 응답에는 Range 처리가 없다(전체를 `Response`로 보냄). 본문은 세 주소 모두 Range 없음으로 적었다. | Range를 구현할지, 지금처럼 전체 전송이면 CONFLICTS R2를 고칠지 결정 |
 | 3 | 처리함 | 2-6, 화면정의서 | **2026-11-06:** 옛 주소 `/media/{kind}` 는 이 문서의 변경 기록·논의에만 남아 있다. (이전 기록) 문서는 `/media/{kind}/{path}` 하나였으나 실제는 지원자용 `/media/questions/{question_id}`와 관리자용 `/admin/media/…` 3개이고 `question_id`는 정수다. 화면정의서·기술 아키텍처가 옛 주소를 적었는지 확인 필요. | 개인용 화면정의서 v0.7·기술 아키텍처 v1.2도 이 주소로 통일 |
-| 4 | 구현 확인 필요 | 5장 `POST /me/resume/upload`, `GET /me/resume/extract-status` | 문서(S-A13 이력서 탭)에 있으나 라우터에 없다(`routers/applications.py:225-255`에는 `GET/PUT/DELETE /me/resume`만 있고, `acceptUpload`의 `applicationId` 선택값만 마이페이지 업로드를 염두에 둔 흔적). 미구현 표시로 남겼다. | 화면이 이 두 API를 쓰는지 확인. 안 쓰면 요구사항을 미구현 범위로 유지 |
-| 5 | 구현 확인 필요 | 11장 `SERVER_ERROR`(500)·`AI_UNAVAILABLE`(503) | **2026-11-06: `SERVER_ERROR` 는 공통 500 처리기로 구현함. `AI_UNAVAILABLE` 은 쓰는 곳 없음.** 이전 기록: 읽은 라우터와 `errors.py`에는 이 코드를 돌려주는 곳이 없고 500 처리기도 없다(처리 안 된 예외는 FastAPI 기본 응답 모양). 다른 파일(`llm.py` 등)에서 쓰는지는 이름으로 검색하지 못해 확인하지 못했다. | 쓰는 곳이 없으면 오류 모양 통일(TRD 4-3)을 위해 500 처리기 필요 여부 결정 |
-| 6 | 기타 | 3장 로그인 `redirect` | 관리자 첫 로그인 이동은 문서 `/admin/password`, 코드 `/password/change`(`auth.py:87`). 지원자 기본 이동은 문서 `/me`, 코드 `/jobs`. 본문은 코드로 맞췄다. | 화면정의서 v0.7 경로와 일치하는지 확인 |
-| 7 | 기타 | 11장 `LOGIN_REQUIRED` | 문서의 `UNAUTHORIZED`(401)를 코드는 `LOGIN_REQUIRED`로 돌려준다(`deps.py:18`). 화면이 어느 값을 보는지 확인 필요. | 문서를 코드에 맞춤(적용함). TRD 4-3 코드 목록 확인 |
-| 8 | 기타 | 2-5 리다이렉트 | 문서는 308인데 `proxy.ts:9`의 `NextResponse.redirect` 기본값은 307이다. 본문은 307로 고쳤다. | 308이 필요하면 코드 수정 |
-| 9 | 구현 확인 필요 | 6장 `POST /applications` | 새 지원도 200이다(`applications.py:39` 상태 코드 지정 없음). 문서의 201은 틀렸고 200으로 고쳤다. 화면정의서가 201을 가정하는지 확인. | 200 유지 또는 코드를 201로 |
+| 4 | 처리함(2026-11-09: 화면은 이 두 API 를 쓰지 않음(이력서는 `/applications/{id}/resume/...` 사용). 미구현 표시 유지) | 5장 `POST /me/resume/upload`, `GET /me/resume/extract-status` | 문서(S-A13 이력서 탭)에 있으나 라우터에 없다(`routers/applications.py:225-255`에는 `GET/PUT/DELETE /me/resume`만 있고, `acceptUpload`의 `applicationId` 선택값만 마이페이지 업로드를 염두에 둔 흔적). 미구현 표시로 남겼다. | 화면이 이 두 API를 쓰는지 확인. 안 쓰면 요구사항을 미구현 범위로 유지 |
+| 5 | 처리함(2026-11-09: `SERVER_ERROR` 구현됨. `AI_UNAVAILABLE` 은 쓰는 곳 없음(문서에 '미사용'으로 둠)) | 11장 `SERVER_ERROR`(500)·`AI_UNAVAILABLE`(503) | **2026-11-06: `SERVER_ERROR` 는 공통 500 처리기로 구현함. `AI_UNAVAILABLE` 은 쓰는 곳 없음.** 이전 기록: 읽은 라우터와 `errors.py`에는 이 코드를 돌려주는 곳이 없고 500 처리기도 없다(처리 안 된 예외는 FastAPI 기본 응답 모양). 다른 파일(`llm.py` 등)에서 쓰는지는 이름으로 검색하지 못해 확인하지 못했다. | 쓰는 곳이 없으면 오류 모양 통일(TRD 4-3)을 위해 500 처리기 필요 여부 결정 |
+| 6 | 처리함(2026-11-09: 화면정의서 v0.7 도 `/password/change`·`/jobs` 로 같음) | 3장 로그인 `redirect` | 관리자 첫 로그인 이동은 문서 `/admin/password`, 코드 `/password/change`(`auth.py:87`). 지원자 기본 이동은 문서 `/me`, 코드 `/jobs`. 본문은 코드로 맞췄다. | 화면정의서 v0.7 경로와 일치하는지 확인 |
+| 7 | 처리함(2026-11-09: 화면 코드는 오류 코드 이름을 보지 않음(상태 코드만 봄). TRD 에 `UNAUTHORIZED` 없음) | 11장 `LOGIN_REQUIRED` | 문서의 `UNAUTHORIZED`(401)를 코드는 `LOGIN_REQUIRED`로 돌려준다(`deps.py:18`). 화면이 어느 값을 보는지 확인 필요. | 문서를 코드에 맞춤(적용함). TRD 4-3 코드 목록 확인 |
+| 8 | 처리함(2026-11-09: 307 로 충분(경로를 바꾸는 GET 이동뿐). 코드 그대로) | 2-5 리다이렉트 | 문서는 308인데 `proxy.ts:9`의 `NextResponse.redirect` 기본값은 307이다. 본문은 307로 고쳤다. | 308이 필요하면 코드 수정 |
+| 9 | 처리함(2026-11-09: 화면정의서에 201 가정 없음. 200 유지) | 6장 `POST /applications` | 새 지원도 200이다(`applications.py:39` 상태 코드 지정 없음). 문서의 201은 틀렸고 200으로 고쳤다. 화면정의서가 201을 가정하는지 확인. | 200 유지 또는 코드를 201로 |
 | 10 | 처리함 | 7-3 `device_error` | **2026-11-06:** 화면은 `ended`·`open_failed` 만 보내고 `silent` 는 보내지 않는다. `device` 는 실패한 장치다. (이전 기록) 문서는 `kind`가 `ended` · `silent`였으나 서버는 `ended` · `open_failed`만 알고 그 밖의 값은 `unknown`으로 기록한다(`engine.py:414-421`). 화면이 `silent`를 보내는지 확인 필요(보내도 장애 중단은 된다). | 화면 코드의 `kind` 값 확인 |
-| 11 | 구현 확인 필요 | 5장 동의·업로드 오류 | 작성 중이 아닌 지원에 동의·이력서 올리기·취소를 하면 `RESUME_LOCKED`(409)를 돌려준다(`applications.py:34-36`). 동의 단계에도 같은 코드를 써서 이름이 맞지 않는다. | 오류 코드 이름 정리 여부 결정 |
-| 12 | 구현 확인 필요 | 4장 `DELETE /admin/postings/{id}` | 삭제 가능 여부는 지원 건 전체(작성 중 포함, `admin.py:154`)로 보는데, 목록의 `applicant_count`는 작성 중을 뺀다(`admin.py:53`). 목록에 지원자 0명인데 삭제가 409가 될 수 있다. | 두 기준을 맞출지 결정 |
-| 13 | 구현 확인 필요 | 10장 지원자 목록 | 문서에 있던 `attempt_status` 필터 쿼리가 코드에 없다(`admin.py:169-174`). 목록 크기 기본 50(문서 20). 각 행마다 이벤트 건수를 따로 세어(`admin.py:194-195`) 크기 200이면 쿼리가 많다. | 필터가 필요한지 화면정의서 S-R05 확인 |
-| 14 | 구현 확인 필요 | 6장 precheck | 네트워크 속도(`network_mbps`)를 보내지 않으면 통과 처리하고, 하한 1Mbps는 코드에 고정(`interview.py:28,49-58`)이라 문서·설정에 근거가 없다. | 하한값을 TRD에 정할지 결정 |
+| 11 | 처리함(2026-11-09: 동의 단계는 `APPLICATION_LOCKED`(409), 이력서 올리기·저장은 `RESUME_LOCKED` 그대로) | 5장 동의·업로드 오류 | 작성 중이 아닌 지원에 동의·이력서 올리기·취소를 하면 `RESUME_LOCKED`(409)를 돌려준다(`applications.py:34-36`). 동의 단계에도 같은 코드를 써서 이름이 맞지 않는다. | 오류 코드 이름 정리 여부 결정 |
+| 12 | 처리함(2026-11-09: 확인: 삭제 버튼은 임시 저장(draft) 공고에만 있고 draft 공고에는 지원을 만들 수 없어 두 기준이 어긋날 일이 없음. 코드 그대로) | 4장 `DELETE /admin/postings/{id}` | 삭제 가능 여부는 지원 건 전체(작성 중 포함, `admin.py:154`)로 보는데, 목록의 `applicant_count`는 작성 중을 뺀다(`admin.py:53`). 목록에 지원자 0명인데 삭제가 409가 될 수 있다. | 두 기준을 맞출지 결정 |
+| 13 | 처리함(2026-11-09: 화면은 `size=200` 으로 받아 응시 상태·이름 필터를 화면에서 함(S-R05 요구 충족). 행마다 세는 쿼리는 지원자가 많아지면 손볼 것) | 10장 지원자 목록 | 문서에 있던 `attempt_status` 필터 쿼리가 코드에 없다(`admin.py:169-174`). 목록 크기 기본 50(문서 20). 각 행마다 이벤트 건수를 따로 세어(`admin.py:194-195`) 크기 200이면 쿼리가 많다. | 필터가 필요한지 화면정의서 S-R05 확인 |
+| 14 | 확정(현행 유지, 2026-11-09 사용자 결정: 문서를 구현에 맞춤) | 6장 precheck | 네트워크 속도(`network_mbps`)를 보내지 않으면 통과 처리하고, 하한 1Mbps는 코드에 고정(`interview.py:28,49-58`)이라 문서·설정에 근거가 없다. | 하한값을 TRD에 정할지 결정 |
 | 15 | 확정(현행 유지) | CONFLICTS V2 | 공고 불러오기(`/admin/postings/import`) 미구현. 범위 결정 필요. | 이후 범위로 두거나 삭제 결정 |
 | 16 | 확정(현행 유지) | CONFLICTS V3 | 관리자 원본 이력서 보기 API 없음(원본은 저장소에 있음). | 필요하면 추가 승인 |
 | 17 | 확정(현행 유지) | CONFLICTS V4 | 답변 음성 WebSocket 이진 PCM 전송, TRD 5-2 수정 또는 승인 필요. | TRD v1.6에 반영 |
@@ -1157,10 +1162,10 @@ v1.0 · 2026-10-29 · 최초 작성
 | 21 | 확정(현행 유지) | CONFLICTS C11 | 연결 없는 진행 중 응시를 90초 뒤 원인 미상 장애로 처리. 코드 위치는 `jobs.py:23,33-46`(90초 유예, 1분마다 점검), `main.py:40-53`(재시작은 즉시)로 확인했다. 사용자 결정은 아직 없다. | 확인 후 확정 |
 | 22 | 확정(현행 유지) | CONFLICTS D1·U7 | 이어가기 3회, 꼬리질문 목표 시간 `followup_target_sec`은 (PRD v1.7·TRD v1.6 에 반영됨. 팀 원본에는 없음) | PRD v1.7·TRD v1.6에 반영 |
 | 23 | 처리함 | CONFLICTS D2 vs F10 | **2026-11-06:** CONFLICTS D2 는 지금 F10 과 같게 적혀 있다. (이전 기록) CONFLICTS D2는 "다른 키는 형식만 검사"라고 하는데 F10과 코드는 다른 키를 400으로 거절한다(`admin.py:375-376`). 본문은 F10·코드를 따랐다. | D2 설명 정정 |
-| 24 | 기타 | AI 초안 모델 | AI 공고 초안을 채점용 8B가 아니라 llm-rt(Qwen3 4B)로 쓴다(CONFLICTS 'AI 초안 구현 메모', 확인 필요). | 8B 도입 뒤 다시 측정 |
-| 25 | 구현 확인 필요 | 8장 autosave | 자동 저장이 3번 실패해도 화면은 토스트만 띄우고 서버에 알리지 않아(`Coding.tsx:97-112`) 설계의 "장애 후보"로 이어지지 않는다. | 서버에 알릴지(`upload_failed` 등) 결정 |
-| 26 | 구현 확인 필요 | 7-3 `navigate`, 11장 `SERVER_ERROR` | 화면이 `navigate`를 보내지 않는다. 처리 안 된 서버 예외의 응답 모양은 2026-11-06 해결함(#5). | `navigate` 사용 여부 결정 |
-| 27 | 구현 확인 필요 | 6장 precheck | 하한 1Mbps 점검은 화면이 `network_mbps`를 보낼 때만 걸리고, PRD 의 "5Mbps 이상 권장"은 어디서도 강제하지 않는다. | PRD·TRD 와 구분해 적기 |
+| 24 | 처리함(2026-11-09: TRD 논의사항 13(확정, 현행 유지)과 같은 항목) | AI 초안 모델 | AI 공고 초안을 채점용 8B가 아니라 llm-rt(Qwen3 4B)로 쓴다(CONFLICTS 'AI 초안 구현 메모', 확인 필요). | 8B 도입 뒤 다시 측정 |
+| 25 | 처리함(2026-11-09: 3번 실패하면 WebSocket `autosave_failed` 로 서버 기록(session_events)에 남김. 장애 판정은 heartbeat 그대로) | 8장 autosave | 자동 저장이 3번 실패해도 화면은 토스트만 띄우고 서버에 알리지 않아(`Coding.tsx:97-112`) 설계의 "장애 후보"로 이어지지 않는다. | 서버에 알릴지(`upload_failed` 등) 결정 |
+| 26 | 확정(알려진 한계, 2026-11-09): 화면은 `navigate` 를 보내지 않음 | 7-3 `navigate`, 11장 `SERVER_ERROR` | 화면이 `navigate`를 보내지 않는다. 처리 안 된 서버 예외의 응답 모양은 2026-11-06 해결함(#5). | `navigate` 사용 여부 결정 |
+| 27 | 확정(현행 유지, 2026-11-09 사용자 결정: 문서를 구현에 맞춤) | 6장 precheck | 하한 1Mbps 점검은 화면이 `network_mbps`를 보낼 때만 걸리고, PRD 의 "5Mbps 이상 권장"은 어디서도 강제하지 않는다. | PRD·TRD 와 구분해 적기 |
 | 28 | 처리함(2026-11-04) | 3장 `POST /auth/login` | 로그인 응답으로는 계정 존재가 드러나지 않게 IP 단위 차단으로 교체함. 알려진 한계: 회원가입의 `EMAIL_TAKEN` 으로도 드러난다. 서버 PC 안에서만 접속하는 현재 범위에서는 그대로 둔다. 외부 접속을 열 때 함께 고친다 | 사용자 결정 2026-11-04 |
 
 ## 2026-11-06 검토 보정
@@ -1172,3 +1177,15 @@ v1.0 · 2026-10-29 · 최초 작성
 - 2-6 의 MinIO 표기를 객체 저장소로 고쳤다.
 - `device_error`·`fail_reason` 설명을 구현에 맞췄다. 논의사항 1·2·3·10·23 을 처리함으로 고쳤다.
 - 코딩테스트로 다시 연결되면 `phase` 메시지의 `coding.started` 는 `true`이고 `problems[].saved_code`·`saved_at` 에 저장된 코드가 온다. 서버는 이때부터 남은 시간을 다시 잰다.
+
+## 2026-11-09 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- 9장 `GET /me/applications` 에 `connected` 를 넣었다(E7).
+- 6장 녹화 조각: 늦게 온 작은 번호 조각도 저장한다(E12).
+- 7-3 `device_error`: `kind: ended` 는 3초 기다린 뒤 판정한다(E18).
+- 동시 시작 요청이 둘 다 통과하던 문제를 고쳤다(E10). `POST /applications/{id}/interview/start` 의 응답·오류는 그대로다.
+- 동의 단계 409 는 `APPLICATION_LOCKED`(이력서는 `RESUME_LOCKED` 그대로). `consent_version` 은 v1.8(동의 ⑤ 문구).
+- WebSocket: 화면 → 서버 `autosave_failed`(`problem_no`), 서버 → 화면 `paused` 에 `resumes_left`(앞으로 이어갈 수 있는 끊김 횟수). `/interview/state` 의 `resumes_left` 와 같은 값.
+- 논의사항 남은 항목을 사용자 결정으로 정리했다(설정·고정값은 문서를 구현에 맞춤, AI 설계는 구현대로).

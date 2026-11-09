@@ -148,3 +148,16 @@ def test_storageFailureIsRecordedAndCountedAsServerSide(adminClient, sessionFact
     with sessionFactory() as db:
         assert db.query(SessionEvent).filter_by(application_id=appId, type="upload_error").count() == 1
         assert recording.uploadFailureReason(db, db.get(Application, appId)) == "server_error"
+
+
+def test_lateSmallerChunkIsKeptNotDropped(adminClient, sessionFactory, bucket):
+    """조각이 순서가 바뀌어 오면 늦게 온 작은 번호도 저장한다. 다시 올린 것은 한 번만 센다 (E12)"""
+    client, appId, sid = started(adminClient, sessionFactory)
+    assert upload(client, sid, 0, WEBM_HEAD).status_code == 204
+    assert upload(client, sid, 2, b"third").status_code == 204
+    assert upload(client, sid, 1, b"second").status_code == 204  # 늦게 도착
+    assert upload(client, sid, 1, b"second").status_code == 204  # 다시 올림
+    with sessionFactory() as db:
+        rec = db.query(Recording).one()
+        assert (rec.last_chunk_no, rec.size_bytes) == (2, len(WEBM_HEAD) + len(b"second") + len(b"third"))
+    assert sorted(bucket) == [f"recordings/{appId}/1/0000{n}.webm" for n in range(3)]

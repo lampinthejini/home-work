@@ -437,3 +437,34 @@ def test_ackOnlyCoversPhrasesAdminSaw(sessionFactory, fake, adminClient, monkeyp
         db.commit()
     with pytest.raises(ev.NeedsReview):
         asyncio.run(ev.evaluate(appId))
+
+
+# ---------- E17 채점 흔들림 (2026-11-09 사용자 결정 C: 근거 90% 일치 허용 + 온도 0) ----------
+
+def test_nearlyExactQuoteIsAcceptedAndReplacedWithAnswerText():
+    # AI 가 한두 글자 다르게 옮긴 근거가 거절돼 1점이 되던 것 (E17). 저장하는 근거는 답변 속 실제 글이다
+    answer = "저는 결측값이 많은 데이터를 받아서 평균으로 채우지 않고, 원인을 먼저 찾아 수집 단계의 오류를 고쳤습니다."
+    out = ev.T5Out(items=[ev.T5Item(item="logic", score=4, quote="원인을 먼저 찾아서 수집 단계의 오류를 고쳤습니다")])
+    good, problems = ev.checkT5(out, ["logic"], answer)
+    assert not problems
+    assert good["logic"].quote == "원인을 먼저 찾아 수집 단계의 오류를 고쳤습니다"
+
+
+def test_madeUpQuoteIsStillRejected():
+    answer = "저는 결측값이 많은 데이터를 받아서 평균으로 채우지 않고, 원인을 먼저 찾아 수집 단계의 오류를 고쳤습니다."
+    out = ev.T5Out(items=[ev.T5Item(item="logic", score=5, quote="대규모 분산 학습 파이프라인을 직접 설계했습니다")])
+    good, problems = ev.checkT5(out, ["logic"], answer)
+    assert not good and problems
+
+
+def test_t5ScoresWithTemperatureZero(sessionFactory, fake, monkeypatch):
+    seen = []
+    original = fake.structured
+
+    async def spy(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        if schema is ev.T5Out:
+            seen.append(temperature)
+        return await original(schema, system, user, timeoutSec, maxTokens, temperature, lane)
+    monkeypatch.setattr(ev.llm, "structured", spy)
+    asyncio.run(ev.evaluate(makeApplication(sessionFactory)))
+    assert seen and set(seen) == {0}

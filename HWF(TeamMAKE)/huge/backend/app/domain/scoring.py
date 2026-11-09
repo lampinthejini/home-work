@@ -5,6 +5,7 @@
 
 import re
 from decimal import ROUND_HALF_UP, Decimal
+from difflib import SequenceMatcher
 
 EVAL_ITEMS = ("expertise", "logic", "relevance", "delivery", "culture_fit")
 DEFAULT_WEIGHTS = {"expertise": 30, "logic": 25, "relevance": 20, "delivery": 10, "culture_fit": 15}
@@ -78,11 +79,56 @@ def totalScore(interview: Decimal, coding: Decimal | None, codingEnabled: bool, 
     return roundScore(interview * (HUNDRED - ratio) / HUNDRED + (coding or Decimal(0)) * ratio / HUNDRED)
 
 
+QUOTE_IGNORED = r"[\s\.,!?·…\"'“”‘’]"
+QUOTE_MATCH_RATIO = 0.9  # 근거가 답변 속 구절과 이만큼 같으면 그 구절을 근거로 쓴다 (E17, 2026-11-09 사용자 결정)
+
+
 def normalizeForQuote(text: str) -> str:
-    return re.sub(r"[\s\.,!?·…\"'“”‘’]+", "", text or "")
+    return re.sub(QUOTE_IGNORED + "+", "", text or "")
 
 
 def quoteInAnswer(quote: str, answer: str) -> bool:
     """근거 문장이 실제 답변에 있는지 (EVL-02). 띄어쓰기·문장부호 차이는 무시한다."""
     q = normalizeForQuote(quote)
     return bool(q) and q in normalizeForQuote(answer)
+
+
+def matchQuote(quote: str, answer: str, minRatio: float = QUOTE_MATCH_RATIO) -> str | None:
+    """AI 가 따온 근거와 맞는 답변 속 구절을 답변 글 그대로 돌려준다. 없으면 None.
+
+    AI 가 한두 글자 다르게 옮기면 근거가 거절돼 1점이 되고, 같은 답변의 점수가 흔들렸다 (E17).
+    띄어쓰기·문장부호를 뺀 글에서 같은 구절을 찾고, 없으면 minRatio 이상 비슷한 구절을 찾는다.
+    돌려주는 글은 답변에서 잘라 온 것이라 저장되는 근거는 항상 지원자가 실제로 한 말이다.
+    """
+    q = normalizeForQuote(quote)
+    if not q or not answer:
+        return None
+    keep = [i for i, ch in enumerate(answer) if not re.fullmatch(QUOTE_IGNORED, ch)]
+    norm = "".join(answer[i] for i in keep)
+    start = norm.find(q)
+    end = start + len(q)
+    if start < 0:
+        span = closestSpan(q, norm, minRatio)
+        if span is None:
+            return None
+        start, end = span
+    return answer[keep[start]: keep[end - 1] + 1].strip()
+
+
+def closestSpan(q: str, norm: str, minRatio: float) -> tuple[int, int] | None:
+    """가장 긴 공통 부분을 기준으로 앞뒤·길이를 조금씩 바꿔 가장 비슷한 구간을 찾는다."""
+    anchor = SequenceMatcher(None, q, norm, autojunk=False).find_longest_match(0, len(q), 0, len(norm))
+    if anchor.size == 0:
+        return None
+    base = anchor.b - anchor.a
+    slack = max(2, len(q) // 20)
+    best, bestRatio = None, minRatio
+    for length in range(max(1, len(q) - slack), len(q) + slack + 1):
+        for begin in range(max(0, base - slack), min(len(norm) - 1, base + slack) + 1):
+            window = norm[begin: begin + length]
+            if not window:
+                continue
+            ratio = SequenceMatcher(None, q, window, autojunk=False).ratio()
+            if ratio >= bestRatio:
+                best, bestRatio = (begin, begin + len(window)), ratio
+    return best

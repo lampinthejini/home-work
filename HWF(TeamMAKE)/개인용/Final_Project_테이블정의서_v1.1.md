@@ -445,7 +445,7 @@ UNIQUE (posting_id, version)
 | updated_at | timestamptz | | N | now | |
 
 원본의 `result_status`(합불은 `results` 에만 둠), `analysis_attempts`, `resume_confirmed_at` 칸은 없다. 지원 때 쓴 기준은 `criteria_id` 가 아니라 `criteria_version` 으로 가리킨다. (T21)
-원본의 `UNIQUE (posting_id, applicant_id)` 와 `needs_review` 부분 인덱스는 실제에 없다. 같은 공고 중복 지원은 사용자 단위 잠금으로 막는다. 〔확인 필요: 논의사항 1〕
+`UNIQUE (posting_id, user_id)`(`uq_applications_posting_user`, 2026-11-09 추가)로 같은 공고 중복 지원을 DB 에서도 막는다. 사용자 단위 잠금은 그대로 둔다. `needs_review` 부분 인덱스는 실제에 없다. 〔확인 필요: 논의사항 1〕
 INDEX (release_at), (purge_at): 매일 공개·삭제 작업용
 
 ### 4-10. consents (동의)
@@ -488,7 +488,7 @@ INDEX (release_at), (purge_at): 매일 공개·삭제 작업용
 | application_id | varchar(36) | FK | N | | → applications.id (ON DELETE CASCADE), 인덱스 |
 | segment_no | integer | | N | | 접속 구간 번호 |
 | file_key | varchar(255) | | N | | 저장소 위치(접두어). 10초 조각을 `00000.webm` … 처럼 chunk_no 순서 객체 하나씩 두고 재생할 때 순서대로 이어 보낸다 (R1) |
-| last_chunk_no | integer | | N | -1 | 마지막으로 받은 조각 번호(빠진 조각 확인용) |
+| last_chunk_no | integer | | N | -1 | 지금까지 받은 가장 큰 조각 번호(빠진 조각 확인용). 늦게 온 작은 번호 조각도 저장한다(E12) |
 | size_bytes | bigint | | N | 0 | |
 | started_at | timestamptz | | N | now | |
 | last_chunk_at | timestamptz | | Y | | |
@@ -789,7 +789,8 @@ UNIQUE (interview_question_id, eval_item)
 | pw_reset:{토큰 해시} | 비밀번호 재설정 토큰(값은 회원 id) | 사용하면 바로 지움(한 번만) | 30분 |
 | pw_reset_user:{회원 id} | 그 회원의 가장 최근 재설정 토큰 해시 | 새 링크를 보내면 이전 링크를 지우는 데 씀 | 30분 |
 | pw_reset_wait:{이메일 해시} | 재설정 메일 보낸 표시 | 같은 주소로 1분에 한 통만 | 60초 |
-| interview:active | 지금 진행 중인 면접 수 | Lua로 N과 비교해 1 올림(TRD 5-3). `holds_seat` 로 주기적으로 다시 맞춤 | 없음 |
+| interview:active | 지금 진행 중인 면접 수 | Lua로 N과 비교해 1 올림(TRD 5-3). `holds_seat` 수와 아래 저장 전 입장 수로 주기적으로 다시 맞춤 | 없음 |
+| interview:pending:{지원 id} | Redis에 1을 더했지만 아직 DB에 저장하지 않은 입장 | 숫자 맞추기가 이 입장을 빼먹지 않게 함(E10). 자리를 돌려주면 지움 | 60초 |
 | eval:lock:{지원 id} | 채점 작업 잠금 | 같은 건을 두 번 채점하지 않음 | 40분 |
 | eval:since:{지원 id} | [다시 돌리기]를 누른 시각 | 평가 30분 한도를 이 시각부터 잼 | 24시간 |
 | eval:queued:{지원 id} | 다시 넣어 둔 채점 작업이 기다리는 중 | 5분 점검이 같은 건을 또 넣지 않게 | 대기 시간 + 2분 |
@@ -821,19 +822,19 @@ UNIQUE (interview_question_id, eval_item)
 
 | # | 분류 | 문서·위치 | 내용 | 권장 |
 |---|---|---|---|---|
-| 1 | 구현 확인 필요 | 4-9 applications · `models.py:113-150` | 원본의 `UNIQUE (posting_id, applicant_id)`(공고마다 한 사람 1건)가 모델에 없다. 중복 지원은 사용자 단위 잠금으로만 막는다(CONFLICTS C-3). DB 제약이 없어 잠금이 뚫리면 같은 공고에 두 행이 생길 수 있다 | DB 제약 추가를 검토하거나, 지금 방식을 팀과 확정 |
-| 2 | 구현 확인 필요 | 4-9 questions_status · `models.py:127` / `models.py:477` | 칸 주석은 `none·composing·ready` 3값, CHECK 는 `failed` 를 더한 4값. 이 문서는 CHECK(4값) 를 따름 | 주석을 고칠지 확인(코드는 고치지 않음) |
+| 1 | 처리함(2026-11-09: `UNIQUE (posting_id, user_id)` 추가(`uq_applications_posting_user`, 기존 DB 중복 0건)) | 4-9 applications · `models.py:113-150` | 원본의 `UNIQUE (posting_id, applicant_id)`(공고마다 한 사람 1건)가 모델에 없다. 중복 지원은 사용자 단위 잠금으로만 막는다(CONFLICTS C-3). DB 제약이 없어 잠금이 뚫리면 같은 공고에 두 행이 생길 수 있다 | DB 제약 추가를 검토하거나, 지금 방식을 팀과 확정 |
+| 2 | 처리함(2026-11-09: `models.py` 칸 주석을 4값으로 고침) | 4-9 questions_status · `models.py:127` / `models.py:477` | 칸 주석은 `none·composing·ready` 3값, CHECK 는 `failed` 를 더한 4값. 이 문서는 CHECK(4값) 를 따름 | 주석을 고칠지 확인(코드는 고치지 않음) |
 | 3 | 처리함 | CONFLICTS T23 / `models.py:136` | **2026-11-06:** CONFLICTS T23 은 지금 `interrupted_at` 으로 적혀 있다. (이전 기록) CONFLICTS 는 `interruption_at` 으로 적었으나 실제 칸은 `interrupted_at` | CONFLICTS 정정. 이 문서는 `interrupted_at` |
-| 4 | 구현 확인 필요 | 4-6 job_postings.job_code · `models.py:57` | 원본은 `job_codes.code` FK 였으나 모델은 FK 없는 글자 칸 | FK 를 걸지, 이대로 확정할지 결정 |
-| 5 | 구현 확인 필요 | 4-26 audit_logs.actor_id · `models.py:369` / 4-9 resume_upload_id · `models.py:126` / 4-13 session_id · `models.py:298` | 원본 또는 의미상 FK 인 칸이 FK 없이 글자만 저장한다(`actor_id`·`resume_upload_id`·`session_id`). 사용자 삭제 뒤 기록을 남기려는 뜻으로 보이나 CONFLICTS 에 근거 없음 | 의도 확인 후 문서에 이유 명시 |
-| 6 | 구현 확인 필요 | 4-10 consents.subject_hash · `models.py:170`, `migrate.py:57-61` | 원본은 NOT NULL, 모델은 NULL 허용. 보정 작업은 지원 건과 연결된 행만 채워 연결이 이미 끊긴 행은 비어 있을 수 있음 | NOT NULL 로 바꿀지 확인 |
+| 4 | 확정(현행 유지, 2026-11-09 사용자 결정) — 직무 코드는 공고 저장 때 화면·API 가 목록 값만 받음 | 4-6 job_postings.job_code · `models.py:57` | 원본은 `job_codes.code` FK 였으나 모델은 FK 없는 글자 칸 | FK 를 걸지, 이대로 확정할지 결정 |
+| 5 | 확정(현행 유지, 2026-11-09 사용자 결정) — 사용자·세션이 지워진 뒤에도 기록을 남기려고 FK 를 걸지 않음 | 4-26 audit_logs.actor_id · `models.py:369` / 4-9 resume_upload_id · `models.py:126` / 4-13 session_id · `models.py:298` | 원본 또는 의미상 FK 인 칸이 FK 없이 글자만 저장한다(`actor_id`·`resume_upload_id`·`session_id`). 사용자 삭제 뒤 기록을 남기려는 뜻으로 보이나 CONFLICTS 에 근거 없음 | 의도 확인 후 문서에 이유 명시 |
+| 6 | 확정(현행 유지, 2026-11-09 사용자 결정) — 연결이 이미 끊긴 옛 행은 채울 이메일이 없어 NULL 허용 | 4-10 consents.subject_hash · `models.py:170`, `migrate.py:57-61` | 원본은 NOT NULL, 모델은 NULL 허용. 보정 작업은 지원 건과 연결된 행만 채워 연결이 이미 끊긴 행은 비어 있을 수 있음 | NOT NULL 로 바꿀지 확인 |
 | 7 | 확정(2026-11-04) | 4-8 evaluation_criteria.coding_enabled · `models.py:89` | 기본값 false 로 확정. 공고마다 관리자가 켠다(CLAUDE.md 3.3) | — |
 | 8 | 확정(현행 유지) | 공통 규칙 8 | 질문 구성 그래프의 api 안 실행·체크포인트 없음, 이어가기가 원장 기준 | B1 결정 뒤 반영 |
 | 9 | 문서 충돌 | CONFLICTS T5 / `models.py:296,334,368` | CONFLICTS T5 는 로그만 bigserial 이라는 원본과의 차이를 `varchar(36)` 위주로 적었지만, 로그 테이블도 실제는 `integer`(serial) 이다(`bigint` 는 `recordings.size_bytes` 만). 이 문서는 serial integer 로 적음 | CONFLICTS T5 설명 보완 |
 | 10 | 확인 완료 | 5장 Redis `audio:{sid}` | 코드 확인: `interview/engine.py:289` xadd, `:182` delete 로 실제 사용 중 → 5장에 반영 | — |
 | 11 | 확인 완료 | 4-4 resume_uploads.result `_ocr` (T31) | 코드 확인: `services/resume_extract.py:393` 에서 `result={…, "_ocr": meta}` 로 저장 → CONFLICTS 설명과 일치 | — |
-| 12 | 구현 확인 필요 | 4-13 session_events.type · 4-26 audit_logs.action | `type` 값 목록과 설정 변경 감사 action 이름은 CONFLICTS·models 에 정해진 목록이 없어 이 문서에 고정하지 않음. 감사 action 은 확인한 예만 적음 | 코드의 실제 목록을 뽑아 부록으로 둘지 결정 |
-| 13 | 기타 | 원본 4-1 users 아래 문장 | 원본이 Redis 장을 "6장"으로 적었으나 실제는 5장(바로잡음). 이 칸 자체도 이제 Redis 가 아니라 DB 를 가리킴 | — |
+| 12 | 확정(현행 유지, 2026-11-09 사용자 결정) — 값 목록은 코드가 정본, 문서에 고정하지 않음 | 4-13 session_events.type · 4-26 audit_logs.action | `type` 값 목록과 설정 변경 감사 action 이름은 CONFLICTS·models 에 정해진 목록이 없어 이 문서에 고정하지 않음. 감사 action 은 확인한 예만 적음 | 코드의 실제 목록을 뽑아 부록으로 둘지 결정 |
+| 13 | 처리함(2026-11-09: 할 일 없음) | 원본 4-1 users 아래 문장 | 원본이 Redis 장을 "6장"으로 적었으나 실제는 5장(바로잡음). 이 칸 자체도 이제 Redis 가 아니라 DB 를 가리킴 | — |
 | 14 | 확정(현행 유지) | 4-1 email_verified_at · 5장 | 이메일 인증, 하루 메일 상한, 공고 불러오기(`external_id`, V2)는 요구사항을 지우지 않고 현재 구현 범위 밖(미구현)으로 표시 | 범위 결정 |
 
 ## 2026-11-06 검토 보정
@@ -841,3 +842,14 @@ UNIQUE (interview_question_id, eval_item)
 코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
 
 - 논의사항 3 을 처리함으로 고쳤다.
+
+## 2026-11-09 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- `recordings.last_chunk_no`: 가장 큰 조각 번호다. 늦게 온 작은 번호 조각도 저장한다(E12).
+- Redis `interview:pending:{지원 id}` 를 더했다(E10).
+- `results` 근거(`quote`)는 AI 가 옮긴 글이 아니라 답변에서 잘라 온 구절이다(90% 이상 비슷하면 그 구절, E17).
+- 4-9 applications: `UNIQUE (posting_id, user_id)` 추가(사용자 결정). 기존 DB 는 시작할 때 `CREATE UNIQUE INDEX IF NOT EXISTS` 로 더하고, 중복 행이 있으면 경고만 남긴다.
+- FK 가 없는 칸(`job_code`·`actor_id`·`resume_upload_id`·`session_id`)과 `subject_hash` NULL 허용은 구현대로 확정했다(지운 뒤에도 기록 보존).
+- `questions_status` 칸 주석을 CHECK 와 같은 4값으로 고쳤다. session_events.type 에 `autosave_failed` 추가.

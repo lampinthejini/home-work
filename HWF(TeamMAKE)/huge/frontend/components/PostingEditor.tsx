@@ -31,6 +31,7 @@ const BIAS_PATTERNS: { re: RegExp; kind: string }[] = [
     { re: /기혼|미혼|결혼/g, kind: "혼인" },
     { re: /용모\s*단정|키\s*\d{3}/g, kind: "외모·신체" },
     { re: /출신\s*지역|고향/g, kind: "출신" },
+    { re: /종교|신앙|기독교|천주교|불교|교회\s*출석/g, kind: "종교" },
 ];
 
 function toForm(p: AdminPosting | null): Form {
@@ -59,6 +60,11 @@ function weightError(w: Record<string, number>): string | null {
     const sum = Object.values(w).reduce((a, b) => a + b, 0);
     if (Object.values(w).some((v) => v < 5 || v % 5)) return "비율은 5% 단위, 항목마다 5% 이상이어야 합니다";
     return sum === 100 ? null : `합계가 ${sum}%입니다. 100%로 맞춰 주세요`;
+}
+
+/** 2단계(평가 기준)에서 다음·저장을 막는 사유. 합격 기준 칸을 비우면 0점이 아니라 입력 요청 */
+function criteriaError(f: Form): string | null {
+    return weightError(f.weights) ?? (Number.isNaN(f.pass_score) ? "합격 기준 점수를 입력해 주세요" : null);
 }
 
 /** S-R03 공고 작성·수정 3단계 (새 공고는 posting 이 null) */
@@ -104,7 +110,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
         if (!published) Object.assign(body, { job_code: form.job_code, open_at: fromLocalInput(form.open_at), close_at: fromLocalInput(form.close_at) });
         const criteriaChanged = JSON.stringify([form.weights, form.coding_enabled, form.coding_ratio, form.pass_score])
             !== JSON.stringify([saved.weights, saved.coding_enabled, saved.coding_ratio, saved.pass_score]);
-        if (!criteriaLocked && (criteriaChanged || !posting?.criteria) && !weightError(form.weights)) {
+        if (!criteriaLocked && (criteriaChanged || !posting?.criteria) && !criteriaError(form)) {
             body.criteria = { weights: form.weights, coding_enabled: form.coding_enabled, coding_ratio: form.coding_ratio, pass_score: form.pass_score };
         }
         return body;
@@ -138,7 +144,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
             const first = Object.keys(e)[0];
             if (first) { document.getElementById(`f-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
         }
-        if (step === 2 && !criteriaLocked && weightError(form.weights)) return;
+        if (step === 2 && !criteriaLocked && criteriaError(form)) return;
         setStep((s) => s + 1);
         window.scrollTo(0, 0);
     }
@@ -167,6 +173,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
         has_coding_test: form.coding_enabled, revisions: posting?.revisions,
     };
     const wErr = weightError(form.weights);
+    const cErr = criteriaError(form);
     const sum = Object.values(form.weights).reduce((a, b) => a + b, 0);
 
     return (
@@ -244,7 +251,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                             <div className="level" style={{ flex: 1, maxWidth: 240 }}><div style={{ width: `${form.weights[k]}%` }} /></div>
                         </div>
                     ))}
-                    <p className="small" style={{ color: wErr ? "var(--color-danger)" : "var(--color-success-text)" }}>합계 {sum}% {wErr ? `— ${wErr}` : "✓"}</p>
+                    <p className="small" style={{ color: wErr ? "var(--color-danger)" : "var(--color-success-text)" }}>{!wErr ? `합계 ${sum}% ✓` : sum !== 100 ? wErr : `합계 ${sum}% — ${wErr}`}</p>
                     <p className="tiny muted">ⓘ 평가 항목과 채점 기준(루브릭)은 바꿀 수 없습니다.</p>
 
                     <h3>② 코딩테스트</h3>
@@ -267,9 +274,10 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
 
                     <h3>③ 1차 합격 기준 점수</h3>
                     <div className="row" style={{ gap: 8 }}>
-                        <input className="input" style={{ width: 100 }} type="number" min={0} max={100} value={form.pass_score} disabled={criteriaLocked}
-                            onChange={(e) => set("pass_score", Math.max(0, Math.min(100, Number(e.target.value))))} aria-label="합격 기준 점수" /> 점 (0~100)
+                        <input className="input" style={{ width: 100 }} type="number" min={0} max={100} value={Number.isNaN(form.pass_score) ? "" : form.pass_score} disabled={criteriaLocked}
+                            onChange={(e) => set("pass_score", e.target.value === "" ? NaN : Math.max(0, Math.min(100, Number(e.target.value))))} aria-label="합격 기준 점수" /> 점 (0~100)
                     </div>
+                    {Number.isNaN(form.pass_score) && <p className="small" style={{ color: "var(--color-danger)" }}>합격 기준 점수를 입력해 주세요</p>}
                     <p className="tiny muted">ⓘ 종합 총점이 이 점수 이상이면 1차 합격으로 판정합니다.</p>
                     <p className="tiny muted">ⓘ 면접 질문은 시스템이 자동으로 구성합니다 (인성 2 · 이력서 기반 2 · 기업 관련 2 · 직무 4 = 10문항)</p>
                 </div>
@@ -287,7 +295,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                 <span style={{ flex: 1 }} />
                 <Button kind="secondary" busy={busy === "save"} onClick={() => save()}>{published ? "수정 저장" : "임시저장"}</Button>
                 {step > 1 && <button type="button" className="btn btn-secondary" onClick={() => setStep((s) => s - 1)}>이전</button>}
-                {step < 3 && <Button onClick={next} disabled={step === 2 && !criteriaLocked && Boolean(wErr)} reason={wErr ?? undefined}>다음 ▶</Button>}
+                {step < 3 && <Button onClick={next} disabled={step === 2 && !criteriaLocked && Boolean(cErr)} reason={cErr ?? undefined}>다음 ▶</Button>}
                 {step === 3 && !published && <Button busy={busy === "publish"} onClick={() => setConfirmPublish(true)}>게시하기</Button>}
             </div></div>
 

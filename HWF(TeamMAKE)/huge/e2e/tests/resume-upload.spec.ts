@@ -7,7 +7,7 @@ const email = uniqueEmail("e2e-exam");
 const password = randomPassword();
 
 const CONSENT = {
-    consent_version: "v1.7",
+    consent_version: "v1.8",
     items: { data_collection: true, ai_decision: true, share_with_admin: true, retention: true, exam_rules: true },
 };
 const RESUME_TEXT = "Name Hong Gildong. Education Hankuk University Computer Science. Career Backend developer at Ganada Electronics. Skills Python Java SQL.";

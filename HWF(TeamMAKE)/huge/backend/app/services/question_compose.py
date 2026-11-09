@@ -143,9 +143,10 @@ def candidates(db: Session, app: Application, kind: str, usedGroups: set[str], u
     return [q for q, _ in pool]
 
 
-def reserveFor(db: Session, kind: str, usedGroups: set[str]) -> Question | None:
+def reserveFor(db: Session, kind: str, usedGroups: set[str], usedIds: set[int], chosen: list[dict]) -> Question | None:
+    # 묶음(duplicate_group)이 없는 예비 질문도 이미 쓴 것이면 건너뛴다. 묶음만 보면 같은 질문이 여러 자리에 들어갔다 (E11)
     for q in db.query(Question).filter(Question.kind == kind, Question.source == "reserve").order_by(Question.id):
-        if q.duplicate_group not in usedGroups:
+        if q.duplicate_group not in usedGroups and q.id not in usedIds and not isRepeat(q.text, chosen):
             return q
     return None
 
@@ -375,10 +376,10 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             question = bankFallback(db, app, kind, state["chosen"], ctx)
             if question is not None:
                 return accept(state, question.text, "excel", question, True)
-        reserve = reserveFor(db, kind, ctx["usedGroups"])
+        reserve = reserveFor(db, kind, ctx["usedGroups"], ctx["usedIds"], state["chosen"])
         if reserve is not None:
             return accept(state, reserve.text, "reserve", reserve, True)
-        return accept(state, RESERVE_LAST_RESORT, "reserve", None, True)
+        return accept(state, lastResort(state["chosen"]), "reserve", None, True)
 
     def afterPick(state: SlotState) -> str:
         return "examples" if ctx["ragOn"] and state["record"]["substitute_reason"] is None else "bank"
@@ -417,7 +418,26 @@ async def composeAll(db: Session, app: Application, ctx: dict, deadline: float, 
     return result["chosen"]
 
 
-RESERVE_LAST_RESORT = "가장 기억에 남는 프로젝트 하나를 골라 본인 역할을 설명해 주세요."
+# 예비 질문까지 바닥났을 때 쓰는 문장. 한 면접의 모든 자리(10개)가 여기로 와도 겹치지 않게 자리 수만큼 둔다 (E11)
+RESERVE_LAST_RESORTS = (
+    "가장 기억에 남는 프로젝트 하나를 골라 본인 역할을 설명해 주세요.",
+    "최근에 새로 배운 기술이나 지식과 그것을 익힌 방법을 말씀해 주세요.",
+    "일을 하다가 막혔던 문제를 하나 들고, 어떻게 해결했는지 설명해 주세요.",
+    "다른 사람과 의견이 달랐던 경험과 그때 어떻게 조율했는지 말씀해 주세요.",
+    "맡은 일의 결과가 기대에 못 미쳤던 경험과 그 뒤에 바꾼 점을 말씀해 주세요.",
+    "이 직무에서 가장 중요하다고 생각하는 능력과 그 이유를 말씀해 주세요.",
+    "여러 일이 한꺼번에 몰렸을 때 우선순위를 어떻게 정하는지 예를 들어 설명해 주세요.",
+    "만든 결과물의 품질을 확인하는 본인만의 방법을 설명해 주세요.",
+    "팀에 도움이 되었던 본인의 행동을 하나 골라 구체적으로 말씀해 주세요.",
+    "입사 후 첫 6개월 동안 이루고 싶은 목표를 말씀해 주세요.",
+)
+
+
+def lastResort(chosen: list[dict]) -> str:
+    for text in RESERVE_LAST_RESORTS:
+        if not isRepeat(text, chosen):
+            return text
+    return RESERVE_LAST_RESORTS[0]
 
 
 async def synthesizeAll(db: Session, app: Application) -> None:

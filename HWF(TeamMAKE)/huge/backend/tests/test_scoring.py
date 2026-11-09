@@ -57,3 +57,12 @@ def test_quoteInAnswerIgnoresSpacingAndPunctuation():
     assert quoteInAnswer("데이터 불균형을 오버샘플링으로 해결했습니다", answer)
     assert not quoteInAnswer("모델을 새로 학습했습니다", answer)
     assert not quoteInAnswer("", answer)
+
+
+def test_matchQuoteReturnsAnswerSpan():
+    from app.domain.scoring import matchQuote
+    answer = "저는 이전 프로젝트에서 데이터 불균형을, 오버샘플링으로 해결했습니다."
+    assert matchQuote("데이터 불균형을 오버샘플링으로 해결했습니다", answer) == "데이터 불균형을, 오버샘플링으로 해결했습니다"
+    assert matchQuote("데이터 불균형을 오버샘플링으로 해결햇습니다", answer) == "데이터 불균형을, 오버샘플링으로 해결했습니다"
+    assert matchQuote("모델을 새로 학습했습니다", answer) is None
+    assert matchQuote("", answer) is None

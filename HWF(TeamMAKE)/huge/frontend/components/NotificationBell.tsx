@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
 import { shortDateTime } from "@/lib/format";
@@ -13,6 +13,7 @@ const EDGE = 12;
 
 /** 머리글 🔔 사이트 알림 최근 20건 (API 명세서 9장 GET /notifications) */
 export function NotificationBell() {
+    const listId = useId(); // 알림 상자는 메뉴가 아니라 버튼 목록이다. role="menu" 는 화살표 키 이동을 약속하므로 쓰지 않는다 (E16)
     const router = useRouter();
     const [items, setItems] = useState<Item[]>([]);
     const [unread, setUnread] = useState(0);
@@ -88,12 +89,12 @@ export function NotificationBell() {
 
     return (
         <div ref={box} style={{ position: "relative" }}>
-            <button type="button" className="btn btn-text btn-sm" aria-haspopup="true" aria-expanded={open}
+            <button type="button" className="btn btn-text btn-sm" aria-controls={open ? listId : undefined} aria-expanded={open}
                 aria-label={`알림${unread ? ` ${unread}건 안 읽음` : ""}`} onClick={toggle}>
                 🔔{unread > 0 && <span className="badge badge-orange" style={{ marginLeft: 4, height: 20 }}>{unread}</span>}
             </button>
             {open && (
-                <div className="card stack" role="menu" style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50, width: pos.width, maxHeight: 420, overflowY: "auto", overflowX: "hidden", gap: 4, padding: 8 }}>
+                <div className="card stack" id={listId} role="region" aria-label="알림 목록" style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50, width: pos.width, maxHeight: 420, overflowY: "auto", overflowX: "hidden", gap: 4, padding: 8 }}>
                     {hasRead && (
                         <div className="row" style={{ justifyContent: "flex-end" }}>
                             <button type="button" className="btn btn-text btn-sm tiny" onClick={hideRead}>읽은 알림 모두 지우기</button>
@@ -102,7 +103,7 @@ export function NotificationBell() {
                     {items.length === 0 && <p className="small muted" style={{ margin: 8 }}>새 알림이 없습니다</p>}
                     {items.map((item) => (
                         <div key={item.notification_id} className="row" style={{ gap: 0, alignItems: "flex-start", flexWrap: "nowrap" }}>
-                            <button type="button" role="menuitem" className="btn btn-text"
+                            <button type="button" className="btn btn-text"
                                 style={{ display: "block", flex: 1, minWidth: 0, textAlign: "left", height: "auto", padding: "8px 10px", whiteSpace: "normal", overflowWrap: "anywhere", fontWeight: item.read ? 400 : 700 }}
                                 onClick={() => choose(item)}>
                                 <span className="small">{item.title}</span>

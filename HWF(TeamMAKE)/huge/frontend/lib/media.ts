@@ -31,11 +31,18 @@ export function isSupportedBrowser(b: { name: string; version: string }) {
     return (b.name === "chrome" || b.name === "edge") && Number(b.version) >= 120;
 }
 
+/** 고른 장치를 먼저 쓰고, 그 장치를 뺐으면 다른 장치로 연다 (exact 로 요구하면 장치를 뺀 뒤 열기에 실패한다) */
 export async function openStream(choice: DeviceChoice, video = true): Promise<MediaStream> {
     return navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: choice.mic ? { exact: choice.mic } : undefined, echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-        video: video ? { deviceId: choice.camera ? { exact: choice.camera } : undefined, width: { ideal: 640 }, height: { ideal: 480 } } : false,
+        audio: { deviceId: choice.mic ? { ideal: choice.mic } : undefined, echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+        video: video ? { deviceId: choice.camera ? { ideal: choice.camera } : undefined, width: { ideal: 640 }, height: { ideal: 480 } } : false,
     });
+}
+
+/** 환경 점검에서 고른 스피커로 소리를 낸다. 고를 수 없는 브라우저나 장치를 뺀 경우는 기본 출력 그대로 */
+export async function routeToSpeaker(player: HTMLAudioElement, speakerId?: string): Promise<void> {
+    if (!speakerId || !("setSinkId" in player)) return;
+    await (player as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> }).setSinkId(speakerId).catch(() => undefined);
 }
 
 export function stopStream(stream: MediaStream | null) {

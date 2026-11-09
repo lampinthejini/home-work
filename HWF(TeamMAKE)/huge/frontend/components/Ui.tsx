@@ -17,17 +17,21 @@ export function Button({ kind = "primary", busy = false, disabled, reason, child
     { kind?: "primary" | "secondary" | "danger" | "text"; busy?: boolean; reason?: string | null; size?: "lg" | "sm" } &
     React.ButtonHTMLAttributes<HTMLButtonElement>) {
     const off = disabled || busy;
+    const reasonId = useId();
+    const showReason = Boolean(reason && disabled);
+    // 비활성 사유를 버튼에 이어 화면 낭독기도 왜 못 누르는지 읽게 한다 (E16)
     const button = (
-        <button type="button" className={`btn btn-${kind}${size ? ` btn-${size}` : ""}`} disabled={off} aria-busy={busy || undefined} {...rest}>
+        <button type="button" className={`btn btn-${kind}${size ? ` btn-${size}` : ""}`} disabled={off} aria-busy={busy || undefined}
+            aria-describedby={showReason ? reasonId : undefined} {...rest}>
             {busy && <Spinner />}
             {children}
         </button>
     );
-    if (!reason || !disabled) return button;
+    if (!showReason) return button;
     return (
         <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end" }}>
             {button}
-            <span className="disabled-reason">{reason}</span>
+            <span className="disabled-reason" id={reasonId}>{reason}</span>
         </span>
     );
 }
@@ -43,7 +47,13 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, escClose = fals
         const node = ref.current;
         const previous = document.activeElement as HTMLElement | null;
         const focusables = () => Array.from(node?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input, select, textarea") ?? []);
-        focusables()[0]?.focus();
+        const first = focusables()[0];
+        if (first) first.focus();
+        else if (node) {
+            // 버튼 없는 대화상자(연결 확인 중 등)는 상자 자체에 포커스를 둔다. 안 그러면 뒤 화면에 포커스가 남는다 (E16)
+            node.tabIndex = -1;
+            node.focus();
+        }
         const onKey = (event: KeyboardEvent) => {
             if (event.key === "Escape" && escClose && closeRef.current) closeRef.current();
             if (event.key !== "Tab") return;

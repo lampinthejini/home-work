@@ -12,6 +12,8 @@ from ..models import Application
 from ..timeutil import now
 
 ACTIVE_KEY = "interview:active"
+PENDING_PREFIX = "interview:pending:"  # Redis 에 더했지만 DB 커밋 전인 입장. reconcile 이 빼먹지 않게 한다 (E10)
+PENDING_TTL_SEC = 60
 
 ACQUIRE_LUA = """
 local active = tonumber(redis.call('GET', KEYS[1]) or '0')
@@ -43,9 +45,11 @@ def tryAcquire(db: Session, app: Application, limit: int) -> bool:
         return True
     if not redisClient().eval(ACQUIRE_LUA, 1, ACTIVE_KEY, limit):
         return False
+    markPending(app)
+    # 커밋은 부른 쪽이 상태 전환과 함께 한다. 여기서 커밋하면 FOR UPDATE 잠금이 풀려 시작이 두 번 통과한다 (E10)
     app.holds_seat = True
     app.seat_released_at = None
-    db.commit()
+    db.flush()
     return True
 
 
@@ -54,22 +58,30 @@ def forceAcquire(db: Session, app: Application) -> None:
     if app.holds_seat:
         return
     redisClient().incr(ACTIVE_KEY)
+    markPending(app)
     app.holds_seat = True
     app.seat_released_at = None
-    db.commit()
+    db.flush()
 
 
 def release(db: Session, app: Application) -> None:
     if not app.holds_seat:
         return
     redisClient().eval(RELEASE_LUA, 1, ACTIVE_KEY)
+    redisClient().delete(f"{PENDING_PREFIX}{app.id}")
     app.holds_seat = False
     app.seat_released_at = now()
     db.commit()
 
 
 def reconcile(db: Session) -> int:
-    """Redis 숫자를 holds_seat 가 켜진 면접 수로 다시 맞춘다 (seat_reconcile_interval_min)."""
-    count = db.query(Application).filter(Application.holds_seat.is_(True)).count()
+    """Redis 숫자를 holds_seat 가 켜진 면접 수(커밋 전 입장 포함)로 다시 맞춘다. jobs 의 1분 주기 작업이 부른다."""
+    holding = {appId for (appId,) in db.query(Application.id).filter(Application.holds_seat.is_(True)).all()}
+    pending = {key.decode().removeprefix(PENDING_PREFIX) for key in redisClient().scan_iter(f"{PENDING_PREFIX}*")}
+    count = len(holding | pending)
     redisClient().set(ACTIVE_KEY, count)
     return count
+
+
+def markPending(app: Application) -> None:
+    redisClient().set(f"{PENDING_PREFIX}{app.id}", 1, ex=PENDING_TTL_SEC)

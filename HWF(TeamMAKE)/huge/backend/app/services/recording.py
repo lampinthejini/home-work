@@ -58,9 +58,11 @@ def saveChunk(db: Session, session: InterviewSession, app: Application, segmentN
                         last_chunk_no=-1, size_bytes=0, expires_at=baseExpiry(app))
         db.add(rec)
         db.flush()
-    if chunkNo <= rec.last_chunk_no:
+    late = chunkNo <= rec.last_chunk_no
+    if late and chunkKey(rec.file_key, chunkNo) in storage.listKeys(rec.file_key):
         db.commit()
         return  # 다시 올린 조각 (응답을 못 받아 재시도). 이미 저장했다
+    # 늦게 온 작은 번호 조각(재시도 중 다음 조각이 먼저 도착)도 저장한다. 재생은 번호순이다 (E12)
     if rec.size_bytes + len(data) > SEGMENT_MAX_BYTES:
         raise ApiError(413, "FILE_TOO_LARGE", "녹화 용량을 넘었습니다.")
     try:
@@ -71,7 +73,7 @@ def saveChunk(db: Session, session: InterviewSession, app: Application, segmentN
         db.add(SessionEvent(application_id=app.id, session_id=session.id, type="upload_error", detail="storage", judged="info"))
         db.commit()
         raise ApiError(503, "STORAGE_UNAVAILABLE", "녹화를 저장하지 못했습니다. 잠시 뒤 다시 올립니다.") from exc
-    rec.last_chunk_no = chunkNo  # 중간 조각이 빠졌으면 재생 때 그 부분만 끊긴다
+    rec.last_chunk_no = max(rec.last_chunk_no, chunkNo)  # 중간 조각이 끝내 안 오면 재생 때 그 부분만 끊긴다
     rec.size_bytes += len(data)
     rec.last_chunk_at = now()
     rec.expires_at = baseExpiry(app)

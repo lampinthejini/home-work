@@ -242,11 +242,14 @@ def checkT5(out: T5Out, items: list[str], answer: str) -> tuple[dict[str, T5Item
         o = got.get(item)
         if o is None:
             problems.append(f"{item} 항목이 없음")
-        elif o.score >= 1 and (len(scoring.normalizeForQuote(o.quote)) < MIN_QUOTE_CHARS
-                               or not scoring.quoteInAnswer(o.quote, fence(answer))):
-            problems.append(f"{item} 근거 문장이 답변에 없거나 너무 짧음")
-        else:
+        elif o.score < 1:
             good[item] = o
+        else:
+            matched = scoring.matchQuote(o.quote, fence(answer)) if len(scoring.normalizeForQuote(o.quote)) >= MIN_QUOTE_CHARS else None
+            if matched is None:
+                problems.append(f"{item} 근거 문장이 답변에 없거나 너무 짧음")
+            else:
+                good[item] = o.model_copy(update={"quote": matched})  # 근거는 답변 속 실제 글로 저장한다 (E17)
     return good, problems
 
 
@@ -261,7 +264,7 @@ async def scoreQuestion(q: QuestionInput, data: EvalInput) -> list[dict]:
     for attempt in range(2):  # quote_regen_limit = 1
         try:
             out = await llm.structured(T5Out, T5_SYSTEM, t5Prompt(q, answer, problems), T5_TIMEOUT_SEC,
-                                       maxTokens=900, temperature=0.1)
+                                       maxTokens=900, temperature=0)  # 같은 답변은 같은 점수 (E17)
         except llm.LlmError as exc:
             if attempt == 0:
                 regenerated = True

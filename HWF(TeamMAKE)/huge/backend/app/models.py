@@ -123,6 +123,8 @@ class PostingRevision(Base):
 
 class Application(Base):
     __tablename__ = "applications"
+    # 공고마다 한 사람 1건 (테이블 정의서 4-9). 사용자 잠금이 뚫려도 DB 가 막는다
+    __table_args__ = (UniqueConstraint("posting_id", "user_id", name="uq_applications_posting_user"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id"), index=True)
@@ -135,7 +137,7 @@ class Application(Base):
     resume_name: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
     edited_fields: Mapped[list] = mapped_column(JSON, default=list)
     resume_upload_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    questions_status: Mapped[str] = mapped_column(String(16), default="none")  # none · composing · ready
+    questions_status: Mapped[str] = mapped_column(String(16), default="none")  # none · composing · ready · failed
     precheck_valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     holds_seat: Mapped[bool] = mapped_column(Boolean, default=False)
     seat_released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -178,7 +180,7 @@ class Consent(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
     # 지원 건이 지워져도 동의는 증거로 남긴다 (테이블 정의서 4-9: ON DELETE SET NULL)
     application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True, index=True)
-    subject_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 이메일 SHA-256 — 지운 뒤에도 누가 동의했는지 맞춰 봄
+    subject_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 이메일 HMAC-SHA256(서버 키) — 지운 뒤에도 동의자 확인
     consent_version: Mapped[str] = mapped_column(String(16))
     items: Mapped[dict] = mapped_column(JSON)
     agreed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

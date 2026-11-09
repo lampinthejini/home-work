@@ -62,6 +62,7 @@ class FollowupDecision(BaseModel):
 
 
 AWAY_MERGE_SEC = 3
+DEVICE_END_GRACE_SEC = 3  # 장치가 꺼진 뒤 창 닫기 신호를 기다리는 시간 (E18)
 WARN_HEARTBEAT_LIMIT_SEC = 120
 PCM_BYTES_PER_SEC = 32_000  # 16kHz · 16bit · mono
 PCM_SLACK_SEC = 15
@@ -200,6 +201,7 @@ class LiveSession:
             if row is not None and row.ended_at is None:
                 row.ended_at = now()
                 db.commit()
+        registry.releaseSession(self.sid)
 
     async def guard(self, coro) -> None:
         try:
@@ -235,7 +237,8 @@ class LiveSession:
             else:
                 lifecycle.logEvent(db, app, "disconnect", reason, judged="fault", sessionId=self.sid)
                 if lifecycle.markInterrupted(db, app, reason):
-                    await self.send({"type": "paused", "reason": reason, "resume_until": iso(app.posting.close_at)})
+                    await self.send({"type": "paused", "reason": reason, "resume_until": iso(app.posting.close_at),
+                                     "resumes_left": lifecycle.resumesLeft(db, app)})
                 else:
                     await self.send({"type": "terminate", "reason": "ended", "detail": "resume_limit", "message": RESUME_LIMIT_MESSAGE})
         self.state = "ended"
@@ -265,9 +268,10 @@ class LiveSession:
             if app.attempt_status in st.IN_PROGRESS:
                 paused = lifecycle.markInterrupted(db, app, reason)
             closeAt = iso(app.posting.close_at)
+            resumesLeft = lifecycle.resumesLeft(db, app)
         self.state = "ended"
         if paused:
-            await self.send({"type": "paused", "reason": reason, "resume_until": closeAt})
+            await self.send({"type": "paused", "reason": reason, "resume_until": closeAt, "resumes_left": resumesLeft})
         else:
             await self.send({"type": "terminate", "reason": "ended", "detail": "resume_limit", "message": RESUME_LIMIT_MESSAGE})
         await self.closeWs()
@@ -327,6 +331,13 @@ class LiveSession:
             await self.runSafely(self.onPermissionRevoked(message.get("device")))
         elif kind == "device_error":
             await self.runSafely(self.onDeviceError(message))
+        elif kind == "autosave_failed":
+            # 코딩 자동 저장을 3번 다시 해도 실패 (API 명세서 8장). 기록만 남기고, 끊김 판정은 heartbeat 로 한다
+            problemNo = message.get("problem_no")
+            with dbSession() as db:
+                lifecycle.logEvent(db, db.get(Application, self.appId), "autosave_failed",
+                                   f"problem {problemNo}" if isinstance(problemNo, int) else None, sessionId=self.sid)
+                db.commit()
         elif kind == "upload_failed":
             # 녹화 조각을 3번 다시 올려도 실패 (API 명세서 6장). 원인은 서버 기록으로만 정한다
             with dbSession() as db:
@@ -435,6 +446,21 @@ class LiveSession:
         if "permission" in recent:
             await self.endWith(st.ENDED, "ended", "permission_revoked", "마이크·카메라 권한이 꺼져 응시가 종료되었습니다.")
             return
+        if kind == "ended":
+            # 창을 닫으면 장치가 먼저 꺼지고 unload·연결 끊김이 뒤따른다. 바로 정하면 창 닫기가 장애 중단이 된다 (E18, TC-064)
+            self.tasks.append(asyncio.create_task(self.runSafely(self.judgeDeviceEnded())))
+            return
+        await self.pauseForFault("device_error")
+
+    async def judgeDeviceEnded(self) -> None:
+        await asyncio.sleep(DEVICE_END_GRACE_SEC)
+        if self.state in ("ended", "disconnected"):
+            return  # 연결이 끊겼으면 15초 끊김 판정이 unload 기록으로 정한다
+        with dbSession() as db:
+            recent = lifecycle.recentEventTypes(db, db.get(Application, self.appId), self.settings["unload_lookback_sec"])
+        if st.judgeDisconnect(recent) == "not_fault":
+            detail = "permission_revoked" if "permission" in recent else "unload"
+            await self.endWith(st.ENDED, "ended", detail, "응시가 종료되었습니다.")
         await self.pauseForFault("device_error")
 
     # ---------- 감시 ----------

@@ -32,33 +32,22 @@
 
 > 예: 항목 점수가 직무전문성 80, 논리성 70, 내용관련성·구체성 75, 전달력 60, 조직적합성 80이면 AI 면접 점수 74.5점. 코딩테스트 60점을 70:30으로 합치면 총점 70.15점 → 기준 70점 이상이므로 1차 합격(PRD 5-7 계산 예시).
 
+```mermaid
 flowchart TB
-
-subgraph Orchestrator\["오케스트레이터 = 애플리케이션 코드"\]
-
-Q\[작업 큐\<br/\>Celery + Redis\] --\> H\[핸들러 / 파이프라인\<br/\>LangGraph 그래프: 질문 만들기·면접 진행\]
-
-H --\> V\[규칙 검증\<br/\>스키마·인용·금지어\]
-
-V --\> S\[점수 산술\<br/\>scoring.py\]
-
-end
-
-H -- 태스크 호출 --\> T\[(LLM 태스크 T1~T10)\]
-
-T -- JSON --\> V
-
-H -- 음성 --\> SP\[(STT / TTS)\]
-
-H -- 벡터 --\> E\[(임베딩)\]
-
-S -- 총점 --\> D\[합격 기준 비교\<br/\>총점 ≥ 기준 → 합격\]
-
-D --\> D2\[T10 결정 이유 작성\<br/\>LLM\]
-
-D2 --\> V2\[이유 검증\<br/\>형식·근거·결과와 일치\]
-
-V2 --\> R\[리포트·결과 공개\]
+    subgraph Orchestrator["오케스트레이터 = 애플리케이션 코드"]
+    Q[작업 큐<br/>Celery + Redis] --> H[핸들러 / 파이프라인<br/>LangGraph 그래프: 질문 만들기·면접 진행]
+    H --> V[규칙 검증<br/>스키마·인용·금지어]
+    V --> S[점수 산술<br/>scoring.py]
+    end
+    H -- 태스크 호출 --> T[(LLM 태스크 T1~T10)]
+    T -- JSON --> V
+    H -- 음성 --> SP[(STT / TTS)]
+    H -- 벡터 --> E[(임베딩)]
+    S -- 총점 --> D[합격 기준 비교<br/>총점 ≥ 기준 → 합격]
+    D --> D2[T10 결정 이유 작성<br/>LLM]
+    D2 --> V2[이유 검증<br/>형식·근거·결과와 일치]
+    V2 --> R[리포트·결과 공개]
+```
 
 ## 2. 설계 원칙
 
@@ -156,45 +145,28 @@ TRD 6-2: 면접 중 LLM 2.5GB + 대화 기억((N + 질문 만들기 자리 수)�
 
 > **구현 메모 (v1.6)**: 구현(services/llm.py)은 `structured()` 하나가 LangChain ChatOpenAI → JSON 스키마 강제 → Pydantic 확인을 하고, 레인(`rt`·`eval`)으로 서버 주소를 고른다. 아래 AIClient·Gateway(레인 우선순위, 선점, EWMA, 장애 표시)·manifest 해시는 **설계 구조**이며 확인한 코드(llm.py, evaluation.py, engine.py)에는 없다.
 
+```mermaid
 sequenceDiagram
-
-participant C as 호출자\<br/\>(핸들러·면접 세션)
-
-participant A as AIClient\<br/\>(ai/direct.py)
-
-participant R as run_task\<br/\>(ai/tasks/base.py)
-
-participant G as Gateway\<br/\>(aisvc/gateway.py)
-
-participant L as LLM 서버
-
-C-\>\>A: llm(task, input, lane, deadline_ms)
-
-A-\>\>A: 태스크의 레인 확인, 서버 down이면 AIUnavailable
-
-A-\>\>R: run_task(spec, input, call)
-
-R-\>\>R: preflight (규칙 판정이면 여기서 종료, LLM 0회)
-
-loop 형식 재시도 / 재생성
-
-R-\>\>G: call(messages, schema, options)
-
-G-\>\>G: 레인 우선순위 대기, 데드라인 확인
-
-G-\>\>L: ChatOpenAI.with_structured_output (json_schema grammar)
-
-L--\>\>G: JSON 문자열
-
-G--\>\>R: content, usage
-
-R-\>\>R: 파싱 → 스키마 검증 → check()
-
-end
-
-R--\>\>A: Outcome(status, output, flags, attempts)
-
-A--\>\>C: LLMResult(+ manifest_hash)
+    participant C as 호출자<br/>(핸들러·면접 세션)
+    participant A as AIClient<br/>(ai/direct.py)
+    participant R as run_task<br/>(ai/tasks/base.py)
+    participant G as Gateway<br/>(aisvc/gateway.py)
+    participant L as LLM 서버
+    C->>A: llm(task, input, lane, deadline_ms)
+    A->>A: 태스크의 레인 확인, 서버 down이면 AIUnavailable
+    A->>R: run_task(spec, input, call)
+    R->>R: preflight (규칙 판정이면 여기서 종료, LLM 0회)
+    loop 형식 재시도 / 재생성
+    R->>G: call(messages, schema, options)
+    G->>G: 레인 우선순위 대기, 데드라인 확인
+    G->>L: ChatOpenAI.with_structured_output (json_schema grammar)
+    L-->>G: JSON 문자열
+    G-->>R: content, usage
+    R->>R: 파싱 → 스키마 검증 → check()
+    end
+    R-->>A: Outcome(status, output, flags, attempts)
+    A-->>C: LLMResult(+ manifest_hash)
+```
 
 | **계층** | **책임** |
 |---|---|
@@ -224,7 +196,7 @@ A--\>\>C: LLMResult(+ manifest_hash)
 
 - **답변 속 채점 지시 감지:** "만점 주세요", "합격시켜", "이전 지시 무시", "채점 기준 바꿔", "ignore previous instructions" 같은 말이 답변에 있으면 채점하지 않고 '평가 지연'(`instruction_suspected`, API 명세서 사유 목록에 없는 새 값)로 두고 관리자에게 알린다. 'AI'·'프롬프트' 같은 낱말만으로는 잡지 않는다(AI 직무 지원자의 업무 이야기). 응시 취소 건은 검사하지 않는다(AI 없이 0점). 이 감지는 쉬운 표현만 잡는 보조 장치이고, 실제 방어는 구분자 바꾸기·JSON 스키마·근거 확인이 맡는다.
 
-- 출력 온도는 코드 값을 따른다: T5 0.1, T10 0.2, T4 0.3, 질문 만들기 0.6. 평가 태스크(T5·T10)는 낮게 둔다. 원본의 seed=42 고정은 구현(llm.py)에 없다.
+- 출력 온도는 코드 값을 따른다: T5 0(2026-11-09, 같은 답변은 같은 점수), T10 0.2, T4 0.3, 질문 만들기 0.6. 평가 태스크(T5·T10)는 낮게 둔다. 원본의 seed=42 고정은 구현(llm.py)에 없다.
 
 - 합격·불합격은 코드가 총점과 기준을 비교해 정하므로 점수와 결정이 엇갈리는 경우는 생기지 않는다.
 
@@ -248,93 +220,55 @@ A--\>\>C: LLMResult(+ manifest_hash)
 
 ### 6.1 전체 흐름
 
+```mermaid
 flowchart LR
+    subgraph Z["⓪ 공고 작성 (관리자, api 백그라운드)"]
+    direction TB
+    Z1[관리자 문답<br/>코딩테스트 사용 여부 포함] -->|draft-ai 시작| T9[T9 공고 초안<br/>llm-rt 4B]
+    T9 --> Z2[임시저장 → 관리자 수정 → 게시]
+    end
+    subgraph A["① 지원 (요청 경로 + api 백그라운드)"]
+    direction TB
+    A1[이력서 업로드] -->|PyMuPDF → pdfplumber| T1[T1 이력서 정리<br/>llm-rt 4B]
+    T1 -->|빈 칸 · 못 읽은 쪽만| OCR[PaddleOCR 한국어]
+    OCR --> A2[지원서 폼 자동 채움 → 지원자 확인 후 제출]
+    end
+    subgraph B["② 면접 준비 (api 백그라운드, 질문 만들기 그래프 · 장치 점검과 동시)"]
+    direction TB
+    B0[이력서 확정] -->|질문 구성 시작| B1[자리마다 같은 종류 기존 질문 예시 3개 찾기<br/>BGE-M3 + pgvector]
+    B1 --> T2[T2·T3 질문 1개 만들기 RAG<br/>인성 · 기업 · 이력서 · 직무 10자리]
+    T2 --> EMB[확인: 형식 · 근거 · 베낌/중복 0.9<br/>실패 3회 · 60초 초과 → 질문은행 → 예비 질문]
+    EMB --> B2[10문항 세트 확정·불변] -->|질문 음성 미리 생성| TTS1[TTS 질문 음성 미리 생성]
+    end
+    Z --> A --> B --> NEXT([③ 면접 진행으로])
+```
 
-subgraph Z\["⓪ 공고 작성 (관리자, api 백그라운드)"\]
-
-direction TB
-
-Z1\[관리자 문답\<br/\>코딩테스트 사용 여부 포함\] --\>\|draft-ai 시작\| T9\[T9 공고 초안\<br/\>llm-rt 4B\]
-
-T9 --\> Z2\[임시저장 → 관리자 수정 → 게시\]
-
-end
-
-subgraph A\["① 지원 (요청 경로 + api 백그라운드)"\]
-
-direction TB
-
-A1\[이력서 업로드\] --\>\|PyMuPDF → pdfplumber\| T1\[T1 이력서 정리\<br/\>llm-rt 4B\]
-
-T1 --\>\|빈 칸 · 못 읽은 쪽만\| OCR\[PaddleOCR 한국어\]
-
-OCR --\> A2\[지원서 폼 자동 채움 → 지원자 확인 후 제출\]
-
-end
-
-subgraph B\["② 면접 준비 (api 백그라운드, 질문 만들기 그래프 · 장치 점검과 동시)"\]
-
-direction TB
-
-B0\[이력서 확정\] --\>\|질문 구성 시작\| B1\[자리마다 같은 종류 기존 질문 예시 3개 찾기\<br/\>BGE-M3 + pgvector\]
-
-B1 --\> T2\[T2·T3 질문 1개 만들기 RAG\<br/\>인성 · 기업 · 이력서 · 직무 10자리\]
-
-T2 --\> EMB\[확인: 형식 · 근거 · 베낌/중복 0.9\<br/\>실패 3회 · 60초 초과 → 질문은행 → 예비 질문\]
-
-EMB --\> B2\[10문항 세트 확정·불변\] --\>\|질문 음성 미리 생성\| TTS1\[TTS 질문 음성 미리 생성\]
-
-end
-
-Z --\> A --\> B --\> NEXT(\[③ 면접 진행으로\])
-
+```mermaid
 flowchart LR
-
-subgraph C\["③ 면접 진행 (api, 면접 진행 그래프 · WebSocket PCM)"\]
-
-direction TB
-
-C1\[질문 음성 재생\] --\> C2\[지원자 답변 음성\] --\> VAD\[VAD 구간 분할\] --\> STT\[STT\]
-
-STT --\> C3\[eval_text = 필러 제거 + 개인정보 마스킹\]
-
-C3 --\> T4\[T4 꼬리질문 판단 ≤ followup_target_sec\]
-
-T4 --\>\|ASK\| C4\[꼬리질문 TTS 재생 → 답변\]
-
-T4 --\>\|SKIP\| C5\[다음 본질문\]
-
-end
-
-subgraph D\["④ 응시 후 평가 (worker-eval, 큐 evaluate)"\]
-
-direction TB
-
-D1\[evaluate 작업\<br/\>답변 속 채점 지시 검사\] --\>\|지시 의심\| IS\[평가 지연: instruction_suspected\<br/\>관리자 확인 후 채점\]
-
-D1 --\> T5b\[T5 평가 · 응시가 끝난 뒤 한 번에\]
-
-T5b --\> SC\[코드: 항목 점수·총점 계산\]
-
-SC --\> CMP{총점 ≥ 합격 기준?}
-
-CMP --\>\|예\| PASS\[1차 합격\]
-
-CMP --\>\|아니오\| FAIL\[1차 불합격\]
-
-PASS & FAIL --\> T10\[T10 결과 이유 작성\<br/\>llm-eval 8B CPU\]
-
-T10 --\> DV{이유 검증 통과?}
-
-DV --\>\|아니오, 1회 재작성 후에도\| NR\[NEEDS_REVIEW\<br/\>관리자 재실행\]
-
-DV --\>\|예\| T6\[T6 총평\] --\> T7\[T7 지원자 피드백\] --\> T8\[T8 코드 리뷰\]
-
-T8 --\> D4\[결과 확정·리포트 저장\]
-
-end
-
-C --\>\|응시 종료\| D --\> E\[공고 마감 다음 날 10:00 일괄 공개\<br/\>→ 알림·메일, 2차는 사람이 진행\]
+    subgraph C["③ 면접 진행 (api, 면접 진행 그래프 · WebSocket PCM)"]
+    direction TB
+    C1[질문 음성 재생] --> C2[지원자 답변 음성] --> VAD[VAD 구간 분할] --> STT[STT]
+    STT --> C3[eval_text = 필러 제거 + 개인정보 마스킹]
+    C3 --> T4[T4 꼬리질문 판단 ≤ followup_target_sec]
+    T4 -->|ASK| C4[꼬리질문 TTS 재생 → 답변]
+    T4 -->|SKIP| C5[다음 본질문]
+    end
+    subgraph D["④ 응시 후 평가 (worker-eval, 큐 evaluate)"]
+    direction TB
+    D1[evaluate 작업<br/>답변 속 채점 지시 검사] -->|지시 의심| IS[평가 지연: instruction_suspected<br/>관리자 확인 후 채점]
+    D1 --> T5b[T5 평가 · 응시가 끝난 뒤 한 번에]
+    T5b --> SC[코드: 항목 점수·총점 계산]
+    SC --> CMP{총점 ≥ 합격 기준?}
+    CMP -->|예| PASS[1차 합격]
+    CMP -->|아니오| FAIL[1차 불합격]
+    PASS & FAIL --> T10[T10 결과 이유 작성<br/>llm-eval 8B CPU]
+    T10 --> DV{이유 검증 통과?}
+    DV -->|아니오, 1회 재작성 후에도| NR[NEEDS_REVIEW<br/>관리자 재실행]
+    DV -->|예| T6[T6 총평] --> T7[T7 지원자 피드백] --> T8[T8 코드 리뷰]
+    T8 --> D4[결과 확정·리포트 저장]
+    end
+    C -->|응시 종료| D --> E["결과 공개: 공개 시각(마감 다음 날 10:00) 뒤 5분 점검 때<br/>→ 알림·메일, 2차는 사람이 진행"]
+```
 
 **LangGraph 그래프 2개 (TRD 7-4, 7-5)**
 
@@ -528,23 +462,31 @@ Celery 큐와 worker는 compose.app.yml 기준으로 아래와 같다(B2).
 |---|---|---|---|---|
 | 1 | 확정(현행 유지) | 6.1 (B1 ①②) | 질문 만들기 그래프는 api 안·체크포인트 없음(TRD 7-4는 worker). 이어가기는 체크포인트가 아니라 locate가 원장을 읽음(TRD 7-5는 체크포인트로 이어 감). | 구현대로 TRD 7-4·7-5 개정 승인 |
 | 2 | 처리함 | 6.2 (A1) | **2026-11-06:** CONFLICTS A1 은 지금 '처음 1번 + 재시도 2번'으로 적혀 있어 코드와 같다. (이전 기록) CONFLICTS A1은 "1회 재시도 후"라고 적었으나 코드는 최초 1회 + `stt_retry_limit` 2회 재시도 = 최대 3번 시도한다 (`interview/engine.py:640`, `config.py:71` 값 2, 주석 `engine.py:647` "2번 다시 해도 실패"). 기술 아키텍처 6-3·R-10은 "2회 재시도"라 코드와 같다. | CONFLICTS A1 설명을 "2회 재시도"로 고치거나 설정값을 1로 낮추는 결정 |
-| 3 | 구현 확인 필요 | 5장 T2, 6.1 (U5, C1) | CONFLICTS U5는 "모든 종류가 질문은행 → 예비"인데 코드는 이력서 기반 자리에서 질문은행을 건너뛰고 바로 예비 질문으로 간다 (`services/question_compose.py:374`). 원본 설계(QST-05)와는 같다. 또 CONFLICTS C1은 슬롯 순서를 "인성 → 이력서 → 기업 → 직무"라고 하나 코드의 `SLOT_ORDER`는 인성 → 기업 → 이력서 → 이력서 → 직무 4 → 인성 → 기업이다 (`question_compose.py:35`). | CONFLICTS 설명을 코드에 맞춤. 슬롯 순서는 C1 평가 지연으로 유지 |
-| 4 | 구현 확인 필요 | 3장, 3.1, 5장 (모델 배치) | 코드는 T5·T6~T8을 GPU 4B(lane `rt`)로 돌리고 8B(`eval`)는 T10뿐이다 (`services/evaluation.py:4,7`, `services/llm.py:24`, `compose.ai.yml:30`). CONFLICTS에 이 배치를 직접 적은 항목은 없고(S2·E에 간접), TRD 6-2는 채점을 CPU 8B로 적는다. 이 문서는 코드대로 적었다. | CONFLICTS에 배치 항목 추가, TRD 6-2·6-3 개정 |
-| 5 | 구현 확인 필요 | 3장, 3.1 실측 | CONFLICTS 요약은 TTS 를 GPU 로 적었으나 `compose.ai.yml:80-87`의 tts는 GPU 예약이 없는 CPU 서비스다(주석도 "Supertonic 2, CPU"). 실측 "GPU 메모리 5.4/6GB (3개 모델 동시)"의 세 모델이 무엇인지도 CONFLICTS에 없다. 이 문서는 TTS를 CPU로 적었다. | TTS 배치 확인 후 한쪽으로 통일 |
-| 6 | 구현 확인 필요 | 3장 임베딩 | **2026-11-06:** embed 실측 1.86GiB(상한 5GiB, 대기 중). (이전 기록) `compose.ai.yml:67` 주석은 embed 메모리 "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 기술 아키텍처 원본은 2.5GB. | 실측 후 한 값으로 |
-| 7 | 구현 확인 필요 | 2장 P6·P7, 3장, 4장, 5장 공통 | 원본의 AIClient·Gateway(레인 스케줄러·선점)·manifest 해시·seed=42·`AIHIRE_AI_MODE`는 확인한 코드(`services/llm.py` 전체, `services/evaluation.py`, `config.py`)에 없다. 레인은 `rt`·`eval` 두 서버를 고르는 값이다. 이 문서는 설계 구조로 남기고 '구현 메모'를 달았다. | 설계 유지(미구현)로 할지, 단순화한 구현에 맞춰 4장을 줄일지 결정 |
+| 3 | 처리함(2026-11-09: C1 은 이미 코드 순서로 고쳐져 있음. U5 에 '이력서 자리는 질문은행을 건너뜀'을 적음) | 5장 T2, 6.1 (U5, C1) | CONFLICTS U5는 "모든 종류가 질문은행 → 예비"인데 코드는 이력서 기반 자리에서 질문은행을 건너뛰고 바로 예비 질문으로 간다 (`services/question_compose.py:374`). 원본 설계(QST-05)와는 같다. 또 CONFLICTS C1은 슬롯 순서를 "인성 → 이력서 → 기업 → 직무"라고 하나 코드의 `SLOT_ORDER`는 인성 → 기업 → 이력서 → 이력서 → 직무 4 → 인성 → 기업이다 (`question_compose.py:35`). | CONFLICTS 설명을 코드에 맞춤. 슬롯 순서는 C1 평가 지연으로 유지 |
+| 4 | 처리함(2026-11-09: TRD 6-2 는 이미 코드대로임. CONFLICTS E 에 모델 배치 줄을 더함) | 3장, 3.1, 5장 (모델 배치) | 코드는 T5·T6~T8을 GPU 4B(lane `rt`)로 돌리고 8B(`eval`)는 T10뿐이다 (`services/evaluation.py:4,7`, `services/llm.py:24`, `compose.ai.yml:30`). CONFLICTS에 이 배치를 직접 적은 항목은 없고(S2·E에 간접), TRD 6-2는 채점을 CPU 8B로 적는다. 이 문서는 코드대로 적었다. | CONFLICTS에 배치 항목 추가, TRD 6-2·6-3 개정 |
+| 5 | 처리함(2026-11-09: compose 확인: GPU 는 llm-rt·stt 2개, TTS 는 CPU. 실측 5,469/6,144MiB. CONFLICTS E 를 '2개 모델'로 고침) | 3장, 3.1 실측 | CONFLICTS 요약은 TTS 를 GPU 로 적었으나 `compose.ai.yml:80-87`의 tts는 GPU 예약이 없는 CPU 서비스다(주석도 "Supertonic 2, CPU"). 실측 "GPU 메모리 5.4/6GB (3개 모델 동시)"의 세 모델이 무엇인지도 CONFLICTS에 없다. 이 문서는 TTS를 CPU로 적었다. | TTS 배치 확인 후 한쪽으로 통일 |
+| 6 | 처리함(2026-11-09: 실측 1.59GiB(11-09)·1.86GiB(11-06). 문서 값 약 1.7GB 유지, compose 주석 '약 3GB'를 고침) | 3장 임베딩 | **2026-11-06:** embed 실측 1.86GiB(상한 5GiB, 대기 중). (이전 기록) `compose.ai.yml:67` 주석은 embed 메모리 "약 3GB", CONFLICTS는 약 1.7GB(상한 5GB), 기술 아키텍처 원본은 2.5GB. | 실측 후 한 값으로 |
+| 7 | 확정(현행 유지, 2026-11-09 사용자 결정: 구현대로, 설계의 나머지는 미구현) | 2장 P6·P7, 3장, 4장, 5장 공통 | 원본의 AIClient·Gateway(레인 스케줄러·선점)·manifest 해시·seed=42·`AIHIRE_AI_MODE`는 확인한 코드(`services/llm.py` 전체, `services/evaluation.py`, `config.py`)에 없다. 레인은 `rt`·`eval` 두 서버를 고르는 값이다. 이 문서는 설계 구조로 남기고 '구현 메모'를 달았다. | 설계 유지(미구현)로 할지, 단순화한 구현에 맞춰 4장을 줄일지 결정 |
 | 8 | 확정(2026-11-04) | 3.1 슬롯 | 지금(N=1)은 `--parallel 2` 그대로 둔다. 동시 면접 상한을 2건으로 올릴 때 `LLM_RT_PARALLEL` 을 3으로 올린다. 슬롯당 4096 토큰을 유지하려면 `LLM_RT_CTX` 도 12288 로 함께 올려야 하고 GPU 메모리를 더 쓰므로 그때 측정한다. 원본의 `-fa on`·KV 캐시 q8_0 옵션은 compose에 없다. | — |
-| 9 | 구현 확인 필요 | 5장 T4 | 설계는 T4 출력에 ASK/SKIP·anchor 인용과 anchor 원문 검증을 요구하나 코드는 `reason_code`와 `question`만 받고 anchor 검증이 없다 (`interview/engine.py:53-61`). validate는 길이·언어·금지 주제만 본다 (`interview/graph.py:70-81`). | 설계(anchor 검증)를 낮출지, 구현에 anchor 검증을 추가할지 결정 |
-| 10 | 구현 확인 필요 | 6.2 5번 | 원본은 건너뛴 사유(skip_cause)를 `followup_decisions`에 남긴다고 했으나 코드는 로그 한 줄만 남긴다 (`interview/graph.py:101-104`). 꼬리질문 사유는 `interview_questions.followup_reason`에 들어간다 (`engine.py:719`). | 사유 저장이 필요하면 범위 결정 |
+| 9 | 확정(현행 유지, 2026-11-09 사용자 결정: 구현대로, 설계의 나머지는 미구현) | 5장 T4 | 설계는 T4 출력에 ASK/SKIP·anchor 인용과 anchor 원문 검증을 요구하나 코드는 `reason_code`와 `question`만 받고 anchor 검증이 없다 (`interview/engine.py:53-61`). validate는 길이·언어·금지 주제만 본다 (`interview/graph.py:70-81`). | 설계(anchor 검증)를 낮출지, 구현에 anchor 검증을 추가할지 결정 |
+| 10 | 확정(현행 유지, 2026-11-09 사용자 결정: 구현대로, 설계의 나머지는 미구현) | 6.2 5번 | 원본은 건너뛴 사유(skip_cause)를 `followup_decisions`에 남긴다고 했으나 코드는 로그 한 줄만 남긴다 (`interview/graph.py:101-104`). 꼬리질문 사유는 `interview_questions.followup_reason`에 들어간다 (`engine.py:719`). | 사유 저장이 필요하면 범위 결정 |
 | 11 | 확정(현행 유지) | 10장 (U5) | 중복·베낌 기준은 0.9로 유지한다(2026-11-04 사용자 확인). 이력서 근거 이외 내용을 덧붙이는 문제는 4B 한계로 보인다. | 현행 0.9 유지, 8B 도입 때 재측정 |
 | 12 | 확정(현행 유지) | 5장 T1 (U4) | 이력서 쪽 수 상한 10쪽은 문서에 근거가 없다. '읽을 수 있는 쪽' 기준도 TRD의 "글자 50자 이상"에서 "의미 있는 글자 50자 이상 + 깨진 글자 5% 미만"으로 넓혔다. | TRD 7-6에 반영 여부 결정 |
 | 13 | 확정(현행 유지) | 5장 T4 (U7), D3 | `followup_target_sec`(운영 10초·개발 20초)은 사용자 결정이다 (PRD v1.7·TRD v1.6 에 반영됨. 팀 원본에는 없음). 꼬리질문 품질(D3)은 8B 도입 때 다시 측정한다. | D3: 8B 도입 때 재측정 |
 | 14 | 확정(현행 유지) | 3.1 (F6) | 자동 보호(admission_guard)는 미구현이라 요구사항(INT-08)은 이후 범위로 둔다. | 필요하면 기능 정의 |
-| 15 | 기타 | 5장 T9 | API 명세서는 공고 초안에 '채점용 LLM'을 쓰라고 하나 구현은 llm-rt 4B다(실측 8초). 출처 값 `ai_draft`는 TRD `source` 목록에 없다. 진행 상태가 api 메모리에 있어 재시작 시 '실패'로 보인다. | API 명세서·TRD 문구 정리 |
-| 16 | 기타 | 파일 전체 | 이 파일의 기존 도면(1장, 4장, 6.1)은 원본 변환 때 생긴 이스케이프(`\[`·`\<br/\>`)가 남아 있고 코드 블록이 없다. 새로 그린 두 도면만 mermaid 코드 블록이다. | 원본 도면을 코드 블록으로 정리 |
+| 15 | 처리함(2026-11-09: TRD 논의사항 13(확정, 현행 유지)과 같은 항목. API 명세서의 '채점용 LLM' 문구는 이미 없음. `ai_draft` 는 테이블정의서 4-6 에 있음) | 5장 T9 | API 명세서는 공고 초안에 '채점용 LLM'을 쓰라고 하나 구현은 llm-rt 4B다(실측 8초). 출처 값 `ai_draft`는 TRD `source` 목록에 없다. 진행 상태가 api 메모리에 있어 재시작 시 '실패'로 보인다. | API 명세서·TRD 문구 정리 |
+| 16 | 처리함(2026-11-09: 옛 도면 4개를 mermaid 코드 블록으로 바꾸고 이스케이프를 없앰. ④ 공개 문구를 '공개 시각 뒤 5분 점검'으로) | 파일 전체 | 이 파일의 기존 도면(1장, 4장, 6.1)은 원본 변환 때 생긴 이스케이프(`\[`·`\<br/\>`)가 남아 있고 코드 블록이 없다. 새로 그린 두 도면만 mermaid 코드 블록이다. | 원본 도면을 코드 블록으로 정리 |
 
 ## 2026-11-06 검토 보정
 
 코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
 
 - 논의사항 2·6 을 지금 상태로 고쳤다.
+
+## 2026-11-09 검토 보정
+
+코드와 대조해 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- T5 온도 0, 근거는 답변 속 구절과 90% 이상 비슷하면 그 구절로 받아들인다(E17, CONFLICTS C-13). 같은 답변이라도 실시간 면접 요청과 함께 묶여 계산되면 점수가 조금 달라질 수 있다(실측 65.40 ↔ 66.15, 사용자 결정: 그대로 둠).
+- 남은 논의사항을 사용자 결정으로 정리했다: 원본 설계 중 구현에 없는 부분(Gateway·anchor 검증·skip_cause 저장 등)은 구현대로 확정하고 설계는 미구현으로 남긴다.
+- 1장·4장·6.1 의 옛 도면 4개를 mermaid 코드 블록으로 정리했다(내용은 그대로, 6.1 ④ 결과 공개만 TRD 10장대로 '공개 시각 뒤 5분 점검').

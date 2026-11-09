@@ -34,9 +34,9 @@ def nextStep(db: Session, app: Application) -> str:
     return "resume" if db.query(Consent).filter_by(application_id=app.id, withdrawn_at=None).count() else "consent"
 
 
-def requireDrafting(app: Application) -> None:
+def requireDrafting(app: Application, code: str = "RESUME_LOCKED") -> None:
     if app.attempt_status != st.DRAFTING:
-        raise ApiError(409, "RESUME_LOCKED", "이미 제출한 지원서는 고칠 수 없습니다.")
+        raise ApiError(409, code, "이미 제출한 지원서는 고칠 수 없습니다.")
 
 
 @router.post("/applications")
@@ -91,7 +91,7 @@ async def withdrawConsent(applicationId: str, db: Session = Depends(getDb), user
 @router.post("/applications/{applicationId}/consent", status_code=201)
 def consent(applicationId: str, body: ConsentRequest, db: Session = Depends(getDb), user: User = Depends(requireApplicant)):
     app = ownedApplication(db, user, applicationId)
-    requireDrafting(app)
+    requireDrafting(app, "APPLICATION_LOCKED")
     if not all(body.items.model_dump().values()):
         raise ApiError(400, "AGREEMENT_REQUIRED", "5개 항목에 모두 동의해야 진행할 수 있습니다.")
     if body.consent_version != getSetting(db, "consent_version"):

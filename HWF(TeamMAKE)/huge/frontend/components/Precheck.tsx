@@ -93,7 +93,7 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
     }, [choice, round, supported, set]);
 
     // ④⑤ 네트워크·AI 서버는 서버 점검 API 결과로 정한다 (장치 결과와 함께 마지막에 다시 보낸다)
-    const serverCheck = useCallback(async (devicesOk: { mic: boolean; camera: boolean; speaker: boolean }) => {
+    const runServerCheck = useCallback(async (devicesOk: { mic: boolean; camera: boolean; speaker: boolean }) => {
         const mbps = await measureMbps();
         try {
             const res = await api<PrecheckResponse>(`/applications/${applicationId}/precheck`, {
@@ -109,6 +109,14 @@ export function Precheck({ applicationId, onPassed }: { applicationId: string; o
             return false;
         }
     }, [applicationId, set]);
+
+    // 점검 요청은 차례로 보낸다. 겹치면 늦게 끝난 '장치 미확인' 요청이 서버의 통과 표시를 지울 수 있다
+    const checkQueue = useRef<Promise<unknown>>(Promise.resolve());
+    const serverCheck = useCallback((devicesOk: { mic: boolean; camera: boolean; speaker: boolean }) => {
+        const next = checkQueue.current.then(() => runServerCheck(devicesOk));
+        checkQueue.current = next.catch(() => undefined);
+        return next;
+    }, [runServerCheck]);
 
     useEffect(() => {
         if (!supported) return;

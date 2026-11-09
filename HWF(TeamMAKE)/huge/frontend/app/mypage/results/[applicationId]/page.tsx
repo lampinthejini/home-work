@@ -64,9 +64,10 @@ function ResultDetail() {
                 <div>응시 상태: <StatusBadge status={result.attempt_status} /></div>
                 {result.status_reason && <p className="small muted">{STATUS_REASON[result.status_reason] ?? ""}</p>}
             </div>
-            {result.ai_generated && <div className="grid2">
-                <div className="card"><h3>강점</h3><ol>{result.strengths.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>
-                <div className="card"><h3>개선점</h3><ol>{result.improvements.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>
+            {/* 응시 취소처럼 강점·개선점이 비어 있으면 빈 카드를 보이지 않는다 (E15) */}
+            {result.ai_generated && (result.strengths.length > 0 || result.improvements.length > 0) && <div className="grid2">
+                {result.strengths.length > 0 && <div className="card"><h3>강점</h3><ol>{result.strengths.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>}
+                {result.improvements.length > 0 && <div className="card"><h3>개선점</h3><ol>{result.improvements.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol></div>}
             </div>}
             {result.ai_generated && <p className="small muted">ⓘ AI가 생성한 결과입니다.</p>}
             <hr style={{ border: 0, borderTop: "1px solid var(--color-line)", width: "100%" }} />

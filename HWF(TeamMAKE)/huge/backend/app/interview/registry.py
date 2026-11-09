@@ -12,6 +12,11 @@ def claimSession(sessionId: str) -> bool:
     return True
 
 
+def releaseSession(sessionId: str) -> None:
+    """세션이 끝나 ended_at 이 저장된 뒤 부른다. 그 뒤로는 ended_at 이 다시 연결을 막으므로 집합에 남길 필요가 없다 (E15)."""
+    connectedSessions.discard(sessionId)
+
+
 def get(applicationId: str):
     return live.get(applicationId)
 

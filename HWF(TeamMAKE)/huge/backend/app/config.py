@@ -94,7 +94,7 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "login_block_window_min": (60, 60),
     "login_block_hours": (24, 24),
     "release_hour": (10, 10),
-    "consent_version": ("v1.7", "v1.7"),
+    "consent_version": ("v1.8", "v1.8"),  # 2026-11-09 ⑤ "응시 취소(1차 불합격)"
 }
 
 

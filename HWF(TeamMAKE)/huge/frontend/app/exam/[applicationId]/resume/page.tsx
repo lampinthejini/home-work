@@ -21,8 +21,13 @@ const REASON: Record<string, string> = {
     heartbeat_timeout: "네트워크 연결 끊김", ws_abnormal_close: "네트워크 연결 끊김", offline: "인터넷 연결 끊김", device_error: "장치 오류",
     upload_failed: "업로드 실패", server_error: "일시적인 서버 오류", unknown: "원인 미상 (지원자에게 유리하게 장애로 처리)",
     unload: "창 닫기·새로고침으로 연결 종료", permission_revoked: "마이크·카메라 권한 해제",
-    resume_limit: "연결 끊김으로 이어가기 횟수를 모두 사용",
+    resume_limit: "연결 끊김으로 이어가기 횟수를 모두 사용", exit_twice: "화면 이탈 2회",
+    coding_submitted: "코딩테스트 제출", coding_timeout: "코딩테스트 시간 종료",
 };
+// 모르는 코드는 영문 그대로 보이지 않게 한다 (E13)
+const reasonText = (code: string | null | undefined) => (code && REASON[code]) || "기타";
+
+const ENDED_TITLE: Record<string, string> = { completed: "응시를 마쳤습니다.", cancelled: "응시가 취소되었습니다." };
 
 /** S-A15 면접 이어가기: 서버 판정 조회 → 재점검 → 이어서 시작 */
 function Resume() {
@@ -53,9 +58,11 @@ function Resume() {
     if (state.attempt_status !== "interrupted") {
         return (
             <div className="narrow card center stack">
-                <h2>응시가 종료되었습니다.</h2>
-                {state.end_detail && <p>사유: {REASON[state.end_detail] ?? state.end_detail}</p>}
-                <p className="muted">답변한 문항까지 평가하며, 다시 응시할 수 없습니다.</p>
+                <h2>{ENDED_TITLE[state.attempt_status] ?? "응시가 종료되었습니다."}</h2>
+                {state.end_detail && <p>사유: {reasonText(state.end_detail)}</p>}
+                <p className="muted">{state.attempt_status === "completed" ? "이어갈 면접이 없습니다. 결과는 마이페이지에서 확인할 수 있습니다."
+                    : state.attempt_status === "cancelled" ? "응시 규칙에 따라 1차 불합격으로 처리되며, 다시 응시할 수 없습니다."
+                        : "답변한 문항까지 평가하며, 다시 응시할 수 없습니다."}</p>
                 <Link className="btn btn-primary" href="/mypage">마이페이지로</Link>
             </div>
         );
@@ -86,9 +93,12 @@ function Resume() {
     return (
         <div className="stack">
             <div className="notice notice-ok">
-                <strong>✓ 시스템 장애로 확인되었습니다.</strong> 사유: {REASON[state.interruption?.reason ?? "unknown"] ?? state.interruption?.reason}
+                <strong>✓ 시스템 장애로 확인되었습니다.</strong> 사유: {reasonText(state.interruption?.reason ?? "unknown")}
                 <br />장비를 다시 점검한 뒤 이어서 시작합니다. 접수 마감 {longDateTime(state.resume_until)}까지 이어갈 수 있습니다.
-                <br />연결 끊김·장치 오류로 이어갈 수 있는 횟수가 {state.resumes_left}번 남았습니다. 모두 쓰면 다음 끊김 때 응시가 종료됩니다.
+                {/* resumes_left 는 이번 중단을 이미 뺀 값이다. 0 이어도 이번에는 이어갈 수 있다 (E13) */}
+                <br />{state.resumes_left > 0
+                    ? `이번에 이어간 뒤에도 연결 끊김·장치 오류가 ${state.resumes_left}번 더 생기면 다시 이어갈 수 있습니다.`
+                    : "이번이 마지막 이어가기입니다. 다시 연결이 끊기거나 장치 오류가 생기면 응시가 종료됩니다."}
             </div>
             <Precheck applicationId={applicationId} onPassed={setPassed} />
             <div className="card row between">

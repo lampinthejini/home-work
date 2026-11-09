@@ -117,6 +117,7 @@ def run(code: str, cases: list[tuple[str, str]]) -> dict:
     if not _slots.acquire(timeout=5):
         raise SandboxBusy()
     container = None
+    client = None
     mark = "__HUGE_" + secrets.token_hex(8) + "__"
     try:
         client = docker.from_env()
@@ -164,4 +165,6 @@ def run(code: str, cases: list[tuple[str, str]]) -> dict:
                 container.remove(force=True)
             except DockerException:
                 pass
+        if client is not None:
+            client.close()  # 실행마다 새로 여는 연결을 닫는다 (E15)
         _slots.release()

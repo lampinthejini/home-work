@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, UNAUTHORIZED_EVENT } from "@/lib/api";
 
 export type Me = { user_id: string; email: string; name: string; phone: string | null; role: "applicant" | "admin"; password_change_required: boolean };
 
@@ -53,6 +53,20 @@ export function Providers({ children }: { children: ReactNode }) {
         const ms = TOAST_MS[kind];
         if (ms) window.setTimeout(() => dismiss(id), ms);
     }, [dismiss]);
+
+    // 다른 API 가 401 이면 로그인이 끝난 것: 이전 사용자 정보를 지우고, 보호된 화면은 가드가 로그인으로 보낸다
+    const meRef = useRef<Me | null>(null);
+    useEffect(() => { meRef.current = me; }, [me]);
+    useEffect(() => {
+        const onUnauthorized = () => {
+            if (meRef.current === null) return;
+            meRef.current = null;
+            setMe(null);
+            toast("warn", "로그인이 끝났습니다. 다시 로그인해 주세요");
+        };
+        window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+        return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    }, [toast]);
 
     const value = useMemo(() => ({ me, meLoaded, refreshMe, toast }), [me, meLoaded, refreshMe, toast]);
 

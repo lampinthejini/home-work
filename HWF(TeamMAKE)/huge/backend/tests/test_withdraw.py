@@ -35,6 +35,7 @@ def interviewing(sessionFactory, appId):
         app = db.get(Application, appId)
         app.attempt_status = st.INTERVIEWING
         admission.forceAcquire(db, app)
+        db.commit()  # 시작·이어가기 API 처럼 상태 전환과 함께 커밋한다
     assert int(admission.redisClient().get(admission.ACTIVE_KEY)) == 1
 
 

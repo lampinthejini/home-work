@@ -43,6 +43,10 @@ ALIGN_STATEMENTS = [
     "ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_by varchar(36) REFERENCES users(id) ON DELETE SET NULL",
     "ALTER TABLE answers ADD COLUMN IF NOT EXISTS is_empty boolean NOT NULL DEFAULT false",
 ]
+# 중복 행이 이미 있으면 만들지 못한다. 그때는 경고만 남기고 서비스는 뜬다 (2026-11-09)
+UNIQUE_STATEMENTS = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_applications_posting_user ON applications (posting_id, user_id)",
+]
 # 질문 DB 임베딩 (테이블 정의서 4-16: embedding vector(1024), HNSW vector_cosine_ops). 실패하면 RAG 만 꺼진다
 VECTOR_STATEMENTS = [
     "CREATE EXTENSION IF NOT EXISTS vector",
@@ -85,6 +89,12 @@ def addColumns(engine) -> None:
             conn.execute(text(statement))
     fillConsentSubjects(engine)
     addChecks(engine)
+    try:
+        with engine.begin() as conn:
+            for statement in UNIQUE_STATEMENTS:
+                conn.execute(text(statement))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("unique index not added (duplicate rows?): %s", type(exc).__name__)
     try:
         with engine.begin() as conn:
             for statement in VECTOR_STATEMENTS:

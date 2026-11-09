@@ -13,7 +13,7 @@ import { Loading, Spinner } from "@/components/Ui";
 import { api } from "@/lib/api";
 import { loadExamSession, sendUnloadBeacon, type ExamSession } from "@/lib/exam";
 import { longDateTime, mmss } from "@/lib/format";
-import { loadDeviceChoice, openStream, stopStream } from "@/lib/media";
+import { loadDeviceChoice, openStream, stopStream, routeToSpeaker } from "@/lib/media";
 import { PcmRecorder } from "@/lib/pcm";
 import { CameraRecorder } from "@/lib/recording";
 
@@ -21,16 +21,20 @@ type Phase = "connecting" | "preparing" | "interview" | "coding-intro" | "coding
 type Step = "reading" | "countdown" | "answering" | "processing";
 type Question = { seq: number; kind: "base" | "follow_up"; text: string; audio_url: string | null; answer_sec: number; progress: string };
 type StateResponse = {
-    attempt_status: string; phase: "interview" | "coding"; end_detail: string | null; resume_until: string; release_at: string;
+    attempt_status: string; phase: "interview" | "coding"; end_detail: string | null; resume_until: string; release_at: string; resumes_left: number;
     questions: { composed: number; total: number };
 };
 type Posting = { title: string; close_at: string; release_at: string; has_coding_test: boolean };
 
 const HEARTBEAT_MS = 5000;
+// 브라우저가 오프라인을 알리면 바로 '연결 안 됨'을 보이고, 서버의 heartbeat 판정(5초 × 3번)과 같은 15초 뒤에도 그대로면 연결을 닫는다
+const OFFLINE_CLOSE_MS = 15_000;
 const BLUR_THRESHOLD_MS = 2000;
 const AWAY_GRACE_MS = 1500; // 탭 전환 한 번에 visibility·fullscreen·blur 가 함께 오므로 첫 신호만 보낸다
 const COUNTDOWN = 3;
 const FLUSH_MS = 250; // 녹음기의 마지막 조각(최대 1초)이 서버에 닿은 뒤 답변 완료를 보낸다
+const SETTLE_POLL_MS = 10_000;
+const SETTLE_POLLS = 18; // 서버가 정하기를 3분까지 기다린다 (미연결 응시 정리는 90~150초)
 const NO_AUDIO_READ_MS = 5000; // TTS 가 없으면 자막만 5초 보여 준 뒤 카운트다운 (G-04)
 
 function Exam() {
@@ -155,7 +159,9 @@ function Exam() {
             audio.current = player;
             player.onended = afterReading;
             player.onerror = () => { setNoAudio(true); later(afterReading, NO_AUDIO_READ_MS); };
-            player.play().catch(() => { setNoAudio(true); later(afterReading, NO_AUDIO_READ_MS); });
+            void routeToSpeaker(player, loadDeviceChoice().speaker)
+                .then(() => player.play())
+                .catch(() => { setNoAudio(true); later(afterReading, NO_AUDIO_READ_MS); });
         } else {
             setNoAudio(true);
             later(afterReading, NO_AUDIO_READ_MS);
@@ -175,9 +181,16 @@ function Exam() {
         setOverlay({ kind: "checking" });
         await new Promise((r) => setTimeout(r, waitMs));
         try {
-            const s = await api<StateResponse>(`/applications/${applicationId}/interview/state`);
+            const read = () => api<StateResponse>(`/applications/${applicationId}/interview/state`);
+            let s = await read();
+            // 아직 진행 중이면 서버가 판정하기 전이다 (한 번도 연결되지 않은 응시는 1~3분 뒤 정해진다, E7)
+            for (let i = 0; (s.attempt_status === "interviewing" || s.attempt_status === "coding") && i < SETTLE_POLLS; i++) {
+                setOverlay({ kind: "checking", long: true });
+                await new Promise((r) => setTimeout(r, SETTLE_POLL_MS));
+                s = await read();
+            }
             const map: Record<string, Overlay | null> = {
-                interrupted: { kind: "paused", reason: "ws_abnormal_close", resumeUntil: s.resume_until },
+                interrupted: { kind: "paused", reason: "ws_abnormal_close", resumeUntil: s.resume_until, resumesLeft: s.resumes_left },
                 ended: { kind: "ended", detail: s.end_detail },
                 cancelled: { kind: "cancelled" },
                 ended_closed: { kind: "closed" },
@@ -231,7 +244,7 @@ function Exam() {
                 }
                 break;
             case "paused":
-                finish({ kind: "paused", reason: m.reason, resumeUntil: m.resume_until });
+                finish({ kind: "paused", reason: m.reason, resumeUntil: m.resume_until, resumesLeft: m.resumes_left });
                 break;
             case "phase":
                 warned.current = false;
@@ -332,11 +345,26 @@ function Exam() {
             if (ws.current?.readyState === WebSocket.OPEN) setConn(Date.now() - lastMessageAt.current > 20_000 && ws.current.bufferedAmount > 64_000 ? "slow" : "ok");
         }, HEARTBEAT_MS);
         const meter = window.setInterval(() => setLevel(recorder.current?.level() ?? 0), 120);
+        let offlineTimer = 0;
+        const onOffline = () => {
+            setConn("down");
+            window.clearTimeout(offlineTimer);
+            offlineTimer = window.setTimeout(() => { if (!navigator.onLine) ws.current?.close(); }, OFFLINE_CLOSE_MS);
+        };
+        const onOnline = () => {
+            window.clearTimeout(offlineTimer);
+            if (ws.current?.readyState === WebSocket.OPEN) setConn("ok");
+        };
+        window.addEventListener("offline", onOffline);
+        window.addEventListener("online", onOnline);
 
         return () => {
             disposed = true;
             window.clearInterval(heartbeat);
             window.clearInterval(meter);
+            window.clearTimeout(offlineTimer);
+            window.removeEventListener("offline", onOffline);
+            window.removeEventListener("online", onOnline);
             ws.current?.close(1000);
             stopEverything();
         };
@@ -502,7 +530,8 @@ function Exam() {
                     </div>
                     <p className="question-text" aria-live="polite">{question.text}</p>
                     {step === "reading" && <p className="muted">{noAudio ? "음성 없이 자막으로 진행합니다" : "🔊 질문을 읽고 있습니다…"}</p>}
-                    {step === "countdown" && <div className="countdown" aria-live="assertive">{count}</div>}
+                    {/* assertive 는 질문 자막 낭독을 끊었다. polite 로 자막 뒤에 읽게 한다 (E16) */}
+                    {step === "countdown" && <div className="countdown" aria-live="polite">{count}</div>}
                     {(step === "answering" || step === "processing") && (
                         <div className="answer-box">
                             {step === "answering" ? (
@@ -533,7 +562,8 @@ function Exam() {
             {phase === "coding-intro" && coding && <CodingIntro info={coding} awayCount={awayCount} onStart={startCoding} />}
             {phase === "coding" && coding && (
                 <CodingTest sessionId={session.session_id} problems={coding.problems} remainingSec={codingRemaining}
-                    paused={overlay?.kind === "warn"} onFinished={codingFinished} />
+                    paused={overlay?.kind === "warn"} onFinished={codingFinished}
+                    onAutosaveFailed={(problemNo) => send({ type: "autosave_failed", problem_no: problemNo })} />
             )}
 
             {phase === "done" && (

@@ -148,7 +148,7 @@ function ResumeMethod() {
             <h2>이력서를 어떻게 제출할까요?</h2>
             <div className="grid3" role="radiogroup" aria-label="이력서 제출 방식">
                 {([
-                    { key: "upload", icon: "📄", title: "파일 업로드", text: "AI가 내용을 읽어 채워 줍니다", sub: "PDF·JPG·PNG (스캔본·사진 포함)" },
+                    { key: "upload", icon: "📄", title: "파일 업로드", text: "AI가 내용을 읽어 채워 줍니다", sub: "PDF·JPG·PNG (스캔본·사진 포함, PDF는 10쪽까지)" },
                     { key: "manual", icon: "✍", title: "직접 작성", text: "항목을 직접 입력합니다", sub: "" },
                     { key: "saved", icon: "📁", title: "등록본 불러오기", text: "마이페이지 이력서 사용", sub: saved ? `최종 수정 ${dateOnly(saved.updated_at)}` : "등록된 이력서가 없습니다" },
                 ] as const).map((m) => {
@@ -182,7 +182,7 @@ function ResumeMethod() {
                     <Button kind="secondary" busy={busy} onClick={() => fileInput.current?.click()}>파일 선택</Button>
                     <input ref={fileInput} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" hidden
                         onChange={(e) => { const f = e.target.files?.[0]; if (f) void sendFile(f); e.target.value = ""; }} />
-                    <p className="small muted" style={{ marginTop: 12 }}>PDF·JPG·PNG · 스캔본·사진도 글자 인식(OCR)으로 읽습니다</p>
+                    <p className="small muted" style={{ marginTop: 12 }}>PDF·JPG·PNG · 스캔본·사진도 글자 인식(OCR)으로 읽습니다 · PDF는 앞 10쪽까지만 읽습니다</p>
                 </div>
             )}
 

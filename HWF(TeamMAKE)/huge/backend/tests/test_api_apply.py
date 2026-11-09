@@ -7,7 +7,7 @@ from app.routers import interview as interviewRouter
 from app.services import admission
 from app.timeutil import now
 
-CONSENT = {"consent_version": "v1.7", "items": {"data_collection": True, "ai_decision": True, "share_with_admin": True,
+CONSENT = {"consent_version": "v1.8", "items": {"data_collection": True, "ai_decision": True, "share_with_admin": True,
                                                 "retention": True, "exam_rules": True}}
 RESUME = {"method": "manual", "resume": {
     "name": "김지원",
@@ -49,7 +49,7 @@ def test_resumeBeforeConsentRejected(adminClient):
 def test_partialConsentRejected(adminClient):
     client, postingId = asApplicant(adminClient)
     appId = client.post("/applications", json={"posting_id": postingId}).json()["application_id"]
-    body = {"consent_version": "v1.7", "items": {**CONSENT["items"], "retention": False}}
+    body = {"consent_version": "v1.8", "items": {**CONSENT["items"], "retention": False}}
     assert client.post(f"/applications/{appId}/consent", json=body).json()["code"] == "AGREEMENT_REQUIRED"
 
 
@@ -142,3 +142,37 @@ def test_beaconAcceptsTextPlainAndGarbage(adminClient, sessionFactory):
     assert client.post(f"/interview/{sid}/events", content="not json").status_code == 204
     with sessionFactory() as db:
         assert {e.type for e in db.query(SessionEvent)} == {"unload", "beacon_unparsed"}
+
+
+def test_myApplicationsTellsWhetherExamScreenIsConnected(adminClient, sessionFactory, monkeypatch):
+    """시작 뒤 면접 화면이 한 번도 연결되지 않았으면 '다른 창에서 응시 중'이 아니라 미연결로 알린다 (E7)"""
+    from app.interview import registry
+
+    client, postingId = asApplicant(adminClient)
+    appId = applyReady(client, postingId)
+    with sessionFactory() as db:
+        db.get(Application, appId).precheck_valid_until = now() + timedelta(minutes=15)
+        db.commit()
+    assert client.post(f"/applications/{appId}/interview/start").status_code == 200
+    assert client.get("/me/applications").json()["items"][0]["connected"] is False
+    monkeypatch.setattr(registry, "get", lambda applicationId: object())
+    assert client.get("/me/applications").json()["items"][0]["connected"] is True
+
+
+def test_dbRejectsSecondApplicationForSamePosting(sessionFactory, adminClient):
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    client, postingId = asApplicant(adminClient)
+    client.post("/applications", json={"posting_id": postingId})
+    with sessionFactory() as db:
+        userId = db.query(User).filter_by(email="kim@example.com").one().id
+        db.add(Application(user_id=userId, posting_id=postingId, attempt_status="drafting"))
+        with pytest.raises(IntegrityError):
+            db.commit()
+
+
+def test_consentOnSubmittedApplicationSaysApplicationLocked(adminClient):
+    client, postingId = asApplicant(adminClient)
+    appId = applyReady(client, postingId)
+    assert client.post(f"/applications/{appId}/consent", json=CONSENT).json()["code"] == "APPLICATION_LOCKED"

@@ -9,6 +9,7 @@ from ..db import getDb
 from ..deps import activeUser, ownedApplication, requireApplicant
 from ..domain import status as st
 from ..errors import notFound
+from ..interview import registry
 from ..models import Application, Consent, InterviewSession, Notification, Result, User
 from ..timeutil import asKst, iso, now
 
@@ -45,6 +46,8 @@ def myApplications(page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=50
             "next_action": st.nextAction(a.attempt_status, released),
             "phase": a.phase,
             "session_id": session.id if session and a.attempt_status in st.IN_PROGRESS else None,
+            # 면접 화면이 지금 붙어 있는가. 시작 뒤 한 번도 연결되지 않은 응시를 '다른 창에서 응시 중'으로 보이지 않게 한다 (E7)
+            "connected": a.attempt_status in st.IN_PROGRESS and registry.get(a.id) is not None,
             "resume_until": iso(a.posting.close_at) if a.attempt_status == st.INTERRUPTED else None,
             "release_status": a.release_status,
             "release_at": iso(releaseAt(a)),

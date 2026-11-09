@@ -17,18 +17,21 @@ import type { AttemptStatus } from "@/lib/status";
 type Card = {
     application_id: string; posting: { posting_id: string; title: string; close_at: string };
     attempt_status: AttemptStatus; next_action: string | null; resume_until: string | null; release_status: string;
-    release_at: string; result_until: string | null; applied_at: string; consented: boolean;
+    release_at: string; result_until: string | null; applied_at: string; consented: boolean; connected: boolean;
 };
 type Tab = "applications" | "results" | "resume" | "account";
 const TABS: { key: Tab; label: string }[] = [
     { key: "applications", label: "지원 내역" }, { key: "results", label: "결과" }, { key: "resume", label: "이력서" }, { key: "account", label: "계정" },
 ];
 
+// 시작했지만 면접 화면이 서버에 붙지 않은 상태. 서버가 1~3분 안에 장애 중단으로 정하면 이어가기가 열린다 (E7)
+const NOT_CONNECTED_TEXT = "면접 화면이 서버에 연결되지 않았습니다. 2~3분 뒤 새로고침하면 이어가기를 할 수 있습니다";
+
 const CARD_TEXT: Partial<Record<AttemptStatus, (c: Card) => string>> = {
     drafting: () => "지원서 작성이 끝나지 않았습니다",
     ready: (c) => `환경 점검을 마치면 면접을 시작할 수 있습니다 · 접수 마감 ${shortDateTime(c.posting.close_at)}`,
-    interviewing: () => "다른 창에서 응시 중입니다",
-    coding: () => "다른 창에서 응시 중입니다",
+    interviewing: (c) => (c.connected ? "다른 창에서 응시 중입니다" : NOT_CONNECTED_TEXT),
+    coding: (c) => (c.connected ? "다른 창에서 응시 중입니다" : NOT_CONNECTED_TEXT),
     interrupted: (c) => `연결 문제로 중단되었습니다. ${shortDateTime(c.resume_until)}까지 이어갈 수 있습니다`,
     completed: (c) => `결과는 ${longDateTime(c.release_at)}에 공개됩니다`,
     ended: () => "지원자 조작으로 연결이 종료되어 답변한 문항까지 평가합니다",
@@ -71,6 +74,7 @@ function Applications({ cards }: { cards: Card[] }) {
 }
 
 function Results({ cards }: { cards: Card[] }) {
+    const [nowMs] = useState(() => Date.now());
     const rows = cards.filter((c) => !["drafting", "ready", "interviewing", "coding", "interrupted"].includes(c.attempt_status));
     if (rows.length === 0) return <Empty title="아직 표시할 결과가 없습니다">응시를 마치면 결과 공개일이 여기에 표시됩니다</Empty>;
     return (
@@ -84,6 +88,7 @@ function Results({ cards }: { cards: Card[] }) {
                         <td className="small">
                             {c.attempt_status === "not_taken_closed" ? "미응시(마감) — 접수 마감까지 응시하지 않아 평가되지 않았습니다"
                                 : c.release_status === "delayed" ? "결과 산출이 늦어지고 있습니다. 산출이 끝나면 다음 날 공개됩니다"
+                                    : c.next_action !== "view_result" && new Date(c.release_at).getTime() <= nowMs ? "결과 산출이 늦어지고 있습니다. 산출이 끝나는 대로 안내드립니다"
                                     : c.next_action === "view_result" ? `${dateOnly(c.result_until)}까지 열람 가능` : `${longDateTime(c.release_at)} 공개 예정`}
                         </td>
                         <td>{c.next_action === "view_result" && <Link className="btn btn-secondary btn-sm" href={`/mypage/results/${c.application_id}`}>결과 보기</Link>}</td>
@@ -122,7 +127,13 @@ function SavedResume() {
     }
 
     async function remove() {
-        await api("/me/resume", { method: "DELETE" });
+        try {
+            await api("/me/resume", { method: "DELETE" });
+        } catch (err) {
+            // 실패를 그냥 넘기면 확인 창이 닫히지 않고 아무 안내도 없었다 (E15)
+            toast("error", (err as ApiError).message, remove);
+            return;
+        }
         setResume(null);
         setConfirmDelete(false);
         toast("ok", "등록 이력서를 삭제했습니다");

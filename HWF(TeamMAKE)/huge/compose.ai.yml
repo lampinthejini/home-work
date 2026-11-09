@@ -65,7 +65,7 @@ services:
         reservations:
           devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
 
-  # 임베딩 (BGE-M3, CPU) — 비슷한 질문 찾기·RAG 예시·베낌 확인 (TRD 7-4). 메모리 약 3GB
+  # 임베딩 (BGE-M3, CPU) — 비슷한 질문 찾기·RAG 예시·베낌 확인 (TRD 7-4). 메모리 약 1.7GB (실측 1.6~1.9GB)
   embed:
     restart: unless-stopped
     build: ./ai/embed
