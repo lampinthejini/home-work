@@ -1202,3 +1202,11 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 - 동의 단계 409 는 `APPLICATION_LOCKED`(이력서는 `RESUME_LOCKED` 그대로). `consent_version` 은 v1.8(동의 ⑤ 문구).
 - WebSocket: 화면 → 서버 `autosave_failed`(`problem_no`), 서버 → 화면 `paused` 에 `resumes_left`(앞으로 이어갈 수 있는 끊김 횟수). `/interview/state` 의 `resumes_left` 와 같은 값.
 - 논의사항 남은 항목을 사용자 결정으로 정리했다(설정·고정값은 문서를 구현에 맞춤, AI 설계는 구현대로).
+
+## 2026-11-10 보정
+
+사용자 결정과 코드에 맞춰 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- `POST /admin/postings/{id}/draft-ai/revise` 추가, `draft-ai/status` 에 `stage`·처리 기록 (C-15).
+- `POST /admin/postings/{id}/publish`: 게시 뒤 질문 후보를 '검토 대기'로 만든다(응답과 무관, C-17).
+- `GET /admin/questions`: 출처(`category`)와 적용 범위(`scope`)를 함께 준다 (C-17).

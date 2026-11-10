@@ -1,10 +1,10 @@
-// 테스트 뒤: 남은 E2E 지원자를 지우고, E2E 공고를 마감·삭제하고, 전용 관리자 비밀번호를 아무도 모르는 값으로 바꿔 둔다.
+// 테스트 뒤: 남은 E2E 지원자를 지우고, E2E 공고를 마감·삭제하고, 테스트 중에 생긴 AI 질문 후보를 지우고, 전용 관리자 비밀번호를 아무도 모르는 값으로 바꿔 둔다.
 // E2E_KEEP=1 이면 지원자·공고를 남겨 둔다 (브라우저에서 실제 관리자 계정으로 녹화·메모를 직접 확인할 때).
 import { existsSync, rmSync } from "node:fs";
 
 import { request } from "@playwright/test";
 
-import { BASE_URL, purgeE2eApplicants, randomPassword, readState, setE2eAdminPassword, STATE_FILE } from "./helpers";
+import { BASE_URL, purgeE2eApplicants, purgeE2eQuestions, randomPassword, readState, setE2eAdminPassword, STATE_FILE } from "./helpers";
 
 export default async function globalTeardown() {
     if (!existsSync(STATE_FILE)) return;
@@ -23,6 +23,12 @@ export default async function globalTeardown() {
                     await ctx.post(`/api/admin/postings/${posting.posting_id}/close`);
                     await ctx.delete(`/api/admin/postings/${posting.posting_id}`);
                 }
+            }
+            // 게시·면접 때 생긴 AI 질문 후보(검토 대기)를 지운다. 게시 뒤 후보 만들기는 뒤에서 돌아 늦게 끝날 수 있다
+            if (typeof state.questionWatermark === "number") {
+                await new Promise((resolve) => setTimeout(resolve, 5_000));
+                const removed = purgeE2eQuestions(state.questionWatermark);
+                if (removed) console.log(`E2E 가 만든 질문 후보 ${removed}개를 지웠습니다`);
             }
         }
     } finally {

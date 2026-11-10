@@ -138,7 +138,7 @@ flowchart TB
 
     subgraph front["front 망 (huge-front)"]
         frontend["frontend<br/>Next.js 16 · React 19<br/>화면 · 장치 점검 · 이탈 감지"]:::app
-        api["api<br/>FastAPI · LangGraph(면접 진행·질문 구성)<br/>REST · WebSocket(음성 PCM 포함)<br/>이력서 정리 · 공고 초안 · 질문 구성(백그라운드)"]:::app
+        api["api<br/>FastAPI · LangGraph(면접 진행·질문 구성·공고 초안)<br/>REST · WebSocket(음성 PCM 포함)<br/>이력서 정리 · 공고 초안 · 질문 구성(백그라운드)"]:::app
     end
 
     subgraph internal["internal 망 (huge-internal, internal: true)"]
@@ -204,7 +204,7 @@ flowchart TB
 | stt | 실시간 임시 자막, 최종 전사(word timestamps 포함) | - | ● |
 | llm-eval | 1차 결과 이유 작성(T10)만 | 면접 중 실시간 응답, 채점 | CPU |
 | tts · embed · ocr | 질문 음성 / 질문 임베딩·RAG 예시 찾기·베낌 확인 / 이력서 OCR | - | CPU |
-| postgres | 업무 데이터 원장, pgvector, LangGraph 체크포인트(면접 진행 그래프), 로그인 세션(T13), 면접 세션(T14) | - | - |
+| postgres | 업무 데이터 원장, pgvector, LangGraph 체크포인트(면접 진행 그래프·공고 초안 그래프), 로그인 세션(T13), 면접 세션(T14) | - | - |
 | redis | Celery 브로커·결과 저장, 음성 조각 스트림, 임시 자막 Pub/Sub, 입장 카운터, 짧은 상태(평가 잠금 등). heartbeat 시각은 Redis 가 아니라 api 프로세스 메모리 | 원장(영구 데이터) | - |
 | objectstore (RustFS) | 이력서 원본, 답변 음성, 녹화 조각, 질문 음성. 앱이 AES-256-GCM 으로 암호화해 넣음(B5) | 브라우저 직접 노출 | - |
 | mailpit | 개발용 메일 서버(운영은 외부 SMTP) | - | - |
@@ -639,7 +639,7 @@ flowchart TB
 
 | 저장소 | 담는 것 | 수명 |
 |---|---|---|
-| PostgreSQL | 원장: 계정, 로그인 세션(`login_sessions`, T13), 면접 세션(`interview_sessions`, T14), 공고, 평가 기준(버전), 지원, 동의, 질문 DB(+임베딩), 출제 질문, 답변 텍스트, 점수, 결과, 이벤트, 알림, 감사·삭제 로그, 설정(변경 기록은 감사 로그, F8), 통계 보관(`stats_archive`, F1), LangGraph 체크포인트(면접 진행 그래프) | 10-2 보관 규칙 |
+| PostgreSQL | 원장: 계정, 로그인 세션(`login_sessions`, T13), 면접 세션(`interview_sessions`, T14), 공고, 평가 기준(버전), 지원, 동의, 질문 DB(+임베딩), 출제 질문, 답변 텍스트, 점수, 결과, 이벤트, 알림, 감사·삭제 로그, 설정(변경 기록은 감사 로그, F8), 통계 보관(`stats_archive`, F1), LangGraph 체크포인트(면접 진행 그래프·공고 초안 그래프) | 10-2 보관 규칙 |
 | Redis | 휘발성: Celery 작업·결과, `audio:{sid}` 스트림, `caption:{sid}` Pub/Sub 채널, 입장 카운터, heartbeat 시각, 평가 잠금 | 세션 종료 시 삭제. 원장은 항상 DB. 로그인 세션·면접 세션·환경 점검 통과·로그인 실패 잠금은 Redis 가 아니라 DB 칸/테이블(T13·T14·T16·T17) |
 | RustFS (S3 호환) | 바이너리: `resumes/` 원본, `answers/` 답변 음성, `recordings/{지원}/{구간}/00000.webm …` 녹화 조각(조각마다 객체 하나, R1), `questions/{지원}/…` 질문 음성(`application_id` 기준, B8) | 녹화 3일(매시 30분 삭제), 나머지 공개 + 7일 |
 
@@ -755,7 +755,7 @@ GPU 합계: 2.5 + 0.3 × (N + 1) + 1.0 + 0.5 ≤ 5.4GB → **N ≈ 2~3** (추정
 | ADR-04 | 카메라 녹화는 MediaRecorder 10초 WebM 조각을 REST로 올린다. 3회 실패는 '업로드 실패 = 장애'로 본다 | 채택 (팀 확인 2026-10-29) | WebRTC 영상 트랙 | 녹화는 실시간일 필요가 없고, 서버 영상 디코딩 부담이 없다. 경로는 API 명세서의 `POST /interview/{sid}/recording`. `[TRD 요청]` 5-1에 경로 추가 |
 | ADR-05 | 브라우저가 쓰는 파일(질문 음성, 하이라이트, 녹화)은 api `/media/*`가 권한 확인 후 RustFS에서 읽어 전달한다(**답변 음성·녹화·질문 음성 모두 Range 없이 처음부터 전체를 보냄** — 답변 음성은 `Response` 로 전체 전송이고, 녹화(MediaRecorder WebM)는 탐색 정보가 없어 건너뛰기가 안 된다, R2. 하이라이트 구간 이동은 화면이 받은 음성의 재생 위치를 옮겨서 한다). frontend rewrites에 `/media/*`를 추가한다 | 제안 | MinIO 사전 서명 URL | MinIO 포트를 열지 않으므로 사전 서명 URL은 브라우저가 닿지 않는다. 권한 검사와 감사 로그를 한 곳에 둘 수 있다. `[TRD 요청]` 8-4 '5분짜리 임시 주소' 문구 수정. `[API 명세서 요청]` `GET /admin/applicants/{aid}/media`가 MinIO 주소 대신 파일을 직접 흘려보내도록 수정 |
 | ADR-06 | AI 판정 검증은 형식·값 범위·근거 원문 일치 세 가지만 한다. 서버는 '총점 ≥ 합격 기준' 규칙으로 다시 판정하지 않는다. 검증 실패는 1회 재판정 → 평가 지연. **→ 구현에서 대체됨(S1): 코드가 '총점 ≥ 합격 기준'으로 합불을 정하고 AI(T10)는 이유만 쓴다. 검증은 형식·근거 번호·결과와의 방향이다. (S1, 사용자 결정. 팀 원본 PRD v1.6·TRD v1.5 에는 옛 문구)** | 채택 (TRD 1-2·8-2⑤, 팀 확인 2026-10-29) → 구현에서 대체 | 화면정의서 v0.4 D-06 (기준 일치까지 검증) | 최우선 문서인 TRD와 개정된 시나리오·08v·API 명세서에 맞춘다. 결과: 총점과 어긋난 판정이 확정될 수 있다(R-09). 화면정의서 D-06과 PRD AC-13은 개정 대상 |
-| ADR-07 | 면접 진행은 api 안의 LangGraph(PostgreSQL 체크포인트, thread_id = 지원 번호), 질문 구성도 LangGraph이나 **구현은 worker가 아니라 api 안에서 돌고 체크포인트가 없다**(B1 ①). 상태 원장은 `applications`이고 이어가기는 `locate` 노드가 원장을 읽어 한다(B1 ②) | 채택 (TRD 7-4, 7-5) | 전부 worker / 직접 구현 상태 머신 | interrupt·체크포인트로 이어가기 구현이 단순해진다. 그래프는 이어가기 수단일 뿐 원장이 아니다 |
+| ADR-07 | 면접 진행은 api 안의 LangGraph(PostgreSQL 체크포인트, thread_id = 지원 번호), 질문 구성도 LangGraph이나 **구현은 worker가 아니라 api 안에서 돌고 체크포인트가 없다**(B1 ①). 상태 원장은 `applications`이고 이어가기는 `locate` 노드가 원장을 읽어 한다(B1 ②). AI 공고 초안도 api 안 LangGraph이며 체크포인트 thread 는 `posting-draft:{공고 id}`(한 칸 다시 쓰기에 이어 씀, 2026-11-10, C-15) | 채택 (TRD 7-4, 7-5) | 전부 worker / 직접 구현 상태 머신 | interrupt·체크포인트로 이어가기 구현이 단순해진다. 그래프는 이어가기 수단일 뿐 원장이 아니다 |
 | ADR-08 | 동시 면접 상한은 Redis Lua + DB `holds_seat` 재동기화. 대기열 없음 | 채택 (TRD 5-3) | 대기열·자동 입장 | 단순함. '대기'는 저장 상태가 아니다 |
 | ADR-09 | 코드 실행은 `worker-sandbox`(큐 sandbox)가 docker.sock으로 1회용 컨테이너를 만든다(B4). api는 소켓이 없다. 코드·입력은 put_archive/stdin 대신 **환경 변수**로 넣는다(B7) | 채택 (TRD 9장 + 보완) | 상시 실행 sandbox / gVisor | 구현이 가장 작다. bind mount 경로 문제를 피한다 |
 | ADR-11 | 객체 저장소는 MinIO 대신 RustFS(S3 호환)를 쓰고, 파일은 서버 쪽 암호화(SSE) 대신 앱이 AES-256-GCM 으로 암호화해 넣는다(B5) | 채택 (구현, 사용자 결정 2026-10-30) | MinIO + SSE | MinIO 공식 이미지 배포 중단(R-07). SSE 는 KMS 설정이 필요해 앱 암호화가 단순하다 |
@@ -873,3 +873,9 @@ GPU 합계: 2.5 + 0.3 × (N + 1) + 1.0 + 0.5 ≤ 5.4GB → **N ≈ 2~3** (추정
 - 1분 정리 작업의 입장 카운터는 `holds_seat` 수에 저장 전 입장(`interview:pending:*`)을 더해 맞춘다. 시작 API 는 자리 잡기와 상태 바꾸기를 한 번에 저장한다(E10).
 - 채점(T5) 온도 0, 근거 90% 일치 허용(E17, CONFLICTS C-13). 실시간 면접과 채점이 같은 GPU 모델(llm-rt)을 쓰므로 동시에 돌면 점수가 조금 달라질 수 있다(사용자 결정: 그대로 둠).
 - 남은 논의사항을 사용자 결정으로 정리했다: 원본 설계 중 구현에 없는 부분(Gateway·anchor 검증·skip_cause 저장 등)은 구현대로 확정하고 설계는 미구현으로 남긴다.
+
+## 2026-11-10 보정
+
+사용자 결정과 코드에 맞춰 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- api 의 LangGraph 그래프에 AI 공고 초안 그래프를 더했다(체크포인트 thread `posting-draft:{공고 id}`, ADR-07, C-15). 게시 뒤 질문 후보 만들기도 api 안 백그라운드 작업이다(C-17).

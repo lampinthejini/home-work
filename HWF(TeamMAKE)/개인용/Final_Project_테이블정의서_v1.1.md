@@ -601,7 +601,7 @@ UNIQUE (application_id, problem_no)
 
 ### 4-18. questions (질문 DB)
 
-엑셀에서 불러온 질문과 예비 질문
+엑셀에서 불러온 질문과 예비 질문, AI 질문 후보(`generated`, 검토 대기에서 관리자가 [추가]하면 사용, C-17)
 
 | 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
 |---|---|---|---|---|---|
@@ -613,7 +613,7 @@ UNIQUE (application_id, problem_no)
 | sheet | varchar(64) | | Y | | 엑셀 원래 시트 이름 |
 | row_no | integer | | Y | | 엑셀 행 번호 |
 | duplicate_group | varchar(128) | | Y | | 겹치는 질문 묶음 표시 |
-| status | varchar(16) | | N | 'active' | active · excluded(거름, F4-2) 등. CHECK |
+| status | varchar(16) | | N | 'active' | active 사용 · preparing 준비 중 직무 · pending 검토 대기(AI 후보) · rejected 관리자가 뺌 · excluded 자동으로 거름(F4-2·중복 0.8). CHECK |
 | answer_seconds | integer | | N | 90 | 답변 시간 |
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목(배열) |
 | embedding | vector(1024) | | Y | | BGE-M3 임베딩. pgvector 가 있을 때만 `migrate.py` 가 더한다 |
@@ -855,3 +855,9 @@ UNIQUE (interview_question_id, eval_item)
 - 4-9 applications: `UNIQUE (posting_id, user_id)` 추가(사용자 결정). 기존 DB 는 시작할 때 `CREATE UNIQUE INDEX IF NOT EXISTS` 로 더하고, 중복 행이 있으면 경고만 남긴다.
 - FK 가 없는 칸(`job_code`·`actor_id`·`resume_upload_id`·`session_id`)과 `subject_hash` NULL 허용은 구현대로 확정했다(지운 뒤에도 기록 보존).
 - `questions_status` 칸 주석을 CHECK 와 같은 4값으로 고쳤다. session_events.type 에 `autosave_failed` 추가.
+
+## 2026-11-10 보정
+
+사용자 결정과 코드에 맞춰 고친 내용이다. 문서 버전 번호는 그대로 둔다.
+
+- 4-18 questions: `posting_id`·`job_code`(적용 범위, C-17)를 더했다. `source` 에 AI 생성(`generated`) 구분, `status` 를 CHECK 와 같은 5값(active · preparing · pending · rejected · excluded)으로 적었다.

@@ -17,6 +17,7 @@ export type E2eState = {
     adminEmail: string; adminPassword: string;
     postingId: string; postingTitle: string; // 코딩테스트 끔
     codingPostingId: string; codingPostingTitle: string; // 코딩테스트 켬
+    questionWatermark: number; // 시작할 때 가장 큰 질문 번호 (이보다 뒤에 생긴 AI 질문 후보는 테스트가 만든 것)
 };
 
 export function readState(): E2eState {
@@ -81,6 +82,49 @@ export function purgeE2eApplicants(): number {
         "print(len(users))",
     ].join("\n");
     const out = execFileSync("docker", ["exec", API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    });
+    return Number(out.toString().trim().split("\n").pop());
+}
+
+/** 지금 가장 큰 질문 번호. 테스트 뒤 이보다 큰 AI 질문 후보만 지운다 */
+export function questionWatermark(): number {
+    const script = [
+        "from sqlalchemy import func",
+        "from app.db import SessionLocal",
+        "from app.models import Question",
+        "print(SessionLocal().query(func.max(Question.id)).scalar() or 0)",
+    ].join("\n");
+    const out = execFileSync("docker", ["exec", API_CONTAINER, "python", "-c", script], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    });
+    return Number(out.toString().trim().split("\n").pop());
+}
+
+/**
+ * 테스트 중에 생긴 AI 질문 후보(검토 대기)를 지운다. 공고 게시 때 만든 '공고 기반' 후보와 면접 때 만든 'AI 생성' 후보가
+ * E2E 공고로 만들어져 질문 관리에 쌓이지 않게 한다 (회사 질문은 공고를 지우면 함께 지워지지만 직무·인성 질문은 남는다).
+ * 관리자가 이미 [추가]·[제외]한 질문이나 엑셀·예비 질문은 건드리지 않는다.
+ */
+export function purgeE2eQuestions(after: number): number {
+    const script = [
+        "import os",
+        "from app.db import SessionLocal",
+        "from app.models import AuditLog, InterviewQuestion, Question",
+        "db = SessionLocal()",
+        "used = db.query(InterviewQuestion.source_question_id).filter(InterviewQuestion.source_question_id.isnot(None))",
+        "rows = db.query(Question).filter(Question.id > int(os.environ['E2E_AFTER']), Question.source == 'generated',",
+        "                                 Question.status == 'pending', Question.id.notin_(used)).all()",
+        "for q in rows:",
+        "    db.delete(q)",
+        "if rows:",
+        "    db.add(AuditLog(action='question.e2e_cleanup', target='questions', detail={'deleted': [q.id for q in rows]}))",
+        "db.commit()",
+        "print(len(rows))",
+    ].join("\n");
+    const out = execFileSync("docker", ["exec", "-e", `E2E_AFTER=${after}`, API_CONTAINER, "python", "-c", script], {
         env: { ...process.env, MSYS_NO_PATHCONV: "1" },
         stdio: ["ignore", "pipe", "pipe"],
     });
