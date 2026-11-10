@@ -127,7 +127,17 @@
 | 범위 미리 붙이기 (DB 한 번 수정) | 범위가 없던 AI 직무 질문 125개 → `job_code='AI_AX'`(지금까지 공고가 모두 AI_AX), 회사 질문 #6400 → 'AI/AX 엔지니어 (신입)'. 감사 기록 `question.scope_backfill` |
 | 테스트 | 새 테스트 `test_awkwardEndingIsRejected`, `test_naturalEndingsPass`, `test_companyQuestionDoesNotAskInsideExperience`, `test_companyMotivationQuestionPasses`, `test_promptAsksNaturalEndingsAndNoInsideExperience`, `test_companyCandidatesEachGetDifferentAngle`. pytest **449 passed, 4 skipped**, ruff 통과 |
 
-**알린 문제 (상태는 바꾸지 않음).** 사용 중인 AI 질문 43개 중 19개가 오늘 글 검사에 걸린다(두 가지 묻기 17, 답변 방식 지시 2). 범위 없는 AI 회사 질문 중 #6389·#6407 은 지워진 공고의 서비스를 적고 있다. 자세한 것은 CONFLICTS C-17.
+**알린 문제 → 처리함 (사용자 결정).** 사용 중인 AI 질문 43개 중 오늘 글 검사에 걸린 19개(두 가지 묻기 17, 답변 방식 지시 2)는 [빼기], 지워진 공고의 서비스를 적은 검토 대기 회사 질문 #6389·#6407 은 [제외]했다(모두 `rejected`, 질문마다 감사 기록 `question.reject`). 질문 관리 '제외' 탭에서 [추가]로 되돌릴 수 있다. 자세한 것은 CONFLICTS C-17.
+
+### 9-2. 가이드 갱신 (같은 날)
+
+| 가이드 (`개인용/가이드/`, md + pdf) | 바뀐 곳 |
+|---|---|
+| 이용자가이드_관리자 | AI 공고 초안 진행 단계·처리 기록·'한 칸 다시 쓰기', 면접 질문 글 검사·예/아니오 꼬리질문, [다시 돌리기] 확인 창, **5장 질문 관리 새로 씀**(전에는 "[추가]로 질문을 직접 넣는다"고 잘못 적혀 있었음 — [추가]는 검토 대기 질문을 승인하는 버튼), 게시 때 질문 후보, 자주 묻는 질문 |
+| 이용자가이드_지원자 | 예/아니오 질문에 짧게 답하면 이유를 다시 묻는다 |
+| 개발자가이드_나를위한 | 6장 글 검사·종류별 규칙·적용 범위, **6-1 질문 후보와 적용 범위**, **6-2 AI 공고 초안 그래프**, 7장 예/아니오 꼬리질문, 14장 테스트 수(449), 15장 한계 2줄, 16장 질문 1개, 17장 용어 3개, 그림 4·관리자 메뉴 그림 글 |
+| 코드열람가이드_파일과함수 | 3장 장면 1·2, 4장 `domain/question_text.py`·`posting_questions.py` 새 설명, `question_compose`·`posting_draft`·관리자 창구 설명, 5장 화면 표, 6장. **부록 A·B 표를 지금 코드로 다시 뽑음**(줄 번호·인자·부르는 곳 — '하는 일'은 기존 글을 두고 새로 생기거나 하는 일이 바뀐 함수 57개만 새로 씀), 새 파일 절 2개, 폴더 지도 숫자, 부록 C 테스트 지도(새 파일 3개) |
+
 
 ### 10. 테스트
 
