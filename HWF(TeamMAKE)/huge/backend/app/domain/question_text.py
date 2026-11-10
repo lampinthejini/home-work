@@ -32,6 +32,8 @@ QUESTION_WORD = re.compile(r"무엇|어떻게|어떤|왜|얼마나|언제|어디
 TWO_SENTENCES = re.compile(r"[?.!]\s+\S")  # 실측: "…무엇인가요? 한 가지 원리를 설명해 주세요." "…하시나요. (예: …)"
 STATEMENT_END = re.compile(r"[입습]니다\??$")  # 실측: "…된 계기입니다?" 처럼 서술문 끝에 물음표만 붙인 것
 QUESTION_END = re.compile(r"(\?|요\.?|까\.?)$")  # 실측: "…동기입니다." "…관심을 갖게 된 이유" 는 질문이 아니다
+# 면접 존댓말로 어색한 끝 (실측 2026-11-10: "…매력을 느꼈는가요?"). "느끼셨나요"·"생각하시나요"로 쓴다. "인가요"는 괜찮다
+AWKWARD_END = re.compile(r"(는|싶은)가요\??$")  # "일하고 싶은가요"도 "싶으신가요"보다 낮춘 말
 
 # 예/아니오로 답할 수 있는 질문 (실측: "의견 차이가 생긴 적이 있었나요?"). 의문사가 없고 부탁하는 꼴("설명해 주시겠어요?")도 아닌 질문
 OPEN_WORD = re.compile(r"무엇|어떻게|어떤|왜|얼마|언제|어디|누구|뭐|몇")
@@ -61,6 +63,8 @@ def textProblem(text: str) -> str | None:
         return "compound_question"
     if not QUESTION_END.search(text) or STATEMENT_END.search(text):
         return "not_question"
+    if AWKWARD_END.search(text):
+        return "awkward_ending"
     if len(text) > QUESTION_MAX_CHARS:
         return "too_long"
     return None

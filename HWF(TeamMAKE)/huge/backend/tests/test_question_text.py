@@ -120,3 +120,23 @@ def test_yesNoQuestionTellsLlmToAskReason():
     from app.interview import engine
     assert "이유" in engine.followupPrompt("팀원과 의견 차이가 생긴 적이 있나요?", "네, 있었고 회의로 풀었습니다.", "")
     assert "예/아니오" not in engine.followupPrompt("갈등은 어떻게 해결하셨나요?", "회의로 풀었습니다.", "")
+
+
+@pytest.mark.parametrize("text", [
+    "우리 회사에서 팀원들이 함께 성장할 수 있는 문화에 어떻게 매력을 느꼈는가요?",  # 실측 2026-11-10 공고 기반 후보
+    "우리 회사의 혁신적인 아이디어를 현실로 만들기 위한 환경에 어떤 호감을 느꼈는가요?",
+    "이 직무에서 가장 중요한 역량은 무엇이라고 생각하는가요?",
+    "협업 문화 속에서 자신이 어떻게 일하고 싶은가요?",  # 실측: '싶으신가요'보다 낮춘 말
+])
+def test_awkwardEndingIsRejected(text):
+    """'~는가요'는 면접 존댓말로 어색하다 ('느끼셨나요'·'생각하시나요'로 써야 함)."""
+    assert qt.textProblem(text) == "awkward_ending"
+
+
+@pytest.mark.parametrize("text", [
+    "우리 회사의 검색 서비스에 관심을 갖게 된 계기는 무엇인가요?",
+    "입사하면 추천 서비스에서 어떤 일을 해 보고 싶으신가요?",
+    "함께 성장하는 팀이 되려면 무엇이 필요하다고 생각하시나요?",
+])
+def test_naturalEndingsPass(text):
+    assert qt.textProblem(text) is None

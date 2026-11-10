@@ -184,3 +184,15 @@ def test_loadWebCandidates(sessionFactory, tmp_path, monkeypatch):
     assert rows["company"].posting_id == posting.id
     assert rows["personality"].posting_id is None and rows["personality"].job_code is None
     assert all(q.category == posting_questions.WEB_CATEGORY for q in rows.values())
+
+
+def test_companyCandidatesEachGetDifferentAngle(sessionFactory, monkeypatch):
+    """회사 질문 3자리가 같은 프롬프트라 모두 '문화에 매력' 같은 질문으로 쏠렸다(실측) → 자리마다 다른 초점."""
+    fake = FakePostingLlm()
+    withFakes(sessionFactory, monkeypatch, fake)
+    with sessionFactory() as db:
+        postingId = addPosting(db).id
+        db.commit()
+    asyncio.run(posting_questions.generateForPosting(postingId))
+    companyPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
+    assert [a for a in posting_questions.COMPANY_ANGLES for p in companyPrompts if f"초점: {a}" in p] == list(posting_questions.COMPANY_ANGLES)

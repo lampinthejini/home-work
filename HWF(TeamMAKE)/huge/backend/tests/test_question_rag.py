@@ -478,3 +478,23 @@ def test_promptGivesKindSpecificFormsNotOneTemplate():
     assert all(forms[kind] in prompts[kind] for kind in prompts)
     assert len(set(forms.values())) == len(forms) and "무엇을 기준으로 정하나요" not in "".join(prompts.values())
     assert "기술 지식을 묻지 않는다" in prompts["personality"] and "기술 지식을 묻지 않는다" in prompts["company"]
+
+
+@pytest.mark.parametrize("text", [
+    "우리 회사의 제품 개발 환경에서 가장 감명받은 경험은 무엇인가요?",  # 실측 2026-11-10: 아직 입사 전인 지원자에게 회사 안 경험을 물음
+    "우리 회사에서 일하며 겪은 가장 큰 어려움은 무엇인가요?",
+])
+def test_companyQuestionDoesNotAskInsideExperience(text):
+    out = question_compose.RagQuestion(question=text, task_count=1)
+    assert question_compose.checkGenerated("company", out, "") == "company_asks_inside"
+
+
+def test_companyMotivationQuestionPasses():
+    out = question_compose.RagQuestion(question="어떤 경험이 우리 회사에 지원하는 계기가 되었나요?", task_count=1)
+    assert question_compose.checkGenerated("company", out, "") is None
+
+
+def test_promptAsksNaturalEndingsAndNoInsideExperience():
+    prompt = question_compose.ragPrompt("company", "직무: AI", "", [], [], None, "지원 동기")
+    assert "는가요" in prompt and "입사 전" in prompt
+    assert "이번 질문의 초점: 지원 동기" in prompt and "기술 주제" not in prompt

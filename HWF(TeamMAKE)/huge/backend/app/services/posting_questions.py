@@ -25,7 +25,9 @@ log = logging.getLogger("huge.posting_questions")
 CATEGORY = "공고 기반"
 WEB_CATEGORY = "인터넷 참고"
 JOB_TOPIC_LIMIT = 6  # 직무 질문 후보 수 상한 (공고 줄 수가 많아도)
-COMPANY_COUNT = 3
+# 회사 질문 자리마다 다른 초점 (실측 2026-11-10: 같은 프롬프트 3번이면 '문화에 매력' 질문으로 쏠림)
+COMPANY_ANGLES = ("지원 동기", "우리 회사가 하는 일과 이 직무에 대한 이해", "조직 문화와 본인이 일하는 방식")
+COMPANY_COUNT = len(COMPANY_ANGLES)
 ATTEMPTS = 2  # 한 자리를 만들어 보는 횟수 (처음 + 고쳐 다시 1번)
 TIMEOUT_SEC = 60  # 뒤에서 도는 일이라 면접 때(question_attempt_timeout_sec)보다 넉넉하게
 EXAMPLE_COUNT = 3
@@ -101,7 +103,7 @@ async def generateForPosting(postingId: str) -> dict:
             posting = db.get(JobPosting, postingId)
             if posting is None:
                 return {"saved": 0, "skipped": 0}
-            slots = [("job", t) for t in qc.jobTopics(posting, {})[:JOB_TOPIC_LIMIT]] + [("company", None)] * COMPANY_COUNT
+            slots = [("job", t) for t in qc.jobTopics(posting, {})[:JOB_TOPIC_LIMIT]] + [("company", angle) for angle in COMPANY_ANGLES]
             made: list[tuple[str, list[float] | None]] = []
             for kind, topic in slots:
                 text, vector = await makeOne(db, posting, kind, topic, made)

@@ -115,6 +115,20 @@
 | 논의사항 | 9장(처리함 · 그대로 두기로 함 · 남은 확인) |
 | CONFLICTS.md | C-15, C-16, C-17 |
 
+### 9-1. 회사 질문 프롬프트 다듬기 · 범위 미리 붙이기 (같은 날 추가)
+
+| 무엇 | 내용 |
+|---|---|
+| 어색한 말끝 막기 | `question_text.AWKWARD_END` — '~느꼈는가요', '~하는가요', '~싶은가요'로 끝나면 `awkward_ending` 으로 버리고 다시 만든다(모든 종류) |
+| 회사 안 경험 묻기 막기 | `question_compose.COMPANY_INSIDE` — "우리 회사의 … 경험·겪은·감명" 같은 회사 질문은 `company_asks_inside`. 지원 동기("어떤 경험이 지원 계기가 되었나요?")는 괜찮다 |
+| 회사 질문 안내 | "지원자는 아직 입사 전이다" + 꼴 예 2개('공고에서 본 … 가운데 가장 끌리는 점은?', '… 문화에서 본인은 어떻게 일하고 싶으신가요?') + 말끝 안내 |
+| 공고 기반 회사 질문 3자리 | 자리마다 초점이 다르다(`posting_questions.COMPANY_ANGLES`) — 전에는 3자리가 모두 '문화에 매력'으로 쏠렸다 |
+| 실측 (llm-rt Qwen3 4B) | 전: 3개 중 3개가 어색한 말끝 또는 회사 안 경험. 후: 15자리 × 2번에서 0건. 예: "공고에서 본 AI 서비스 개발의 핵심 방향 중 가장 끌리는 점은 무엇인가요?", "우리 회사의 조직 문화에서 본인은 어떤 방식으로 일하고 싶으신가요?" |
+| 범위 미리 붙이기 (DB 한 번 수정) | 범위가 없던 AI 직무 질문 125개 → `job_code='AI_AX'`(지금까지 공고가 모두 AI_AX), 회사 질문 #6400 → 'AI/AX 엔지니어 (신입)'. 감사 기록 `question.scope_backfill` |
+| 테스트 | 새 테스트 `test_awkwardEndingIsRejected`, `test_naturalEndingsPass`, `test_companyQuestionDoesNotAskInsideExperience`, `test_companyMotivationQuestionPasses`, `test_promptAsksNaturalEndingsAndNoInsideExperience`, `test_companyCandidatesEachGetDifferentAngle`. pytest **449 passed, 4 skipped**, ruff 통과 |
+
+**알린 문제 (상태는 바꾸지 않음).** 사용 중인 AI 질문 43개 중 19개가 오늘 글 검사에 걸린다(두 가지 묻기 17, 답변 방식 지시 2). 범위 없는 AI 회사 질문 중 #6389·#6407 은 지워진 공고의 서비스를 적고 있다. 자세한 것은 CONFLICTS C-17.
+
 ### 10. 테스트
 
 | 검사 | 결과 |
