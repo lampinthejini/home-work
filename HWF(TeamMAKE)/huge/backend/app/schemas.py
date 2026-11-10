@@ -87,6 +87,13 @@ class PostingIn(Strict):
     criteria: CriteriaIn | None = None
 
 
+class DraftReviseRequest(Strict):
+    """AI 초안 한 칸 다시 쓰기 (2026-11-10). current 는 편집 화면의 지금 글 (저장 전 수정 포함)."""
+    section: str = Field(pattern="^(title|company_intro|duties|requirements|preferred)$")
+    note: str = Field(min_length=1, max_length=300)
+    current: str = Field(default="", max_length=5000)
+
+
 class DraftAiRequest(Strict):
     """AI 공고 초안 질문 (화면정의서 S-R02). 회사명은 받지 않는다 (단일 기업, 2026-10-30 사용자 결정)."""
     job_code: str

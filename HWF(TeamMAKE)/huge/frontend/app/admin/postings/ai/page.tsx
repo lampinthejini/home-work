@@ -10,6 +10,7 @@ import { useApp } from "@/components/Providers";
 import { Button, Field, Spinner } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
 import { fromLocalInput } from "@/lib/format";
+import type { DraftStatus } from "@/lib/admin";
 import { EMPLOYMENT_LABEL } from "@/lib/status";
 
 type JobCode = { code: string; name: string; status: "open" | "preparing" };
@@ -19,6 +20,9 @@ type Answers = {
     emphasis: string; coding_test: boolean | null;
 };
 type Phase = { kind: "form" } | { kind: "running"; postingId: string; startedAt: number } | { kind: "failed"; postingId: string };
+// 서버 그래프 단계(stage) → 화면 단계. save 는 잠깐이라 마지막 단계로 본다
+const STEPS = ["참고 공고 찾기", "초안 작성", "표현 점검·고쳐 쓰기"];
+const STAGE_STEP: Record<string, number> = { retrieve: 0, draft: 1, check: 2, rewrite: 2 };
 
 const DUTY_OPTIONS = ["LLM 서비스 개발", "RAG·검색", "모델 파인튜닝", "MLOps", "데이터 파이프라인", "컴퓨터 비전", "업무 자동화(AX)"];
 const SKILL_OPTIONS = ["Python", "PyTorch", "LangChain", "SQL", "Docker", "FastAPI", "Kubernetes"];
@@ -64,6 +68,7 @@ export default function AiPostingPage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [elapsed, setElapsed] = useState(0);
+    const [stage, setStage] = useState<string | null>(null);
     const lastBody = useRef<Record<string, unknown> | null>(null);
 
     useEffect(() => { api<{ items: JobCode[] }>("/job-codes").then((r) => setJobs(r.items)).catch(() => undefined); }, []);
@@ -74,7 +79,8 @@ export default function AiPostingPage() {
         const timer = window.setInterval(async () => {
             setElapsed(Math.round((Date.now() - phase.startedAt) / 1000));
             try {
-                const s = await api<{ status: string }>(`/admin/postings/${phase.postingId}/draft-ai/status`);
+                const s = await api<DraftStatus>(`/admin/postings/${phase.postingId}/draft-ai/status`);
+                setStage(s.stage);
                 if (s.status === "done") router.push(`/admin/postings/${phase.postingId}/edit`);
                 else if (s.status === "failed") setPhase({ kind: "failed", postingId: phase.postingId });
             } catch {
@@ -96,6 +102,7 @@ export default function AiPostingPage() {
     async function requestDraft(postingId: string, body: Record<string, unknown>) {
         await api(`/admin/postings/${postingId}/draft-ai`, { body });
         setElapsed(0);
+        setStage("retrieve");
         setPhase({ kind: "running", postingId, startedAt: Date.now() });
     }
 
@@ -131,14 +138,14 @@ export default function AiPostingPage() {
     }
 
     if (phase.kind === "running") {
-        const step = elapsed < 3 ? 0 : elapsed < 60 ? 1 : 2;
+        const step = STAGE_STEP[stage ?? ""] ?? 0;
         return (
             <AdminShell title="AI로 공고 자동 만들기">
                 <div className="card stack center" style={{ maxWidth: 640, margin: "40px auto" }} role="status">
                     <Mascot name="02-analysis" size={140} />
                     <h2 style={{ margin: 0 }}>AI가 공고 초안을 쓰고 있습니다</h2>
                     <ol className="stepper">
-                        {["답변 정리", "초안 작성 중", "표현 점검"].map((label, i) => (
+                        {STEPS.map((label, i) => (
                             <li key={label} className={i < step ? "done" : i === step ? "current" : ""}><span className="dot">{i < step ? "✓" : i + 1}</span>{label}</li>
                         ))}
                     </ol>

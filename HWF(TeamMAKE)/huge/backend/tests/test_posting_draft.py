@@ -51,6 +51,8 @@ def test_generateFillsTextAndFlagsBias(sessionFactory, adminClient, monkeypatch)
     adminClient.post(f"/admin/postings/{postingId}/draft-ai", json=DRAFT_REQUEST)
 
     async def fakeStructured(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4):
+        if schema is posting_draft.SectionText:  # 차별 표현 칸을 다시 쓰게 해도 AI 가 그대로 두는 경우
+            return schema(text="- Python 3년 이상\n- 20~30대 선호")
         return schema(title="AI/AX 엔지니어 (경력 3년 이상)", company_intro="저희 팀은 제조 데이터를 다루는 AI 조직입니다.",
                       duties="- LLM 서비스 개발\n- RAG 검색 개선", requirements="- Python 3년 이상\n- 20~30대 선호", preferred="- 사내 AI 도입 경험")
 

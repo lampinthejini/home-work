@@ -1,0 +1,1007 @@
+{
+  "about": "인터넷 면접 질문 자료를 참고해 새로 쓴 후보 질문 (2026-11-10). 원문을 옮기지 않고 주제만 참고해 한 가지만 묻게 한국어로 다시 썼다. 'posting' 은 예시 공고 'AI/AX 엔지니어 (신입)'(가상 회사, LLM·RAG 검색·추천 서비스)를 보고 만든 가상 질문. 아직 질문은행(DB)에 넣지 않았다 — 관리자 검토 뒤 넣는다.",
+  "sources": {
+    "datacamp-rag": {
+      "url": "https://www.datacamp.com/ko/blog/rag-interview-questions",
+      "license": "표시 없음 (DataCamp 발행) — 주제만 참고"
+    },
+    "kalyanks-rag": {
+      "url": "https://github.com/KalyanKS-NLP/RAG-Interview-Questions-and-Answers-Hub",
+      "license": "Apache-2.0"
+    },
+    "hyring-pytorch": {
+      "url": "https://hyring.com/jobseeker-toolkit/interview-questions/technical/pytorch",
+      "license": "표시 없음 — 주제만 참고"
+    },
+    "minova-junior-ml": {
+      "url": "https://www.minova.ai/blog/ko/interview/주니어-머신러닝-엔지니어-면접-질문-완벽-가이드",
+      "license": "© Minova AI, 모든 권리 보유 — 주제만 참고"
+    },
+    "haijob-personality": {
+      "url": "https://www.haijob.co.kr/blog/?p=6421",
+      "license": "© 링크업솔루션, All rights reserved — 주제만 참고"
+    },
+    "posting": {
+      "url": null,
+      "license": "예시 공고를 보고 새로 만든 가상 질문"
+    }
+  },
+  "questions": [
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "RAG 시스템에서 검색기와 생성기는 각각 어떤 역할을 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6397,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.639,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "LLM만 쓰지 않고 RAG를 붙이면 어떤 점이 좋아지나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6397,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.641,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "RAG에서 벡터 데이터베이스는 어떤 역할을 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 2580,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.639,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "하이브리드 검색이 무엇인지 설명해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4962,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.631,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "문서를 청크로 나눌 때 청크 크기는 무엇을 기준으로 정하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 455,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.644,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "청크를 너무 크게 나누면 검색 결과에 어떤 문제가 생기나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 30,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.637,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "청크를 나눌 때 앞뒤 글자를 겹치게 두는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4796,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.572,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "처음 검색한 문서를 다시 순위 매기는 리랭킹이 필요한 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4851,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.671,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "RAG 답변이 틀렸을 때 검색 문제인지 생성 문제인지 어떻게 구분하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1963,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.685,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "RAG 시스템의 검색 품질은 어떤 지표로 평가하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3681,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.663,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "생성된 답변이 검색된 문서 내용에 충실한지 어떻게 확인하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1963,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.737,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "질문이 모호해서 검색이 잘 안 될 때 어떤 방법으로 질의를 보완하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1963,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.816,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "HyDE 기법이 검색을 돕는 원리를 설명해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4216,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.616,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "컨텍스트 창이 긴 모델이 있어도 RAG가 여전히 필요한 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6397,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.572,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "실시간 RAG 서비스의 응답 지연을 줄이려면 어떤 방법을 쓸 수 있나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 5060,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.67,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "지식 문서가 자주 바뀔 때 RAG의 색인은 어떻게 최신으로 유지하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4307,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.591,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "민감한 사내 문서로 RAG를 만들 때 정보 유출을 막으려면 어떤 점을 지켜야 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4640,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.665,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "kalyanks-rag",
+      "text": "코사인 유사도로 관련 문서를 찾는 원리를 설명해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3308,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.697,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "HNSW 같은 근사 최근접 이웃 검색이 정확한 검색보다 빠른 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3073,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.602,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "RAG",
+      "source": "datacamp-rag",
+      "text": "RAG와 파인튜닝 중 하나를 고를 때 어떤 기준으로 판단하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3802,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.692,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "LLM",
+      "source": "kalyanks-rag",
+      "text": "LLM이 사실과 다른 내용을 만들어 내는 환각은 왜 생기나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 894,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.656,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "LLM",
+      "source": "kalyanks-rag",
+      "text": "생성 온도(temperature) 값을 낮추면 답변이 어떻게 달라지나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4047,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.594,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "LLM",
+      "source": "datacamp-rag",
+      "text": "프롬프트 인젝션이 무엇인지 설명해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 5202,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.633,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "LLM",
+      "source": "datacamp-rag",
+      "text": "복잡한 작업을 여러 단계 프롬프트로 나누면 어떤 장점이 있나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 59,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.653,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "LLM",
+      "source": "posting",
+      "text": "LLM 서비스에서 토큰 비용을 줄이는 방법에는 어떤 것이 있나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6340,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.728,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "PyTorch의 autograd는 어떤 일을 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1218,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.683,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "학습 반복마다 zero_grad를 호출해야 하는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 5461,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.631,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "모델을 평가할 때 eval 모드로 바꾸는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 2332,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.67,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "추론할 때 torch.no_grad를 쓰는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1823,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.55,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "Dataset과 DataLoader는 각각 어떤 역할을 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 2411,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.644,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "체크포인트에는 어떤 정보를 저장해야 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3067,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.665,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "학습 중 손실 값이 NaN이 되면 무엇부터 확인하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 558,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.643,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "학습 정확도는 높은데 검증 정확도가 낮다면 어떤 문제를 의심하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 4047,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.714,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "GPU 메모리가 부족하다는 오류가 나면 어떤 설정을 먼저 바꾸나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1705,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.687,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "사전 학습된 모델의 일부 층을 고정하는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 663,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.689,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "혼합 정밀도 학습을 쓰면 어떤 이점이 있나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1460,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.642,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "PyTorch",
+      "source": "hyring-pytorch",
+      "text": "실험 결과를 재현할 수 있게 하려면 어떤 설정이 필요한가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 710,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.693,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "Python",
+      "source": "minova-junior-ml",
+      "text": "메모리에 다 올라가지 않는 큰 데이터는 어떻게 처리하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1970,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.925,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "Python",
+      "source": "minova-junior-ml",
+      "text": "파이썬 제너레이터가 대용량 데이터 처리에 유용한 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3538,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.793,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "ML",
+      "source": "minova-junior-ml",
+      "text": "배깅과 부스팅의 차이는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1455,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 1.0,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "ML",
+      "source": "minova-junior-ml",
+      "text": "클래스 비율이 크게 불균형한 데이터는 어떻게 다루나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3408,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.844,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "ML",
+      "source": "minova-junior-ml",
+      "text": "교차 검증을 하는 이유는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 2701,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.924,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "ML",
+      "source": "minova-junior-ml",
+      "text": "정밀도와 재현율의 차이를 설명해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3923,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.945,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "minova-junior-ml",
+      "text": "학습한 모델을 REST API로 서비스하려면 어떤 구성이 필요한가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 637,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.725,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "minova-junior-ml",
+      "text": "운영 중인 모델의 성능이 떨어지는지 어떻게 감시하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1899,
+        "bank_nearest_status": "preparing",
+        "bank_similarity": 0.763,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "minova-junior-ml",
+      "text": "머신러닝 서비스를 Docker로 배포하면 어떤 점이 좋은가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3400,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.704,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "검색·추천",
+      "source": "posting",
+      "text": "검색 결과를 추천할 때 관련도와 다양성의 균형은 어떻게 맞추나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 1058,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.674,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "검색·추천",
+      "source": "posting",
+      "text": "추천 서비스에서 기록이 없는 새 사용자에게는 어떻게 추천하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 3593,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.747,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "검색·추천",
+      "source": "posting",
+      "text": "추천 결과의 품질은 어떤 지표로 평가하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 904,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.74,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "posting",
+      "text": "고객 요구사항이 모호할 때 LLM 서비스의 기능 범위는 어떻게 정하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6404,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.7,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "posting",
+      "text": "기존 시스템과 LLM 서비스를 연동할 때 장애가 번지지 않게 하려면 어떻게 설계하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6404,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.711,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "posting",
+      "text": "LLM 서비스의 응답 품질을 운영 중에 꾸준히 확인하려면 무엇을 기록해야 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6329,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.768,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "job",
+      "topic": "서비스",
+      "source": "posting",
+      "text": "외부 LLM API가 느려지거나 멈췄을 때 서비스는 어떻게 대비해야 하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6404,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.716,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "실패·성장",
+      "source": "haijob-personality",
+      "text": "예상과 다른 결과가 나와서 접근 방법을 바꾼 경험을 말씀해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6044,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.836,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "갈등",
+      "source": "haijob-personality",
+      "text": "팀원과 의견이 달랐을 때 상대의 생각을 어떻게 이해하려고 하셨나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 5887,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.854,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "피드백",
+      "source": "haijob-personality",
+      "text": "피드백을 받고 일하는 방식을 바꾼 경험을 말씀해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6044,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.898,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "스트레스",
+      "source": "haijob-personality",
+      "text": "스트레스가 큰 상황에서 본인은 어떻게 일의 속도를 유지하나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6013,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.758,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "학습",
+      "source": "posting",
+      "text": "새로운 기술을 짧은 시간 안에 익혀야 했던 경험을 말씀해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6141,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.886,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "책임감",
+      "source": "haijob-personality",
+      "text": "팀 프로젝트에서 본인이 맡은 몫을 다하기 위해 어떤 노력을 하셨나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6369,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.802,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "personality",
+      "topic": "강점",
+      "source": "haijob-personality",
+      "text": "본인의 강점이 팀 작업에서 드러났던 순간을 말씀해 주세요.",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6241,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.826,
+        "verdict": "bank_duplicate"
+      }
+    },
+    {
+      "kind": "company",
+      "topic": "지원 동기",
+      "source": "posting",
+      "text": "우리 회사의 LLM·RAG 기반 검색 서비스에 관심을 갖게 된 계기는 무엇인가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6389,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.772,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "company",
+      "topic": "직무 이해",
+      "source": "posting",
+      "text": "입사하면 검색·추천 서비스에서 어떤 일을 먼저 해 보고 싶으신가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6170,
+        "bank_nearest_status": "excluded",
+        "bank_similarity": 0.597,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "company",
+      "topic": "조직 문화",
+      "source": "posting",
+      "text": "팀원의 창의성을 존중하는 문화에서 본인은 어떤 방식으로 기여하고 싶으신가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6142,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.766,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "company",
+      "topic": "조직 문화",
+      "source": "posting",
+      "text": "함께 성장하는 팀이 되려면 신입 엔지니어에게 무엇이 필요하다고 생각하시나요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6142,
+        "bank_nearest_status": "active",
+        "bank_similarity": 0.677,
+        "verdict": "new"
+      }
+    },
+    {
+      "kind": "company",
+      "topic": "목표",
+      "source": "haijob-personality",
+      "text": "입사 후 5년 뒤 AI 엔지니어로서 어떤 모습이 되고 싶으신가요?",
+      "check": {
+        "text_problem": null,
+        "yes_no": false,
+        "other_company": null,
+        "bank_nearest_id": 6400,
+        "bank_nearest_status": "pending",
+        "bank_similarity": 0.642,
+        "verdict": "new"
+      }
+    }
+  ],
+  "check_note": "2026-11-10 검사: 글 검사(question_text.textProblem)·예/아니오·다른 회사 이름(question_bank.excludedReason)·질문은행 6,420개와 BGE-M3 유사도. 0.8 이상(BANK_DUPLICATE_SIMILARITY)은 bank_duplicate."
+}

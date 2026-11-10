@@ -3,16 +3,25 @@
 정해진 값(고용 형태·근무지·인원·접수 기간·코딩테스트 여부)은 AI를 거치지 않고 그대로 복사한다.
 AI(llm-rt)는 제목·부서 소개(company_intro)·주요 업무·자격 요건·우대 사항 문장만 쓴다. 회사명은 쓰지 않는다 (단일 기업 서비스).
 진행 상태는 api 프로세스 안에 둔다 (1단계, 프로세스 1개 기준). 재시작으로 상태가 사라지면 '실패'로 보여 다시 시도하게 한다.
+
+문장 쓰기는 LangGraph 그래프로 돈다 (2026-11-10 사용자 결정). 갈림길은 코드가 정한다.
+  새 초안:   retrieve(같은 직무 예전 공고) → draft → check(칸별) ─ 문제 칸 → rewrite → check ─ 통과·횟수 끝 → save(DB)
+  다시 쓰기: rewrite(관리자가 고른 칸, 요청 메모) → check ─ 문제 → rewrite → check ─ 통과·횟수 끝 → deliver(화면에만)
+두 흐름은 thread_id = 'posting-draft:{공고 id}' 하나를 같이 써서, 다시 쓰기 때 처음 입력·참고 공고를 체크포인트에서 읽는다.
+interrupt 로 멈춰 두지 않는 것은 로컬 Python 3.10 에서 interrupt 가 동작하지 않고, 멈춘 작업을 서버에 남기지 않기 위해서다.
 """
 
 import asyncio
 import logging
 import random
 import re
+from typing import TypedDict
 
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
 from .. import db as dbModule
+from ..interview import checkpoint
 from ..models import JobPosting
 from . import llm
 
@@ -29,6 +38,7 @@ BIAS_RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"기혼|미혼|결혼"), "혼인 여부"),
     (re.compile(r"용모\s*단정|키\s*\d{3}"), "외모·신체 조건"),
     (re.compile(r"출신\s*지역|고향"), "출신 지역"),
+    (re.compile(r"종교|신앙|기독교|천주교|불교|교회\s*출석"), "종교"),  # 화면(PostingEditor)과 같은 규칙 (TC-170)
 ]
 
 SYSTEM = (
@@ -60,7 +70,7 @@ class DraftText(BaseModel):
     preferred: str = Field(description="우대 사항, 메모 내용을 살려 '- ' 로 시작하고 '~ 분'으로 끝나는 줄 1~3개. 우대 사항 메모가 (없음)일 때만 빈 문자열")
 
 
-drafts: dict[str, dict] = {}  # posting_id → {"status": running|done|failed, "bias_warnings": [...], "error": str|None}
+drafts: dict[str, dict] = {}  # posting_id → status() 의 모양 (status·stage·bias_warnings·notes·revision·error)
 tasks: set[asyncio.Task] = set()
 
 
@@ -191,41 +201,296 @@ def fillGaps(draft: DraftText, fallback: str) -> DraftText:
                                     "requirements": unifyBunLines(draft.requirements.strip())})
 
 
-async def generate(postingId: str, prompt: str, fallbackIntro: str = "") -> None:
-    lastError = "unknown"
-    for attempt in range(DRAFT_ATTEMPTS):
+# ---------- 그래프 (참고 공고 → 초안 → 칸별 검사 → 다시 쓰기) ----------
+
+REFERENCE_LIMIT = 2  # 참고할 예전 공고 수 (같은 직무, 게시·마감, 최근 순)
+REFERENCE_MAX_CHARS = 800  # 참고 공고 1건에서 프롬프트에 넣는 글자 수
+COPY_WINDOW = 40  # 예전 공고와 이만큼 연속으로 같으면 베낀 것으로 본다 (띄어쓰기 정리 뒤)
+REWRITE_LIMIT = 1  # 문제 칸을 다시 쓰는 횟수. 관리자 요청 칸은 요청 1번 + 이만큼 더
+REWRITE_TIMEOUT_SEC = 90
+SECTIONS = ("title", "company_intro", "duties", "requirements", "preferred")
+SECTION_LABEL = {"title": "제목", "company_intro": "부서 소개", "duties": "주요 업무", "requirements": "자격 요건", "preferred": "우대 사항"}
+SECTION_RULES = {
+    "title": "'직무 (경력 수준)' 형식으로 40자 이내.",
+    "company_intro": "부서 소개 2~4문장, 모든 문장을 '~습니다'로 끝낸다. 주어진 정보에 없는 사실은 지어내지 않는다.",
+    "duties": "'- '로 시작하는 줄 3~6개, 모든 줄을 '~합니다'로 끝낸다.",
+    "requirements": "'- '로 시작하는 줄 3~6개, 모든 줄을 '~ 분'으로 끝낸다.",
+    "preferred": "'- '로 시작하는 줄 1~3개, 모든 줄을 '~ 분'으로 끝낸다. 우대 사항이 없으면 빈 문자열.",
+}
+
+
+class SectionText(BaseModel):
+    text: str = Field(description="고친 칸의 새 내용만. 다른 칸은 쓰지 않는다")
+
+
+class DraftState(TypedDict, total=False):
+    """체크포인트에 남는 값. 공고 문장과 관리자 입력만 있고 지원자 개인정보는 없다."""
+    postingId: str
+    prompt: str  # buildPrompt 결과 (관리자 입력)
+    fallbackIntro: str
+    mode: str  # initial | revise
+    references: list[str]
+    draft: dict | None  # 칸 이름 → 글
+    draftAttempts: int
+    problems: dict  # 칸 이름 → 고칠 점 목록 (마지막 check)
+    rewrites: dict  # 칸 이름 → 다시 쓴 횟수 (이번 흐름)
+    request: dict | None  # 다시 쓰기 요청 {section, note}
+    notes: list[str]  # 관리자에게 보여 줄 처리 기록 (이번 흐름)
+    error: str | None
+
+
+def threadId(postingId: str) -> str:
+    return f"posting-draft:{postingId}"
+
+
+def graphConfig(postingId: str) -> dict:
+    return {"configurable": {"thread_id": threadId(postingId)}}
+
+
+def setState(postingId: str, **values) -> None:
+    current = drafts.get(postingId) or {"status": "running", "stage": None, "bias_warnings": [], "notes": [], "revision": None, "error": None}
+    drafts[postingId] = {**current, **values}
+
+
+def referenceText(p: JobPosting) -> str:
+    return f"제목: {p.title}\n주요 업무:\n{p.duties}\n자격 요건:\n{p.requirements}"[:REFERENCE_MAX_CHARS]
+
+
+def findReferences(db, posting: JobPosting) -> list[str]:
+    """① 같은 직무의 게시·마감 공고. 직무 코드로 정확히 찾으므로 벡터 검색 없이 DB 조회로 충분하다."""
+    rows = (db.query(JobPosting)
+            .filter(JobPosting.job_code == posting.job_code, JobPosting.id != posting.id, JobPosting.status.in_(("published", "closed")))
+            .order_by(JobPosting.published_at.desc()).limit(REFERENCE_LIMIT).all())
+    return [referenceText(p) for p in rows]
+
+
+def fenceText(text: str) -> str:
+    """구분 태그를 흉내 내 프롬프트 구조를 깨지 못하게 꺾쇠를 바꾼다."""
+    return (text or "").replace("<", "‹").replace(">", "›")
+
+
+def withReferences(prompt: str, references: list[str]) -> str:
+    if not references:
+        return prompt
+    blocks = "\n".join(f"<참고 {i}>\n{fenceText(r)}\n</참고 {i}>" for i, r in enumerate(references, 1))
+    return (f"{prompt}\n\n같은 직무의 예전 공고다. 용어와 문체만 참고하고, 문장을 그대로 옮기지 마라. "
+            f"예전 공고에만 있는 사실을 새 공고에 넣지 마라.\n{blocks}")
+
+
+def normalized(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def copiesReference(text: str, references: list[str]) -> bool:
+    t = normalized(text)
+    refs = [normalized(r) for r in references]
+    return any(t[i:i + COPY_WINDOW] in r for i in range(max(len(t) - COPY_WINDOW + 1, 0)) for r in refs)
+
+
+def sectionProblems(text: str, references: list[str]) -> list[str]:
+    """③ 고쳐 쓰게 할 점: 차별로 보일 수 있는 표현, 예전 공고 베끼기."""
+    problems = [f"차별로 보일 수 있는 표현 '{w['text']}'({w['reason']})을 빼라" for w in biasWarnings(text)]
+    if references and copiesReference(text, references):
+        problems.append("예전 공고 문장을 그대로 옮겼다. 같은 뜻을 새 문장으로 써라")
+    return problems
+
+
+def tidySection(section: str, text: str) -> str | None:
+    """다시 쓴 글을 다듬는다. 형식이 나쁘면 None (앞의 글을 그대로 둔다)."""
+    text = (text or "").strip()
+    if section in ("requirements", "preferred"):
+        text = unifyBunLines(text)
+    if section == "preferred":
+        return "" if isDashOnly(text) else text
+    if section == "title":
+        return text if 0 < len(text) <= 200 else None
+    minimum = INTRO_MIN_LEN if section == "company_intro" else 10
+    return text if len(text) >= minimum else None
+
+
+def rewritePrompt(state: "DraftState", section: str) -> str:
+    request = state.get("request") or {}
+    lines = [withReferences(state["prompt"], state.get("references", [])), "",
+             f"지금 고칠 칸: {SECTION_LABEL[section]}", f"칸 규칙: {SECTION_RULES[section]}",
+             f"<지금 내용>\n{fenceText(state['draft'].get(section, ''))}\n</지금 내용>"]
+    problems = state.get("problems", {}).get(section)
+    if problems:
+        lines.append("고칠 점: " + "; ".join(problems))
+    if request.get("section") == section and request.get("note"):
+        lines.append(f"<관리자 요청>\n{fenceText(request['note'])}\n</관리자 요청>")
+    lines.append("이 칸의 새 내용만 text 에 써라. 관리자 요청이 규칙(지어내지 않기·차별 표현 금지)과 어긋나면 규칙을 따른다.")
+    return "\n".join(lines)
+
+
+def rewriteLimit(state: "DraftState", section: str) -> int:
+    request = state.get("request") or {}
+    return REWRITE_LIMIT + (1 if state.get("mode") == "revise" and request.get("section") == section else 0)
+
+
+def pendingSections(state: "DraftState") -> list[str]:
+    """다시 쓸 칸: 고칠 점이 있고 횟수가 남은 칸. 다시 쓰기 요청 칸은 아직 한 번도 안 썼으면 무조건."""
+    rewrites = state.get("rewrites", {})
+    pending = [s for s in state.get("problems", {}) if rewrites.get(s, 0) < rewriteLimit(state, s)]
+    request = state.get("request") or {}
+    if state.get("mode") == "revise" and rewrites.get(request.get("section"), 0) == 0 and request.get("section") not in pending:
+        pending.append(request["section"])
+    return pending
+
+
+def buildDraftGraph():
+    async def retrieve(state: DraftState) -> dict:
+        setState(state["postingId"], stage="retrieve")
+        with dbModule.SessionLocal() as db:
+            posting = db.get(JobPosting, state["postingId"])
+            references = findReferences(db, posting) if posting is not None else []
+        notes = [f"같은 직무의 예전 공고 {len(references)}건을 참고했습니다"] if references else []
+        return {"references": references, "draft": None, "draftAttempts": 0, "problems": {}, "rewrites": {},
+                "request": None, "notes": notes, "error": None}
+
+    async def draft(state: DraftState) -> dict:
+        setState(state["postingId"], stage="draft")
         try:
-            draft = await llm.structured(DraftText, SYSTEM, prompt, timeoutSec=DRAFT_TIMEOUT_SEC, maxTokens=1500, temperature=0.5)
-            if not isUsable(draft):
+            out = await llm.structured(DraftText, SYSTEM, withReferences(state["prompt"], state.get("references", [])),
+                                       timeoutSec=DRAFT_TIMEOUT_SEC, maxTokens=1500, temperature=0.5)
+            if not isUsable(out):
                 raise llm.LlmError("draft_invalid")
-            draft = fillGaps(draft, fallbackIntro)
-            break
         except llm.LlmError as exc:
-            lastError = str(exc)
-            log.info("draft %s attempt %d failed: %s", postingId, attempt + 1, exc)
-    else:
-        drafts[postingId] = {"status": "failed", "bias_warnings": [], "error": lastError}
-        return
-    with dbModule.SessionLocal() as db:
-        posting = db.get(JobPosting, postingId)
-        if posting is None or posting.status != "draft":
-            drafts[postingId] = {"status": "failed", "bias_warnings": [], "error": "posting_changed"}
-            return
-        posting.title = draft.title.strip()[:200]
-        posting.company_intro = draft.company_intro.strip()
-        posting.duties = draft.duties.strip()
-        posting.requirements = draft.requirements.strip()
-        posting.preferred = draft.preferred.strip()
-        db.commit()
-        warnings = biasWarnings(posting.title, posting.company_intro, posting.duties, posting.requirements, posting.preferred)
-    drafts[postingId] = {"status": "done", "bias_warnings": warnings, "error": None}
+            log.info("draft %s attempt %d failed: %s", state["postingId"], state.get("draftAttempts", 0) + 1, exc)
+            return {"draft": None, "draftAttempts": state.get("draftAttempts", 0) + 1, "error": str(exc)}
+        return {"draft": fillGaps(out, state.get("fallbackIntro", "")).model_dump(), "error": None}
+
+    async def check(state: DraftState) -> dict:
+        setState(state["postingId"], stage="check")
+        targets = SECTIONS if state.get("mode") != "revise" else (state["request"]["section"],)
+        problems = {s: found for s in targets if (found := sectionProblems(state["draft"].get(s, ""), state.get("references", [])))}
+        return {"problems": problems}
+
+    async def rewrite(state: DraftState) -> dict:
+        setState(state["postingId"], stage="rewrite")
+        current, rewrites = dict(state["draft"]), dict(state.get("rewrites", {}))
+        notes, error = list(state.get("notes", [])), state.get("error")
+        request = state.get("request") or {}
+        for section in pendingSections(state):
+            rewrites[section] = rewrites.get(section, 0) + 1
+            reason = "; ".join(state.get("problems", {}).get(section, [])) or "관리자 요청"
+            try:
+                out = await llm.structured(SectionText, SYSTEM, rewritePrompt({**state, "draft": current}, section),
+                                           timeoutSec=REWRITE_TIMEOUT_SEC, maxTokens=700, temperature=0.3)
+            except llm.LlmError as exc:
+                log.info("draft %s rewrite %s failed: %s", state["postingId"], section, exc)
+                rewrites[section] = rewriteLimit(state, section)  # 서버 문제면 더 돌리지 않는다
+                if request.get("section") == section:
+                    error = str(exc)
+                continue
+            text = tidySection(section, out.text)
+            if text is None:
+                notes.append(f"{SECTION_LABEL[section]}: 다시 쓴 글의 형식이 맞지 않아 앞의 글을 두었습니다")
+                continue
+            current[section] = text
+            notes.append(f"{SECTION_LABEL[section]} 칸을 다시 썼습니다 ({reason})")
+        return {"draft": current, "rewrites": rewrites, "notes": notes, "error": error}
+
+    async def save(state: DraftState) -> dict:
+        postingId, d = state["postingId"], state["draft"]
+        with dbModule.SessionLocal() as db:
+            posting = db.get(JobPosting, postingId)
+            if posting is None or posting.status != "draft":
+                setState(postingId, status="failed", stage=None, error="posting_changed")
+                return {}
+            posting.title = d["title"].strip()[:200]
+            for field in ("company_intro", "duties", "requirements", "preferred"):
+                setattr(posting, field, d[field].strip())
+            db.commit()
+            warnings = biasWarnings(*(getattr(posting, s) or "" for s in SECTIONS))
+        setState(postingId, status="done", stage=None, bias_warnings=warnings, notes=state.get("notes", []), revision=None, error=None)
+        return {}
+
+    async def deliver(state: DraftState) -> dict:
+        """다시 쓴 칸은 DB 에 쓰지 않고 화면에 준다. 관리자가 확인하고 저장한다 (저장하지 않은 수정 글을 덮지 않게)."""
+        section = state["request"]["section"]
+        if state.get("error"):
+            setState(state["postingId"], status="failed", stage=None, revision=None, bias_warnings=[], notes=state.get("notes", []),
+                     error=state["error"])
+            return {}
+        text = state["draft"][section]
+        setState(state["postingId"], status="done", stage=None, revision={"section": section, "text": text},
+                 bias_warnings=biasWarnings(text), notes=state.get("notes", []), error=None)
+        return {}
+
+    async def fail(state: DraftState) -> dict:
+        setState(state["postingId"], status="failed", stage=None, bias_warnings=[], error=state.get("error") or "unknown")
+        return {}
+
+    def routeStart(state: DraftState) -> str:
+        return "rewrite" if state.get("mode") == "revise" else "retrieve"
+
+    def afterDraft(state: DraftState) -> str:
+        if state.get("draft"):
+            return "check"
+        return "draft" if state.get("draftAttempts", 0) < DRAFT_ATTEMPTS else "fail"
+
+    def afterCheck(state: DraftState) -> str:
+        if pendingSections(state):
+            return "rewrite"
+        return "deliver" if state.get("mode") == "revise" else "save"
+
+    g = StateGraph(DraftState)
+    for name, node in (("retrieve", retrieve), ("draft", draft), ("check", check), ("rewrite", rewrite),
+                       ("save", save), ("deliver", deliver), ("fail", fail)):
+        g.add_node(name, node)
+    g.add_conditional_edges(START, routeStart, ["retrieve", "rewrite"])
+    g.add_edge("retrieve", "draft")
+    g.add_conditional_edges("draft", afterDraft, ["check", "draft", "fail"])
+    g.add_conditional_edges("check", afterCheck, ["rewrite", "save", "deliver"])
+    g.add_edge("rewrite", "check")
+    for name in ("save", "deliver", "fail"):
+        g.add_edge(name, END)
+    return g.compile(checkpointer=checkpoint.saver())
+
+
+async def generate(postingId: str, prompt: str, fallbackIntro: str = "") -> None:
+    """새 초안. 같은 thread 의 예전 기록은 retrieve 가 덮어쓴다."""
+    try:
+        await buildDraftGraph().ainvoke({"postingId": postingId, "prompt": prompt, "fallbackIntro": fallbackIntro, "mode": "initial"},
+                                        graphConfig(postingId))
+    except Exception:  # noqa: BLE001 — 예상 못 한 오류도 '실패'로 보여 다시 시도하게 한다
+        log.exception("draft %s crashed", postingId)
+        setState(postingId, status="failed", stage=None, error="internal")
+
+
+async def hasDraft(postingId: str) -> bool:
+    """다시 쓰기에 쓸 초안 기록(체크포인트)이 있는가."""
+    snapshot = await buildDraftGraph().aget_state(graphConfig(postingId))
+    return bool(snapshot.values.get("draft"))
+
+
+async def revise(postingId: str, section: str, note: str, current: str) -> None:
+    """④ 관리자가 고른 칸만 다시 쓴다. 처음 입력·참고 공고는 체크포인트에서 이어 쓴다."""
+    graph, config = buildDraftGraph(), graphConfig(postingId)
+    try:
+        snapshot = await graph.aget_state(config)
+        draftText = {**snapshot.values["draft"], section: current}
+        await graph.ainvoke({"mode": "revise", "request": {"section": section, "note": note}, "draft": draftText,
+                             "problems": {}, "rewrites": {}, "notes": [], "error": None}, config)
+    except Exception:  # noqa: BLE001
+        log.exception("draft %s revise crashed", postingId)
+        setState(postingId, status="failed", stage=None, revision=None, error="internal")
+
+
+def runInBackground(coro) -> None:
+    task = asyncio.get_running_loop().create_task(coro)
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
 
 
 def start(postingId: str, prompt: str, fallbackIntro: str = "") -> None:
-    drafts[postingId] = {"status": "running", "bias_warnings": [], "error": None}
-    task = asyncio.get_running_loop().create_task(generate(postingId, prompt, fallbackIntro))
-    tasks.add(task)
-    task.add_done_callback(tasks.discard)
+    drafts[postingId] = {"status": "running", "stage": "retrieve", "bias_warnings": [], "notes": [], "revision": None, "error": None}
+    runInBackground(generate(postingId, prompt, fallbackIntro))
+
+
+def startRevision(postingId: str, section: str, note: str, current: str) -> None:
+    setState(postingId, status="running", stage="rewrite", revision=None, bias_warnings=[], notes=[], error=None)
+    runInBackground(revise(postingId, section, note, current))
 
 
 def status(postingId: str, posting: JobPosting) -> dict:
@@ -233,7 +498,9 @@ def status(postingId: str, posting: JobPosting) -> dict:
     if state is None:
         # 재시작 등으로 진행 기록이 없다: 내용이 채워졌으면 완료, 아니면 실패로 보고 다시 시도하게 한다
         done = bool(posting.title and posting.duties)
-        state = {"status": "done" if done else "failed", "error": None if done else "lost",
-                 "bias_warnings": biasWarnings(posting.title or "", posting.company_intro or "", posting.duties or "",
-                                               posting.requirements or "", posting.preferred or "") if done else []}
-    return {"status": state["status"], "posting_id": postingId, "bias_warnings": state["bias_warnings"], "error": state["error"]}
+        state = {"status": "done" if done else "failed", "error": None if done else "lost", "stage": None, "notes": [], "revision": None,
+                 "bias_warnings": biasWarnings(*(getattr(posting, s) or "" for s in SECTIONS)) if done else []}
+    return {"status": state["status"], "posting_id": postingId, "stage": state.get("stage"), "bias_warnings": state["bias_warnings"],
+            "notes": state.get("notes", []), "revision": state.get("revision"), "error": state["error"]}
+
+

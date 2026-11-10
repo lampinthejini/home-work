@@ -10,7 +10,7 @@ from ..config import SETTING_DEFAULTS
 from ..db import getDb
 from ..deps import requireAdmin
 from ..errors import ApiError, notFound
-from ..interview import registry
+from ..interview import checkpoint, registry
 from ..models import (
     Answer,
     Application,
@@ -28,8 +28,8 @@ from ..models import (
     SessionEvent,
     User,
 )
-from ..schemas import DraftAiRequest, ManualDecisionIn, MemoIn, PostingIn
-from ..services import evaluation, posting_draft, recording, storage
+from ..schemas import DraftAiRequest, DraftReviseRequest, ManualDecisionIn, MemoIn, PostingIn
+from ..services import evaluation, posting_draft, posting_questions, recording, storage
 from ..services import postings as svc
 from ..settings_store import allSettings, getSetting, setSetting
 from ..timeutil import iso, now, releaseAtFor
@@ -108,6 +108,7 @@ async def draftAi(postingId: str, body: DraftAiRequest, db: Session = Depends(ge
         c.coding_enabled = body.coding_test
     p.source = "ai_draft"
     db.add(AuditLog(actor_id=admin.id, action="posting.draft_ai", target=p.id))
+    checkpoint.deleteThread(db, posting_draft.threadId(p.id))  # 다시 만들면 예전 초안 기록은 버린다
     db.commit()
     skills = [s.strip()[:50] for s in body.skills if s.strip()]
     body = body.model_copy(update={"duties": [d.strip()[:50] for d in body.duties if d.strip()], "skills": skills})
@@ -123,8 +124,26 @@ def draftAiStatus(postingId: str, db: Session = Depends(getDb), _admin: User = D
     return posting_draft.status(p.id, p)
 
 
+@router.post("/postings/{postingId}/draft-ai/revise", status_code=202)
+async def draftAiRevise(postingId: str, body: DraftReviseRequest, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
+    """AI 초안의 한 칸을 관리자 요청대로 다시 쓴다. 결과는 status 의 revision 으로 주고 DB 에는 쓰지 않는다 (2026-11-10)."""
+    p = getPostingOr404(db, postingId)
+    if p.source != "ai_draft":
+        raise notFound()
+    if p.status != "draft":
+        raise ApiError(409, "ALREADY_PUBLISHED", "임시저장 공고에만 AI 다시 쓰기를 할 수 있습니다.")
+    if posting_draft.drafts.get(p.id, {}).get("status") == "running":
+        raise ApiError(409, "DRAFT_RUNNING", "AI가 아직 쓰고 있습니다. 끝난 뒤 다시 요청해 주세요.")
+    if not await posting_draft.hasDraft(p.id):
+        raise ApiError(409, "DRAFT_NOT_REVISABLE", "AI 초안 기록이 없어 다시 쓸 수 없습니다. 직접 고치거나 AI 초안을 새로 만들어 주세요.")
+    db.add(AuditLog(actor_id=admin.id, action="posting.draft_revise", target=p.id, detail={"section": body.section}))
+    db.commit()
+    posting_draft.startRevision(p.id, body.section, body.note.strip(), body.current)
+    return {"job_id": p.id, "status": "running"}
+
+
 @router.post("/postings/{postingId}/publish")
-def publish(postingId: str, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
+async def publish(postingId: str, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
     p = getPostingOr404(db, postingId)
     if p.status != "draft":
         raise ApiError(409, "ALREADY_PUBLISHED", "이미 게시했거나 마감된 공고입니다.")
@@ -133,7 +152,9 @@ def publish(postingId: str, db: Session = Depends(getDb), admin: User = Depends(
     p.published_at = now()
     p.release_at = releaseAtFor(p.close_at)
     db.add(AuditLog(actor_id=admin.id, action="posting.publish", target=p.id))
+    checkpoint.deleteThread(db, posting_draft.threadId(p.id))  # 게시 뒤에는 AI 다시 쓰기를 쓰지 않는다
     db.commit()
+    posting_questions.schedule(p.id)  # 이 공고의 직무·회사 질문 후보를 뒤에서 만들어 '검토 대기'로 넣는다 (C-17)
     return svc.postingView(p, withCriteria=True)
 
 
@@ -156,6 +177,8 @@ def deletePosting(postingId: str, db: Session = Depends(getDb), _admin: User = D
         raise ApiError(409, "HAS_APPLICANTS", "지원자가 있는 공고는 지울 수 없습니다. 마감만 할 수 있습니다.")
     # 이 공고를 가리키는 관리자 알림(마감 임박 등)은 누르면 없는 공고로 가므로 같이 지운다
     db.query(Notification).filter(Notification.link == f"/admin/applicants?posting={p.id}").delete()
+    checkpoint.deleteThread(db, posting_draft.threadId(p.id))
+    posting_draft.drafts.pop(p.id, None)
     db.delete(p)
     db.commit()
 
@@ -345,7 +368,8 @@ def reprocess(applicationId: str, db: Session = Depends(getDb), admin: User = De
         action = evaluation.INSTRUCTION_ACK
         detail = {"hits_digest": evaluation.hitsDigest(evaluation.instructionHits(evaluation.loadQuestions(db, a)))}
     # 사유를 지우지 않는다: 지우면 확인 필요가 된 시각도 지워져 3일 기한이 늘어난다
-    a.analysis_status = "pending"
+    # 화면정의서 T-55·API 응답과 같게 '분석 중'으로 둔다. 큐가 놓쳐도 findUnscored 가 running 건을 다시 넣는다
+    a.analysis_status = "running"
     db.add(AuditLog(actor_id=admin.id, action=action, target=a.id, detail=detail))
     db.commit()
     worker.requestReprocess(a.id)

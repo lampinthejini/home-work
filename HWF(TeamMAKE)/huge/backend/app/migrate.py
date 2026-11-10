@@ -42,6 +42,10 @@ ALIGN_STATEMENTS = [
     "ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS external_id varchar(100)",
     "ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_by varchar(36) REFERENCES users(id) ON DELETE SET NULL",
     "ALTER TABLE answers ADD COLUMN IF NOT EXISTS is_empty boolean NOT NULL DEFAULT false",
+    # 질문 적용 범위 (CONFLICTS C-17, 2026-11-10). 기존 질문은 둘 다 비어 모든 공고에서 쓴다 (지금과 같다)
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS posting_id varchar(36) REFERENCES job_postings(id) ON DELETE CASCADE",
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS job_code varchar(32)",
+    "CREATE INDEX IF NOT EXISTS ix_questions_posting_id ON questions (posting_id)",
 ]
 # 중복 행이 이미 있으면 만들지 못한다. 그때는 경고만 남기고 서비스는 뜬다 (2026-11-09)
 UNIQUE_STATEMENTS = [

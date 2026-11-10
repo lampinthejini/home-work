@@ -193,8 +193,8 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
 
 
 @pytest.mark.parametrize(("similarity", "lastText", "regenCount"), [
-    (0.95, "회사 질문 셋째", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
-    (0.85, "회사 질문 둘째", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (질문 관리에만 넣지 않는다)
+    (0.95, "회사 질문 셋째은 무엇인가요?", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
+    (0.85, "회사 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (질문 관리에만 넣지 않는다)
 ])
 def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, monkeypatch, similarity, lastText, regenCount):
     fake = world()
@@ -202,9 +202,9 @@ def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, mo
     base[900] = 1.0
     near = [0.0] * rag.EMBED_DIM
     near[900], near[901] = similarity, math.sqrt(1 - similarity ** 2)
-    vectors = {"회사 질문 첫째": base, "회사 질문 둘째": near}
+    vectors = {"회사 질문 첫째은 무엇인가요?": base, "회사 질문 둘째은 무엇인가요?": near}
     realEmbed, realStructured = fake.embed, fake.structured
-    companyTexts = iter(["회사 질문 첫째", "회사 질문 둘째", "회사 질문 셋째"])
+    companyTexts = iter(["회사 질문 첫째은 무엇인가요?", "회사 질문 둘째은 무엇인가요?", "회사 질문 셋째은 무엇인가요?"])
 
     async def embed(texts, timeoutSec=10):
         return [vectors.get(t) or (await realEmbed([t]))[0] for t in texts]
@@ -227,6 +227,16 @@ def test_answerFormatWordsInQuestionAreRejected():
     out = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정하는 기준을 90초 내에 한 문장으로 설명해 주세요?", task_count=1)
     assert question_compose.checkGenerated("job", out, "") == "meta_phrase"
     ok = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정하는 기준은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", ok, "") is None
+
+
+def test_numberedSentenceCountIsRejected():
+    """실측(2026-11-10 시뮬레이션): '1문장으로 설명해 주세요'가 검사를 통과했다. 숫자·'하나의'·'두 문장' 표기도 막는다."""
+    for text in ("검색 결과를 재구성할 때 가장 중요한 요소를 1문장으로 설명해 주세요?", "그 이유를 1 문장으로 말씀해 주세요?",
+                 "그 이유를 하나의 문장으로 말씀해 주세요?", "그 이유를 두 문장으로 말씀해 주세요?", "그 이유를 2문장 이내로 말씀해 주세요?"):
+        out = question_compose.RagQuestion(question=text, task_count=1)
+        assert question_compose.checkGenerated("job", out, "") == "meta_phrase", text
+    ok = question_compose.RagQuestion(question="문장 임베딩 모델을 고를 때 무엇을 기준으로 삼나요?", task_count=1)
     assert question_compose.checkGenerated("job", ok, "") is None
 
 
@@ -355,3 +365,116 @@ def test_pendingQuestionNotUsedUntilApproved(sessionFactory, adminClient):
 
 def test_applicantCannotReviewQuestions(client):
     assert client.get("/admin/questions").status_code in (401, 403)
+
+
+# ---------- 2026-11-10 시뮬레이션에서 나온 문제 (사용자 결정) ----------
+
+FULL_RESUME = {
+    "projects": [{"name": "공장 불량 검출 카메라", "period": "2024", "description": "YOLO 모델을 젯슨에 올려 검출 지연을 40ms 로 줄임", "skills": ["PyTorch"]}],
+    "career": [{"company": "다라전자", "role": "임베디드 개발", "description": "C++ 로 카메라 펌웨어 개발"}],
+    "education": [{"school": "마바대학교", "major": "통계학", "degree": "학사"}],
+    "skills": ["C++", "PyTorch", "pandas"],
+}
+
+
+def test_resumeTextHasNoBracketsThatLookLikeJson():
+    """실측: 줄 끝 '[PyTorch]' 를 근거로 옮기던 4B 모델이 ']' 뒤에 '}·✅✅…' 를 이어 써서 근거 검사에 떨어졌다."""
+    text = question_compose.resumeText(FULL_RESUME)
+    assert "[" not in text and "]" not in text and "사용 기술: PyTorch" in text
+
+
+def test_resumeEvidenceMustComeFromExperienceNotSkills():
+    """기술 이름만 맞는 근거(실측: 신입에게 'pandas 프로젝트')는 받지 않는다. 경력·프로젝트·자기소개 줄에서만."""
+    experience = question_compose.experienceText(FULL_RESUME)
+    assert "다라전자" in experience and "공장 불량 검출 카메라" in experience and "pandas" not in experience and "마바대학교" not in experience
+    anchors = question_compose.experienceAnchors(FULL_RESUME)
+    ok = question_compose.RagQuestion(question="공장 불량 검출 카메라 프로젝트에서 검출 지연을 줄일 때 가장 먼저 확인한 것은 무엇이었나요?",
+                                      evidence="YOLO 모델을 젯슨에 올려 검출 지연을 40ms 로 줄임 — 사용 기술: PyTorch'} ✅✅✅ 📌 Note", task_count=1)
+    assert question_compose.checkGenerated("resume", ok, experience, anchors) is None  # 앞부분이 이력서와 같으면 뒤 찌꺼기는 무시
+    skillOnly = ok.model_copy(update={"evidence": "C++, PyTorch, pandas"})
+    assert question_compose.checkGenerated("resume", skillOnly, experience, anchors) == "resume_not_grounded"
+    tooShort = ok.model_copy(update={"evidence": "젯슨"})
+    assert question_compose.checkGenerated("resume", tooShort, experience, anchors) == "resume_not_grounded"
+
+
+def test_resumeQuestionMustNameTheExperience():
+    """질문이 이력서의 프로젝트·회사 이름을 짚어야 한다 (공고 업무를 섞어 지어낸 경험을 막는다)."""
+    experience, anchors = question_compose.experienceText(FULL_RESUME), question_compose.experienceAnchors(FULL_RESUME)
+    out = question_compose.RagQuestion(question="비전 검사 데이터 파이프라인을 설계할 때 본인의 역할은 무엇이었나요?",
+                                       evidence="YOLO 모델을 젯슨에 올려 검출 지연을 40ms 로 줄임", task_count=1)
+    assert question_compose.checkGenerated("resume", out, experience, anchors) == "resume_not_anchored"
+
+
+def test_resumeWithoutExperienceSkipsLlmForResumeSlots(sessionFactory, world):
+    """경력·프로젝트·자기소개가 없으면 이력서 자리는 AI 를 부르지 않고 예비 질문으로 (지어낼 거리가 없다)."""
+    fake = world()
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        app.resume_snapshot = {"education": [{"school": "마바대학교", "major": "통계학"}], "skills": ["Python", "pandas"]}
+        db.commit()
+    asyncio.run(question_compose.compose(appId))
+    resume = [r for r in composed(sessionFactory, appId) if r.qtype == "resume"]
+    assert [(r.source, r.substitute_reason) for r in resume] == [("reserve", "no_resume_experience")] * 2
+    assert not any(p.startswith("[만들 질문] 이력서 기반") for p in fake.prompts)
+
+
+def test_resumePromptLeavesOutPostingText(sessionFactory, world):
+    """이력서 질문에는 공고 글을 넣지 않는다 (실측: 공고의 '비전 검사'를 섞어 없는 경험을 지어냄)."""
+    fake = world()
+    asyncio.run(question_compose.compose(makeApplication(sessionFactory)))
+    resumePrompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 이력서 기반"))
+    assert "<공고>" not in resumePrompt and "제조 현장의 데이터" not in resumePrompt and "RAG 챗봇" in resumePrompt
+
+
+@pytest.mark.parametrize("text", [
+    "LangChain으로 RAG 시스템을 구축한 경험이 있으신가요?",
+    "비전 검사 모델 성능을 유지하기 위해 어떤 메커니즘을 도입했나요?",
+    "Python으로 이상치를 제거할 때 어떤 방법을 사용했는지 설명해 주세요.",
+])
+def test_jobQuestionMustAskKnowledgeNotExperience(text):
+    """직무 질문은 겪은 일이 아니라 지식(개념·기준·방법)을 묻는다 (신입에게 없는 경험을 전제하지 않게)."""
+    out = question_compose.RagQuestion(question=text, task_count=1)
+    assert question_compose.checkGenerated("job", out, "") == "job_asks_experience"
+    ok = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정할 때 무엇을 기준으로 삼나요?", task_count=1)
+    assert question_compose.checkGenerated("job", ok, "") is None
+
+
+def test_onlyOneTaskPerQuestion():
+    out = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정할 때 무엇을 기준으로 삼나요?", task_count=2)
+    assert question_compose.checkGenerated("job", out, "") == "too_many_tasks"
+
+
+def test_retryShowsPreviousQuestionToFix(sessionFactory, world, monkeypatch):
+    """실측: '어떤 역할을 했고, 그 이유는 무엇인가요?' 를 6번 되풀이했다. 다시 만들 때 이전 질문을 보여 주고 고치게 한다."""
+    fake = world()
+    calls = []
+
+    async def compoundFirst(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        calls.append(user)
+        if len(calls) == 1:
+            return schema(question="협업 중 어떤 역할을 맡았고, 그 이유는 무엇인가요?", task_count=1)
+        return await fake.structured(schema, system, user, timeoutSec, maxTokens, temperature, lane)
+
+    monkeypatch.setattr(llm, "structured", compoundFirst)
+    asyncio.run(question_compose.compose(makeApplication(sessionFactory)))
+    assert "협업 중 어떤 역할을 맡았고, 그 이유는 무엇인가요?" in calls[1] and "한 가지만" in calls[1]
+
+
+@pytest.mark.parametrize("text", [
+    "사내 LLM·RAG 서비스에서 검색 결과의 신뢰도를 평가하는 기준은 무엇이었나요?",  # 실측: 과거형 = 겪은 일
+    "비전 검사 모델을 운영할 때 정확도를 높이기 위한 핵심 기준은 무엇이었나요?",
+    "LangChain 체인을 어떻게 구성하셨나요?",
+])
+def test_pastTenseJobQuestionAsksExperience(text):
+    out = question_compose.RagQuestion(question=text, task_count=1)
+    assert question_compose.checkGenerated("job", out, "") == "job_asks_experience"
+
+
+def test_promptGivesKindSpecificFormsNotOneTemplate():
+    """실측: 예시 꼴 하나('…은 무엇을 기준으로 정하나요?')를 모든 자리가 베꼈다. 종류마다 다른 꼴을 준다."""
+    prompts = {kind: question_compose.ragPrompt(kind, "회사", "이력서", [], [], None) for kind in question_compose.KIND_GUIDE}
+    forms = {kind: question_compose.KIND_FORMS[kind] for kind in question_compose.KIND_GUIDE}
+    assert all(forms[kind] in prompts[kind] for kind in prompts)
+    assert len(set(forms.values())) == len(forms) and "무엇을 기준으로 정하나요" not in "".join(prompts.values())
+    assert "기술 지식을 묻지 않는다" in prompts["personality"] and "기술 지식을 묻지 않는다" in prompts["company"]

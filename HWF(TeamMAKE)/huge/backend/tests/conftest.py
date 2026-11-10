@@ -26,7 +26,7 @@ from app.errors import ApiError, apiErrorHandler, validationErrorHandler  # noqa
 from app.models import User  # noqa: E402
 from app.routers import admin, admin_ops, admin_questions, applications, auth, interview, me, postings  # noqa: E402
 from app.security import hashPassword  # noqa: E402
-from app.services import admission, question_compose  # noqa: E402
+from app.services import admission, posting_questions, question_compose  # noqa: E402
 from app.services.postings import seedJobCodes  # noqa: E402
 from app.timeutil import now  # noqa: E402
 
@@ -44,6 +44,7 @@ def sessionFactory(monkeypatch):
     monkeypatch.setattr(dbModule, "SessionLocal", factory)
     monkeypatch.setattr(admission, "_redis", fakeredis.FakeRedis())
     monkeypatch.setattr(question_compose, "scheduleCompose", lambda applicationId: None)
+    monkeypatch.setattr(posting_questions, "schedule", lambda postingId: None)  # 공고 게시 때 LLM 을 부르지 않게
     monkeypatch.setattr(worker, "enqueueEvaluation", lambda applicationId, attempt=1, countdown=0: None)
     monkeypatch.setattr(worker, "queueMail", lambda notificationId, countdown=0: None)
     with factory() as db:

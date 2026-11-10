@@ -10,4 +10,10 @@ export type AdminPosting = {
     revisions?: { revised_at: string; field: string; summary: string }[];
 };
 
+/** GET /admin/postings/{id}/draft-ai/status. stage: retrieve(참고 공고) · draft(초안) · check(점검) · rewrite(다시 쓰기) */
+export type DraftStatus = {
+    status: "running" | "done" | "failed"; stage: string | null; bias_warnings: { text: string; reason: string }[];
+    notes: string[]; revision: { section: string; text: string } | null; error: string | null;
+};
+
 export const DEFAULT_WEIGHTS: Record<string, number> = { expertise: 30, logic: 25, relevance: 20, delivery: 10, culture_fit: 15 };

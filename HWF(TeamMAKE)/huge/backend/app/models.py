@@ -228,6 +228,10 @@ class Question(Base):
     status: Mapped[str] = mapped_column(String(16), default="active")  # active · preparing · pending(검토 대기) · rejected · excluded(다른 회사명·무관 글·중복)
     answer_seconds: Mapped[int] = mapped_column(Integer, default=90)
     eval_items: Mapped[list] = mapped_column(JSON, default=list)
+    # 적용 범위 (2026-11-10 사용자 결정, CONFLICTS C-17). 둘 다 비면 모든 공고에서 쓴다.
+    # 회사 질문은 그 공고에서만(posting_id), 직무 질문은 같은 직무에서만(job_code)
+    posting_id: Mapped[str | None] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=True, index=True)
+    job_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class QuestionUsage(Base):

@@ -8,7 +8,9 @@ import { api, ApiError } from "@/lib/api";
 
 type Status = "pending" | "active" | "rejected";
 type Kind = "personality" | "company" | "job";
-type Item = { id: number; kind: Kind; text: string; status: Status };
+// 적용 범위 (C-17): 회사 질문은 그 공고에서만, 직무 질문은 같은 직무에서만, 인성 질문은 공통
+type Scope = { type: "posting" | "job" | "common"; label: string };
+type Item = { id: number; kind: Kind; text: string; status: Status; category: string; scope: Scope };
 type List = { items: Item[]; counts: Record<Status, number> };
 
 const TABS: { key: Status; label: string }[] = [
@@ -17,6 +19,7 @@ const TABS: { key: Status; label: string }[] = [
     { key: "rejected", label: "제외" },
 ];
 const KIND_LABEL: Record<Kind, string> = { personality: "인성", company: "회사 관련", job: "직무" };
+const SCOPE_PREFIX: Record<Scope["type"], string> = { posting: "이 공고만", job: "이 직무만", common: "" };
 
 function Questions() {
     const [tab, setTab] = useState<Status>("pending");
@@ -49,8 +52,9 @@ function Questions() {
     return (
         <div className="stack">
             <div className="notice notice-info small">
-                AI 가 면접 질문을 만들 때 나온 인성·회사·직무 질문 중 지원자 정보가 들어 있지 않은 것만 모았습니다.
-                [추가]하면 질문은행에 들어가 다른 지원자 면접에도 쓰입니다.
+                AI 가 면접 질문을 만들 때 나온 질문(지원자 정보가 없는 것만), 공고를 게시할 때 그 공고로 만든 질문,
+                인터넷 자료를 참고해 만든 질문을 모았습니다. [추가]하면 질문은행에 들어가 <b>적용 범위</b> 안의 면접에서 쓰입니다
+                — 회사 질문은 그 공고에서만, 직무 질문은 같은 직무에서만, 인성 질문은 모든 공고에서.
             </div>
             <div className="row" style={{ gap: 12, justifyContent: "space-between" }}>
                 <div className="tabs" role="tablist">
@@ -72,12 +76,18 @@ function Questions() {
             {data && data.items.length > 0 && (
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <table className="table">
-                        <thead><tr><th style={{ width: 100 }}>종류</th><th>질문</th><th style={{ width: 180 }} /></tr></thead>
+                        <thead><tr><th style={{ width: 100 }}>종류</th><th>질문</th><th style={{ width: 200 }}>적용 범위</th><th style={{ width: 180 }} /></tr></thead>
                         <tbody>
                             {data.items.map((q) => (
                                 <tr key={q.id}>
                                     <td><span className="badge badge-gray">{KIND_LABEL[q.kind]}</span></td>
-                                    <td>{q.text}</td>
+                                    <td>
+                                        <div>{q.text}</div>
+                                        {q.category && <div className="small muted">{q.category}</div>}
+                                    </td>
+                                    <td className="small">
+                                        {q.scope.type === "common" ? "공통" : <>{SCOPE_PREFIX[q.scope.type]} · {q.scope.label}</>}
+                                    </td>
                                     <td>
                                         <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
                                             {q.status !== "active" && (

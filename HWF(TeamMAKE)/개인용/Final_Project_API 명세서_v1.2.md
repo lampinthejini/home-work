@@ -220,6 +220,7 @@ v1.0 · 2026-10-29 · 최초 작성
 | `POST /admin/postings/import` | 🛡 | Open API·더미 JSON/CSV에서 불러오기 → 임시저장. **현재 구현 범위 밖(미구현)** | S-R01 모달 |
 | `POST /admin/postings/{id}/draft-ai` | 🛡 | AI 공고 초안 만들기(llm-rt, 뒤에서). 임시저장 공고에만 | S-R02 |
 | `GET /admin/postings/{id}/draft-ai/status` ➕ | 🛡 | 초안 만들기 진행 상태 | S-R02 |
+| `POST /admin/postings/{id}/draft-ai/revise` ➕ | 🛡 | AI 초안 한 칸 다시 쓰기 (CONFLICTS C-15) | S-R03 |
 
 ### 공고 객체
 
@@ -284,6 +285,14 @@ v1.0 · 2026-10-29 · 최초 작성
 - `close`: 게시 중이 아니면 409 `NOT_PUBLISHED`. 응답 200 — `{ "closed_at": "…", "not_taken": 4, "ended_by_close": 1 }`. 시작 전 지원은 `not_taken_closed`, 진행 중·장애 중단은 `ended_closed`가 되고 채점 작업이 들어간다(TRD 10장).
 - `DELETE` 204: 지원이 하나라도 있으면(작성 중 포함) 409 `HAS_APPLICANTS`. 이 공고를 가리키는 관리자 알림(마감 임박)은 함께 지운다.
 - 마감된 공고에 `PATCH`하면 409 `POSTING_CLOSED`.
+- 게시가 끝나면 api 가 뒤에서 이 공고의 직무·회사 질문 후보를 만들어 질문관리 '검토 대기'로 넣는다(TRD 7-4 ②, C-17). 응답을 기다리게 하지 않고, 실패해도 게시는 그대로다.
+
+### GET /admin/questions · POST /admin/questions/{id}/approve · /reject
+
+- AI 가 만든 질문(`source=generated`: 면접 때 만든 것 · 공고 기반 · 인터넷 참고)만 다룬다. 엑셀·예비 질문은 404.
+- `GET` 쿼리: `status`(pending·active·rejected, 기본 pending), `kind`(personality·company·job). 최근 200개.
+- 응답 200 — `{ "items": [{ "id": 6421, "kind": "company", "text": "…", "status": "pending", "category": "공고 기반", "scope": { "type": "posting", "posting_id": "…", "label": "AI/AX 엔지니어 (신입)" } }], "counts": { "pending": 3, "active": 1, "rejected": 0 } }`. `scope.type`은 `posting`(그 공고 전용) · `job`(`job_code`와 직무 이름) · `common`(공통) (C-17, 2026-11-10).
+- `approve`는 `active`(질문은행에서 씀), `reject`는 `rejected`로 바꾸고 감사 기록을 남긴다. 응답은 질문 1개(위 모양).
 
 ### POST /admin/postings/import
 
@@ -330,9 +339,13 @@ v1.0 · 2026-10-29 · 최초 작성
 
 응답 202 — `{ "job_id": "…", "status": "running" }`(`job_id`는 공고 id와 같다).
 
-`GET …/draft-ai/status` 응답 — `{ "status": "running" | "done" | "failed", "posting_id", "bias_warnings": [ { "text": "만 30세 이하", "reason": "나이 제한" } ], "error": null }`. AI 초안을 만든 적 없는 공고(`source`가 `ai_draft`가 아님)는 404. 진행 상태는 api 프로세스 메모리에 둔다. 재시작되면 제목·주요 업무가 채워져 있으면 `done`, 아니면 `failed`(`error: "lost"`)로 보이고 [다시 시도]할 수 있다.
+`GET …/draft-ai/status` 응답 — `{ "status": "running" | "done" | "failed", "posting_id", "stage": "retrieve" | "draft" | "check" | "rewrite" | null, "bias_warnings": [ { "text": "만 30세 이하", "reason": "나이 제한" } ], "notes": ["같은 직무의 예전 공고 2건을 참고했습니다", "자격 요건 칸을 다시 썼습니다 (…)"], "revision": null, "error": null }`. `stage`는 그래프의 지금 단계(참고 공고 찾기·초안·점검·다시 쓰기), `notes`는 AI가 이번에 한 일, `revision`은 다시 쓰기 결과(`{ "section", "text" }`)다. AI 초안을 만든 적 없는 공고(`source`가 `ai_draft`가 아님)는 404. 진행 상태는 api 프로세스 메모리에 둔다. 재시작되면 제목·주요 업무가 채워져 있으면 `done`, 아니면 `failed`(`error: "lost"`)로 보이고 [다시 시도]할 수 있다.
 
-`bias_warnings`는 화면정의서 O-05대로 **규칙 기반 사전**(나이·성별·혼인·외모·출신 지역)으로 찾아 알려 줄 뿐 막지는 않는다.
+`bias_warnings`는 화면정의서 O-05대로 **규칙 기반 사전**(나이·성별·혼인·외모·출신 지역·종교)으로 찾는다. 초안을 쓸 때 걸린 칸은 AI가 1번 다시 쓰고, 그래도 남으면 알려 줄 뿐 막지는 않는다. 같은 직무의 예전 공고(게시·마감, 최근 2건)를 참고로 넣고, 그 문장을 40자 넘게 그대로 옮긴 칸도 다시 쓴다(CONFLICTS C-15).
+
+### POST /admin/postings/{id}/draft-ai/revise
+
+AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). 요청 `{ "section": "title" | "company_intro" | "duties" | "requirements" | "preferred", "note": "1~300자", "current": "편집 화면의 지금 글(5000자까지)" }`. 처음 입력·참고 공고는 초안 때의 그래프 기록(체크포인트)에서 읽는다. 다시 쓴 글도 같은 검사를 거쳐 차별 표현이 있으면 1번 더 쓴다. 응답 202 — `{ "job_id", "status": "running" }`. 결과는 `…/draft-ai/status`의 `revision`으로 주고 **DB에는 쓰지 않는다**(관리자가 확인하고 저장). 감사 로그 `posting.draft_revise`(칸 이름만). 오류: 404(AI 초안 공고가 아님) · 409 `ALREADY_PUBLISHED`(임시저장 아님) · 409 `DRAFT_RUNNING` · 409 `DRAFT_NOT_REVISABLE`(초안 기록 없음: 아직 만드는 중·실패·기록 삭제) · 422(칸 이름·요청 길이).
 
 ## 5. 지원·동의·이력서 API
 

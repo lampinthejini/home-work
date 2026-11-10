@@ -22,6 +22,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from ..domain import question_text
 from ..services.posting_draft import BIAS_RULES
 
 log = logging.getLogger("huge.interview.graph")
@@ -71,14 +72,16 @@ def validateFollowup(reasonCode: str, question: str) -> str | None:
     """꼬리질문 검증 (AI 아키텍처 T4: INVALID 면 SKIP). 문제 코드, 맞으면 None."""
     if reasonCode == "none":
         return "not_needed"
-    text = (question or "").strip()
+    text = question_text.cleanQuestion(question)
     if not 8 <= len(text) <= FOLLOWUP_MAX_CHARS or "\n" in text:
         return "invalid_length"
     if not re.search(r"[가-힣]", text) or FOREIGN_SCRIPT.search(text):
         return "invalid_language"
     if any(pattern.search(text) for pattern, _ in BIAS_RULES) or PERSONAL_TOPIC.search(text):
         return "forbidden_topic"  # 차별·사적 질문 금지 (AI 아키텍처 fq-1)
-    return None
+    # 본질문과 같은 글 검사: 찌꺼기·답변 방식 지시·여러 개 묻기 (2026-11-10). 길이는 위 FOLLOWUP_MAX_CHARS 로 따로 본다
+    problem = question_text.textProblem(text)
+    return problem if problem != "too_long" else None
 
 
 def buildFollowupGraph(runner: Runner):
@@ -88,7 +91,7 @@ def buildFollowupGraph(runner: Runner):
     async def decide(state: FollowupState) -> dict:
         out = await runner.followupDecide(state["rowId"], state["answeredAt"])
         return {"skipCause": out.get("skipCause"), "reasonCode": out.get("reasonCode", "none"),
-                "question": out.get("question", "")}
+                "question": question_text.cleanQuestion(out.get("question", ""))}
 
     async def validate(state: FollowupState) -> dict:
         return {"skipCause": validateFollowup(state.get("reasonCode", "none"), state.get("question", ""))}

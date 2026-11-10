@@ -363,6 +363,7 @@ function ApplicantDetail() {
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>("report");
     const [busy, setBusy] = useState(false);
+    const [confirmReprocess, setConfirmReprocess] = useState(false);  // T-55 확인 모달
     const players = useRef<Record<number, HTMLAudioElement | null>>({});
 
     const load = useCallback(() => {
@@ -374,7 +375,8 @@ function ApplicantDetail() {
         setBusy(true);
         try {
             await api(`/admin/analysis/${applicationId}/reprocess`, { method: "POST" });
-            toast("info", "다시 채점을 시작했습니다");
+            toast("ok", "다시 채점을 시작했습니다");
+            setConfirmReprocess(false);
             load();
         } catch (err) {
             toast("error", (err as ApiError).message);
@@ -426,7 +428,22 @@ function ApplicantDetail() {
                 <span className="muted small">{d.applicant.email} · {d.applicant.phone} · 지원 {dateOnly(d.submitted_at)}</span>
                 <StatusBadge status={d.attempt_status} />
             </div>
-            <DecisionCard d={d} onReprocess={reprocess} onDecide={decide} busy={busy} />
+            <DecisionCard d={d} onReprocess={() => setConfirmReprocess(true)} onDecide={decide} busy={busy} />
+            {confirmReprocess && (() => {
+                const suspected = d.review_reason === "instruction_suspected";
+                return (
+                    <Modal title={suspected ? "확인한 내용으로 채점할까요?" : "다시 채점할까요?"} onClose={() => setConfirmReprocess(false)} actions={(
+                        <>
+                            <button type="button" className="btn btn-secondary" onClick={() => setConfirmReprocess(false)}>취소</button>
+                            <Button busy={busy} onClick={reprocess}>{suspected ? "확인했습니다, 채점하기" : "다시 돌리기"}</Button>
+                        </>
+                    )}>
+                        <p>{suspected
+                            ? "걸린 구절을 읽고 문제가 없다고 확인한 것으로 기록하고, 그대로 채점합니다."
+                            : `${d.applicant.name} 님의 응시 자료로 처음부터 다시 채점합니다. 3일 기한은 늘어나지 않습니다.`}</p>
+                    </Modal>
+                );
+            })()}
             <div className="tabs" role="tablist">
                 {tabs.map((t) => <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>{t.label}</button>)}
             </div>

@@ -262,6 +262,9 @@ def test_adminListShowsScoresAndReprocessOnlyNeedsReview(sessionFactory, fake, a
         db.commit()
     assert adminClient.post(f"/admin/analysis/{appId}/reprocess").status_code == 202
     assert requested == [appId]
+    # 화면정의서 T-55: 누른 뒤 배지는 '분석 중' (API 응답 running 과 같은 값)
+    with sessionFactory() as db:
+        assert db.get(Application, appId).analysis_status == "running"
 
 
 def test_needsReviewNotifiesAdmins(sessionFactory, monkeypatch):

@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PostingBody, type PostingDetail } from "@/components/PostingBody";
 import { useApp } from "@/components/Providers";
 import { Button, Field, Modal } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
-import { type AdminPosting, DEFAULT_WEIGHTS } from "@/lib/admin";
+import { type AdminPosting, DEFAULT_WEIGHTS, type DraftStatus } from "@/lib/admin";
 import { fromLocalInput, toLocalInput } from "@/lib/format";
 import { EMPLOYMENT_LABEL, EVAL_LABEL } from "@/lib/status";
 
@@ -65,6 +65,78 @@ function weightError(w: Record<string, number>): string | null {
 /** 2단계(평가 기준)에서 다음·저장을 막는 사유. 합격 기준 칸을 비우면 0점이 아니라 입력 요청 */
 function criteriaError(f: Form): string | null {
     return weightError(f.weights) ?? (Number.isNaN(f.pass_score) ? "합격 기준 점수를 입력해 주세요" : null);
+}
+
+const AI_SECTIONS: { key: FieldKey; label: string }[] = [{ key: "title", label: "제목" }, ...LONG_FIELDS.map(({ key, label }) => ({ key, label }))];
+const AI_NOTE_MAX = 300;
+const AI_POLL_MS = 2000;
+
+/** AI 초안 한 칸 다시 쓰기 (2026-11-10). 결과는 칸에만 넣고, 저장은 관리자가 [임시저장]으로 한다 */
+function AiRewrite({ postingId, form, onApply }: { postingId: string; form: Form; onApply: (key: FieldKey, text: string) => void }) {
+    const { toast } = useApp();
+    const [section, setSection] = useState<FieldKey>("duties");
+    const [note, setNote] = useState("");
+    const [running, setRunning] = useState(false);
+    const [notes, setNotes] = useState<string[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const applyRef = useRef(onApply);
+    useEffect(() => { applyRef.current = onApply; }, [onApply]);
+
+    // 처음 열 때 AI 가 초안을 쓰며 한 일(참고 공고·고쳐 쓴 칸)을 보여 준다
+    useEffect(() => {
+        api<DraftStatus>(`/admin/postings/${postingId}/draft-ai/status`).then((s) => setNotes(s.notes)).catch(() => undefined);
+    }, [postingId]);
+
+    useEffect(() => {
+        if (!running) return;
+        const timer = window.setInterval(async () => {
+            try {
+                const s = await api<DraftStatus>(`/admin/postings/${postingId}/draft-ai/status`);
+                if (s.status === "running") return;
+                setRunning(false);
+                setNotes(s.notes);
+                if (s.status === "done" && s.revision) {
+                    const label = AI_SECTIONS.find((x) => x.key === s.revision?.section)?.label ?? s.revision.section;
+                    applyRef.current(s.revision.section as FieldKey, s.revision.text);
+                    setNote("");
+                    toast("ok", `AI가 '${label}'을(를) 다시 썼습니다. 확인하고 저장해 주세요`);
+                } else {
+                    setError("AI가 다시 쓰지 못했습니다. 잠시 뒤 다시 시도하거나 직접 고쳐 주세요.");
+                }
+            } catch {
+                // 일시적인 조회 실패는 다음 주기에 다시 묻는다
+            }
+        }, AI_POLL_MS);
+        return () => window.clearInterval(timer);
+    }, [running, postingId, toast]);
+
+    async function request() {
+        setError(null);
+        try {
+            await api(`/admin/postings/${postingId}/draft-ai/revise`, { body: { section, note: note.trim(), current: String(form[section]) } });
+            setRunning(true);
+        } catch (err) {
+            setError((err as ApiError).message);
+        }
+    }
+
+    return (
+        <div className="card stack" style={{ gap: 8 }}>
+            <strong>✨ AI에게 한 칸 다시 쓰게 하기</strong>
+            {notes.length > 0 && <ul className="small muted" style={{ margin: 0 }}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+            <div className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+                <select className="input" style={{ maxWidth: 160 }} aria-label="다시 쓸 칸" value={section} disabled={running}
+                    onChange={(e) => setSection(e.target.value as FieldKey)}>
+                    {AI_SECTIONS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+                </select>
+                <input className="input" style={{ flex: 1 }} aria-label="AI에게 요청할 내용" value={note} maxLength={AI_NOTE_MAX} disabled={running}
+                    placeholder="예: 검색 품질을 측정하는 일을 넣어 줘" onChange={(e) => setNote(e.target.value)} />
+                <Button busy={running} disabled={!note.trim()} reason={!note.trim() ? "요청할 내용을 적어 주세요" : undefined} onClick={request}>다시 쓰기</Button>
+            </div>
+            <span className="tiny muted">지금 칸에 적힌 글(저장 전 수정 포함)을 바탕으로 그 칸만 다시 씁니다. 결과는 칸에만 들어가고, [임시저장]을 눌러야 저장됩니다.</span>
+            {error && <div className="notice notice-error small" role="alert">⚠ {error}</div>}
+        </div>
+    );
 }
 
 /** S-R03 공고 작성·수정 3단계 (새 공고는 posting 이 null) */
@@ -185,6 +257,9 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
             </ol>
             {posting?.source === "ai_draft" && !published && (
                 <div className="notice notice-info">✨ AI가 만든 초안입니다. 내용을 확인하고 고쳐 주세요.</div>
+            )}
+            {step === 1 && posting?.source === "ai_draft" && !published && id && (
+                <AiRewrite postingId={id} form={form} onApply={(key, text) => set(key, text as never)} />
             )}
             {published && <div className="notice notice-info small">게시 중인 공고입니다. 직무·접수 기간은 바꿀 수 없고, 고친 내용은 지원자 화면에 수정 이력으로 표시됩니다.</div>}
 

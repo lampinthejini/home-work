@@ -5,8 +5,11 @@
   embed_questions 질문 DB 의 임베딩(BGE-M3)을 만든다. 없는 것만 하므로 다시 돌려도 된다 (RAG)
   dedupe_questions 사용 중 엑셀 질문끼리 유사도 0.8 이상이면 앞선 것만 남긴다 (embed_questions 뒤에. 다시 돌려도 된다)
   sample_posting  확인용 공고 1건(AI/AX 엔지니어, 오늘부터 14일, 코딩테스트 사용)
+  load_web_questions <공고 id>  인터넷 참고 후보 질문(/data/web_questions.json)을 질문관리 '검토 대기'로 넣는다.
+                  회사 질문은 그 공고 전용, 직무 질문은 그 공고의 직무 (C-17). 이미 있는 글은 건너뛴다
 """
 
+import os
 import sys
 from datetime import timedelta
 
@@ -69,14 +72,25 @@ def dedupeQuestions(db) -> None:
     print(question_bank.dedupeExcel(db))
 
 
+def loadWebQuestions(db, postingId: str) -> None:
+    from .services import posting_questions
+
+    path = os.environ.get("WEB_QUESTIONS_PATH", "/data/web_questions.json")
+    print(f"saved {posting_questions.loadWebCandidates(db, path, postingId)} pending questions")
+
+
+ARG_COMMANDS = {"load_web_questions": loadWebQuestions}
 COMMANDS = {"init": init, "load_questions": loadQuestions, "sample_posting": samplePosting, "embed_questions": embedQuestions,
             "dedupe_questions": dedupeQuestions}
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
+    if not (len(sys.argv) == 2 and sys.argv[1] in COMMANDS or len(sys.argv) == 3 and sys.argv[1] in ARG_COMMANDS):
         sys.exit(__doc__)
     session = SessionLocal()
     try:
-        COMMANDS[sys.argv[1]](session)
+        if sys.argv[1] in ARG_COMMANDS:
+            ARG_COMMANDS[sys.argv[1]](session, sys.argv[2])
+        else:
+            COMMANDS[sys.argv[1]](session)
     finally:
         session.close()

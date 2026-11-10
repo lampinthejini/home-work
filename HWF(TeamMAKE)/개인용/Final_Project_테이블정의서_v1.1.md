@@ -606,7 +606,7 @@ UNIQUE (application_id, problem_no)
 | 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
 |---|---|---|---|---|---|
 | id | integer | PK | N | 자동 증가 | |
-| source | varchar(16) | | N | | excel 엑셀 · reserve 예비 (원본 값 db → excel) |
+| source | varchar(16) | | N | | excel 엑셀 · reserve 예비 · generated AI 생성(면접 때 만든 것 · 공고 기반 · 인터넷 참고, 구분은 category) (원본 값 db → excel) |
 | kind | varchar(16) | | N | | 질문 종류: job 직무 · personality 인성 · company 회사 · resume 이력서·경험. CHECK, 인덱스 (원본 칸 이름 category) |
 | category | varchar(64) | | N | '' | 엑셀의 분류 |
 | text | text | | N | | 질문 글 |
@@ -617,6 +617,8 @@ UNIQUE (application_id, problem_no)
 | answer_seconds | integer | | N | 90 | 답변 시간 |
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목(배열) |
 | embedding | vector(1024) | | Y | | BGE-M3 임베딩. pgvector 가 있을 때만 `migrate.py` 가 더한다 |
+| posting_id | varchar(36) | FK → job_postings.id (ON DELETE CASCADE) | Y | | 적용 범위: 이 공고에서만 쓴다(회사 질문). 인덱스. 비면 모든 공고 (C-17, 2026-11-10) |
+| job_code | varchar(32) | | Y | | 적용 범위: 이 직무 공고에서만 쓴다(직무 질문). 비면 모든 직무 (C-17, 2026-11-10) |
 
 UNIQUE (sheet, row_no)
 INDEX HNSW (embedding vector_cosine_ops): 비슷한 질문 찾기·RAG
