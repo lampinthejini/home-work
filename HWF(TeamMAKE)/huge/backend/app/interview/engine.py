@@ -144,6 +144,7 @@ class LiveSession:
         self.deadline = 0.0
         self.lastHeartbeat = time.monotonic()
         self.warnedAt = 0.0
+        self.awayStartedAt = 0.0
         self.sendLock = asyncio.Lock()
         self.tasks: list[asyncio.Task] = []
         self.redis = aioredis.from_url(ENV.redisUrl)
@@ -403,15 +404,15 @@ class LiveSession:
             lifecycle.logEvent(db, app, kind, AWAY_LABELS[kind], judged="cheating", sessionId=self.sid, seq=seq)
             db.commit()
             count = app.away_count
-            if count < 2:
-                lifecycle.pauseCodingTimer(app)
-                db.commit()
-                remaining = lifecycle.codingRemaining(app) if app.phase == "coding" else None
+            # 코딩테스트는 첫 이탈에도 시계를 멈추지 않는다. 멈추면 경고 한 번이 시간이 줄지 않는 검색 시간이 된다 (CONFLICTS C-18)
+            remaining = lifecycle.codingRemaining(app) if app.phase == "coding" else None
         if count >= 2:
             await self.runSafely(self.endWith(st.CANCELLED, "cancelled", "exit_twice", "화면 이탈이 2회 감지되어 응시가 취소되었습니다."))
             return
         self.warned = True
         self.warnedAt = time.monotonic()
+        # blur 는 2초 넘게 머문 뒤에야 오므로 그만큼 앞당겨 이탈 시작으로 본다 (돌아온 기록의 이탈 시간, CHT-05)
+        self.awayStartedAt = self.warnedAt - (durationMs / 1000 if kind == "blur" else 0)
         self.ackEvent.clear()
         if self.state == "answering" and self.framesThisAnswer > 0:
             answerSec = self.current["answer_sec"]
@@ -427,11 +428,16 @@ class LiveSession:
         if not self.warned:
             return
         self.warned = False
+        awaySec = max(0, round(time.monotonic() - self.awayStartedAt))
+        with dbSession() as db:
+            app = db.get(Application, self.appId)
+            seq = self.current["seq"] if self.current else app.current_seq
+            lifecycle.logEvent(db, app, "away_return", f"이탈 시간 {awaySec}초", judged="info", sessionId=self.sid, seq=seq)
+            db.commit()
         if self.state == "coding":
             with dbSession() as db:
                 app = db.get(Application, self.appId)
-                app.coding_started_at = now()
-                db.commit()
+                lifecycle.resumeCodingTimer(db, app)  # 시계는 계속 갔으므로 다시 재지 않는다 (멈춰 있을 때만 다시 잼)
                 remaining = lifecycle.codingRemaining(app)
             await self.send({"type": "resume", "seq": None, "remaining_sec": remaining, "phase": "coding"})
         elif self.state == "answering" and self.current is not None:

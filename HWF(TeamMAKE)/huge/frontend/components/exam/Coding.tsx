@@ -89,11 +89,12 @@ export function CodingTest({ sessionId, problems, remainingSec, paused, onFinish
         setLeft(remainingSec);
     }
 
+    // 경고창이 떠 있어도 서버 시계는 계속 가므로 화면 시계도 멈추지 않는다 (CONFLICTS C-18). 편집·저장만 멈춘다
     useEffect(() => {
-        if (paused || finished.current) return;
+        if (finished.current) return;
         const timer = window.setInterval(() => setLeft((v) => Math.max(0, v - 1)), 1000);
         return () => window.clearInterval(timer);
-    }, [paused]);
+    }, []);
 
     const save = useCallback(async (problemNo: number) => {
         const blocked = pasteBlocked.current[problemNo] ?? 0;
@@ -200,7 +201,7 @@ export function CodingTest({ sessionId, problems, remainingSec, paused, onFinish
         <>
             <div className="row" style={{ height: 48, padding: "0 24px", borderBottom: "1px solid var(--color-line)", gap: 24 }}>
                 <strong>코딩테스트</strong>
-                <span className={`remaining${urgent ? " urgent" : ""}`} style={{ fontSize: 22 }} aria-live="off">남은 시간 {mmss(left)}{paused && " (멈춤)"}</span>
+                <span className={`remaining${urgent ? " urgent" : ""}`} style={{ fontSize: 22 }} aria-live="off">남은 시간 {mmss(left)}</span>
                 <span className="small muted">{lastSaved ? `자동 저장됨 ${shortDateTime(lastSaved).slice(6)}` : "아직 저장 전"}</span>
                 <span style={{ flex: 1 }} />
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => { void save(active); setConfirm(true); }} disabled={paused}>최종 제출</button>

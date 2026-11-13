@@ -94,7 +94,7 @@ export function ExamOverlay({ overlay, closeAt, releaseAt, onWarnAck }: { overla
                     <p><strong>한 번 더 이탈하면 면접이 취소됩니다.</strong><br />확인을 누르면 전체 화면으로 돌아가</p>
                     <ul>
                         <li>AI 면접: 같은 질문을 멈춘 시점의 남은 시간부터 이어서 답합니다. (이탈 전에 한 답변은 그대로 이어 붙습니다)</li>
-                        <li>코딩테스트: 남은 시간 그대로 이어서 진행합니다.</li>
+                        <li>코딩테스트: <strong>시간은 멈추지 않습니다.</strong> 화면을 벗어나 있던 시간도 코딩 시간에서 빠집니다.</li>
                     </ul>
                     <p style={{ color: "var(--color-danger)", fontWeight: 600 }}>⚠ 이 창이 떠 있는 동안 다른 탭·창으로 이동해도 2회째 이탈입니다.</p>
                     <div className="center" style={{ marginTop: 20 }}><button type="button" className="btn btn-primary btn-lg" onClick={onWarnAck}>확인하고 돌아가기</button></div>

@@ -66,7 +66,7 @@ export const EVENT_LABEL: Record<string, string> = {
     visibility: "다른 탭으로 전환", blur: "다른 창으로 이동", fullscreen: "전체 화면 해제", navigate: "다른 주소로 이동",
     unload: "창 닫기·새로고침", permission: "장치 권한 해제", disconnect: "연결 끊김", interrupted: "장애 중단",
     device_error: "장치 오류", upload_error: "녹화 저장 실패 (서버)", resume_limit: "이어가기 횟수 초과",
-    beacon_unknown: "알 수 없는 신호", beacon_unparsed: "읽지 못한 신호",
+    beacon_unknown: "알 수 없는 신호", beacon_unparsed: "읽지 못한 신호", away_return: "이탈 후 돌아옴",
 };
 
 export const JUDGED_LABEL: Record<string, string> = { fault: "장애", not_fault: "장애 아님", cheating: "화면 이탈", info: "기록" };
