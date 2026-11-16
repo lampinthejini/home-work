@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v1.2** (개인용 개정본, 2026-11-10 · 처음 개정 — 팀 원본 아님, 기준: 구현(`huge/`) + `huge/CONFLICTS.md` (2026-11-03)) |
-| 기준 문서 | API 명세서 v1.3 (값 이름·응답 칸), TRD v1.7 (4-1 주요 테이블, 4-3 데이터 전달 형식) |
+| 문서 버전 | **v1.3** (개인용 개정본, 2026-11-16 · 처음 개정 — 팀 원본 아님, 기준: 구현(`huge/`) + `huge/CONFLICTS.md` (2026-11-03)) |
+| 기준 문서 | API 명세서 v1.5 (값 이름·응답 칸), TRD v1.9 (4-1 주요 테이블, 4-3 데이터 전달 형식) |
 | DB | PostgreSQL 16 + pgvector. 테이블은 서버가 시작할 때 `create_all`로 만들고, 이미 있는 표에 칸을 더하는 일은 `app/migrate.py`가 한다(Alembic은 아직 쓰지 않는다) |
 | 작성일 | 2026-11-03 |
 | 읽는 법 | 키: PK 기본 키, FK 외래 키(다른 테이블을 가리킴), UQ 중복 불가. NULL: Y면 비워 둘 수 있음. 칸 이름과 상태 값은 API 명세서와 같은 영어 이름을 쓴다. 기본값은 앱 코드가 넣는 값이며 DB 기본값(server default)은 따로 없다 |
@@ -17,6 +17,7 @@
 | v1.0 (원본) | 2026-10-29 | 최초 작성(PDF, 버전 표기 없음). 테이블 25개 |
 | v1.1 (개인용) | 2026-11-03 | 구현(`models.py`)에 맞춘 개정. 아래 세부. 검토(백엔드·프론트엔드·UI/UX) 반영: 재생 위치 설명(4-23)·STT 재시도(4-21)·`is_empty`(4-21)·알림 종류 `purge_notice`(4-25)·답변 음성 감사 로그(4-26)·Redis `audio:{sid}`·`caption:active`(5장) |
 | v1.2 (개인용) | 2026-11-10 | 2026-11-06·11-09·11-10 검토 보정을 반영했다(자세한 것은 문서 끝 보정 절): 코드 대조로 고친 곳(E7~E18), 논의사항 정리, AI 질문 품질·질문 적용 범위·질문 후보·AI 공고 초안 그래프(CONFLICTS C-13~C-17) |
+| v1.3 (개인용) | 2026-11-16 | 엑셀 질문 DB → 예비 질문: 4-18 questions(`created_at` 추가, 값 설명), 4-20 interview_questions `source`. 회사 정보: 4-28 company_profile·4-29 company_news 새로, 4-6 job_postings `company_name` 에 회사 이름(U1 을 바꿈). 3장 목록·ERD (CONFLICTS C-20, 사용자 결정 2026-11-16) |
 
 v1.1 세부 변경(괄호는 `huge/CONFLICTS.md` ID)
 
@@ -200,9 +201,16 @@ erDiagram
         string key PK
         string updated_by FK
     }
+    company_profile {
+        int id PK
+    }
+    company_news {
+        int id PK
+        string url UK
+    }
 ```
 
-묶음: 회원·관리(users·login_sessions·saved_resumes·resume_uploads·consents·memos·notifications·audit_logs·app_settings) · 공고·코딩(job_codes·job_postings·posting_revisions·evaluation_criteria·coding_submissions) · 지원 건(applications·interview_sessions·recordings·session_events·results·deletion_logs·stats_archive) · 질문·답변(questions·question_usage·interview_questions·answers·item_scores·highlights).
+묶음: 회원·관리(users·login_sessions·saved_resumes·resume_uploads·consents·memos·notifications·audit_logs·app_settings) · 공고·코딩(job_codes·job_postings·posting_revisions·evaluation_criteria·coding_submissions) · 지원 건(applications·interview_sessions·recordings·session_events·results·deletion_logs·stats_archive) · 질문·답변(questions·question_usage·interview_questions·answers·item_scores·highlights) · 회사(company_profile·company_news, 다른 테이블과 FK 없음, C-20).
 LangGraph 체크포인트 테이블은 FK 가 없고 `thread_id`(= 지원 건 id)로만 이어진다.
 
 ## 3. 테이블 목록
@@ -226,7 +234,7 @@ LangGraph 체크포인트 테이블은 FK 가 없고 `thread_id`(= 지원 건 id
 | 15 | 지원 건 | deletion_logs  (삭제 기록) | 보관 기간·탈퇴·동의 철회로 지운 기록(지운 내용은 남기지 않음) |
 | 16 | 지원 건 | stats_archive  (통계 보관) | 보관 기간이 지나 지운 건의 익명 월별 집계. 지원 건·회원을 가리키는 칸 없음 |
 | 17 | 공고·코딩 | coding_submissions  (코드 제출) | 지원 건의 문제마다 저장·제출한 코드와 채점 결과 |
-| 18 | 질문·답변 | questions  (질문 DB) | 엑셀에서 불러온 질문, AI가 만든 질문, 예비 질문 |
+| 18 | 질문·답변 | questions  (예비 질문) | AI 가 질문을 만들 때 보는 예시이자 대신 내는 질문. 기본 40개와 AI 가 만든 질문 (C-20) |
 | 19 | 질문·답변 | question_usage  (공고별 질문 사용 횟수) | 같은 공고의 지원자끼리 질문이 겹치지 않게 질문마다 쓴 횟수를 센다 |
 | 20 | 질문·답변 | interview_questions  (면접 질문) | 지원자 한 명의 면접에 실제로 낸 질문 목록 |
 | 21 | 질문·답변 | answers  (답변) | 질문 하나에 대한 답변. 이탈 전후로 나뉜 음성도 한 답변으로 합친다 |
@@ -236,6 +244,8 @@ LangGraph 체크포인트 테이블은 FK 가 없고 `thread_id`(= 지원 건 id
 | 25 | 회원·관리 | notifications  (알림) | 사이트 알림(머리글 🔔)과 같은 내용의 메일 발송 상태 |
 | 26 | 회원·관리 | audit_logs  (감사 로그) | 누가 언제 무엇을 했는지(내용은 남기지 않음). 설정 변경의 전·후 값도 여기에 남긴다 |
 | 27 | 회원·관리 | app_settings  (설정) | 서버를 다시 켜지 않고 바꾸는 설정값(목록은 TRD 14장) |
+| 28 | 회사 | company_profile  (회사 정보) | 회사 이름·소개 등. 한 줄(id=1)만 쓴다 (C-20) |
+| 29 | 회사 | company_news  (회사 최근 소식) | 뉴스 제목·링크·출처·날짜와 제목 임베딩. 관리자가 [제거]하면 표시만 남긴다 (C-20) |
 
 코딩 문제 은행(원본 `coding_problems`)은 테이블이 아니다. 문제와 숨겨진 테스트는 코드(`services/coding_bank.py`)에 있고 제출 행은 `problem_key`로 가리킨다. (T10)
 설정 변경 기록(원본 `app_setting_history`)은 테이블 대신 감사 로그가 맡는다. (T11, F8)
@@ -348,7 +358,7 @@ IP 별 로그인 실패. IP 원문은 두지 않는다. 차단도 집계 기간�
 | source | varchar(16) | | N | 'manual' | manual 직접 작성 · open_api · dummy · ai_draft. CHECK |
 | title | varchar(200) | | N | '' | |
 | job_code | varchar(32) | | N | 'AI_AX' | 직무 코드. job_codes.code 와 같은 글자(FK 는 걸지 않음) |
-| company_name | varchar(200) | | N | '' | 화면에 표시하지 않는다(한 기업 전용, U1). 칸만 남김 |
+| company_name | varchar(200) | | N | '' | 회사 이름. 공고를 만들 때 company_profile.name 을 넣고, 회사 이름을 바꾸면 모든 공고를 함께 바꾼다. 공고 목록·상세에 보인다 (C-20, U1 을 바꿈) |
 | external_id | varchar(100) | | Y | | 불러온 공고의 원래 번호. 공고 불러오기는 현재 구현 범위 밖(미구현, V2) |
 | company_intro | text | | N | '' | 화면 이름은 '부서 소개'(V1) |
 | duties | text | | N | '' | 주요 업무 |
@@ -600,30 +610,31 @@ UNIQUE (posting_id, month)
 
 UNIQUE (application_id, problem_no)
 
-### 4-18. questions (질문 DB)
+### 4-18. questions (예비 질문)
 
-엑셀에서 불러온 질문과 예비 질문, AI 질문 후보(`generated`, 검토 대기에서 관리자가 [추가]하면 사용, C-17)
+예비 질문(2026-11-16, C-20). 처음 넣는 기본 질문 40개와 AI 가 만든 질문이 승인 없이 들어온다(종류마다 100개까지). 예전 엑셀 질문·AI 질문 후보(검토 대기, C-17)는 2026-11-16 에 모두 지웠다(백업 `C:\big21\huge-backup-20261116\questions.dump`)
 
 | 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
 |---|---|---|---|---|---|
 | id | integer | PK | N | 자동 증가 | |
-| source | varchar(16) | | N | | excel 엑셀 · reserve 예비 · generated AI 생성(면접 때 만든 것 · 공고 기반 · 인터넷 참고, 구분은 category) (원본 값 db → excel) |
+| source | varchar(16) | | N | | reserve 예비 질문(지금 넣는 값은 이것뿐, C-20). 예전 값 excel 엑셀 · generated AI 질문 후보는 더 쓰지 않는다 (원본 값 db → excel) |
 | kind | varchar(16) | | N | | 질문 종류: job 직무 · personality 인성 · company 회사 · resume 이력서·경험. CHECK, 인덱스 (원본 칸 이름 category) |
-| category | varchar(64) | | N | '' | 엑셀의 분류 |
+| category | varchar(64) | | N | '' | 출처 표시: 기본 · AI 생성 · 공고 기반 · 인터넷 참고 (C-20) |
 | text | text | | N | | 질문 글 |
-| sheet | varchar(64) | | Y | | 엑셀 원래 시트 이름 |
-| row_no | integer | | Y | | 엑셀 행 번호 |
-| duplicate_group | varchar(128) | | Y | | 겹치는 질문 묶음 표시 |
-| status | varchar(16) | | N | 'active' | active 사용 · preparing 준비 중 직무 · pending 검토 대기(AI 후보) · rejected 관리자가 뺌 · excluded 자동으로 거름(F4-2·중복 0.8). CHECK |
+| sheet | varchar(64) | | Y | | 엑셀 원래 시트 이름 (예비 질문은 비움) |
+| row_no | integer | | Y | | 엑셀 행 번호 (예비 질문은 비움) |
+| duplicate_group | varchar(128) | | Y | | 같은 글 확인용 표시(글을 정규화한 앞 128자). 관리자가 글을 고칠 때 같은 글이 있으면 409 |
+| status | varchar(16) | | N | 'active' | 예비 질문은 active 로만 넣는다(C-20). CHECK 는 예전 5값(active · preparing · pending · rejected · excluded) 그대로 |
 | answer_seconds | integer | | N | 90 | 답변 시간 |
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목(배열) |
 | embedding | vector(1024) | | Y | | BGE-M3 임베딩. pgvector 가 있을 때만 `migrate.py` 가 더한다 |
-| posting_id | varchar(36) | FK → job_postings.id (ON DELETE CASCADE) | Y | | 적용 범위: 이 공고에서만 쓴다(회사 질문). 인덱스. 비면 모든 공고 (C-17, 2026-11-10) |
-| job_code | varchar(32) | | Y | | 적용 범위: 이 직무 공고에서만 쓴다(직무 질문). 비면 모든 직무 (C-17, 2026-11-10) |
+| posting_id | varchar(36) | FK → job_postings.id (ON DELETE CASCADE) | Y | | 적용 범위: 이 공고에서만 쓴다. 인덱스. 비면 모든 공고 (C-17). 2026-11-16 부터 새 질문에는 붙이지 않는다 (C-20) |
+| job_code | varchar(32) | | Y | | 적용 범위: 이 직무 공고에서만 쓴다. 관리자 화면 '해당 직무만'. 비면 모든 직무 (C-17·C-20) |
+| created_at | timestamptz | | N | now | 넣은 시각. 관리자 화면에서 하루 동안 NEW. 기존 DB 는 `migrate.py` 가 `DEFAULT now()` 로 더한다 (C-20) |
 
 UNIQUE (sheet, row_no)
 INDEX HNSW (embedding vector_cosine_ops): 비슷한 질문 찾기·RAG
-원본의 `use_count`(→ `question_usage`), `created_at`, `INDEX (source, category)` 는 실제에 없다. (T15, T29)
+원본의 `use_count`(→ `question_usage`), `INDEX (source, category)` 는 실제에 없다. (T15, T29) 원본의 `created_at` 은 2026-11-16 에 더했다 (C-20).
 
 ### 4-19. question_usage (공고별 질문 사용 횟수)
 
@@ -648,10 +659,10 @@ INDEX HNSW (embedding vector_cosine_ops): 비슷한 질문 찾기·RAG
 | answer_order | integer | | N | 1 | 1 기본 질문 · 2 꼬리질문. 꼬리질문은 부모 연결(parent_id) 없이 같은 seq 와 answer_order 2 로 가리킨다 |
 | qtype | varchar(16) | | N | | 질문 종류: personality · company · job · resume (원본 category) |
 | text | text | | N | | 낸 질문 사본(바뀌지 않음) (원본 text_snapshot) |
-| source_question_id | integer | FK | Y | | 질문 DB에서 왔으면 → questions.id (원본 question_id) |
-| source | varchar(16) | | N | 'excel' | 질문 출처: RAG 로 만든 질문 generated · 질문은행 excel · 예비 reserve |
+| source_question_id | integer | FK | Y | | 예비 질문에서 왔으면 → questions.id (원본 question_id). 예비 질문을 지우면 비운다(면접 기록은 남김, C-20) |
+| source | varchar(16) | | N | 'excel' | 질문 출처: RAG 로 만든 질문 generated · 예비 질문·고정 문장 reserve · 질문은행 excel(2026-11-16 전 면접에만 남음, C-20) |
 | regen_count | integer | | N | 0 | 다시 만든 횟수 (원본 generation_attempts) |
-| substituted | boolean | | N | false | 대신 쓴 질문(질문은행·예비)인지 (원본 replaced) |
+| substituted | boolean | | N | false | 대신 쓴 질문(예비 질문·고정 문장)인지 (원본 replaced) |
 | substitute_reason | varchar(64) | | Y | | 대신 쓴 이유 (원본 replace_reason: timeout · invalid_json · check_failed · budget_over) |
 | answer_sec | integer | | N | 90 | 답변 시간 (원본 answer_seconds) |
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목 |
@@ -783,6 +794,37 @@ UNIQUE (interview_question_id, eval_item)
 
 행이 없으면 프로필 기본값을 쓴다. 설정 복사본을 Redis에 두지 않고 DB 를 직접 읽는다. 설정 변경 기록 테이블(원본 `app_setting_history`)은 없고 감사 로그가 대신한다. (T11, F8)
 
+### 4-28. company_profile (회사 정보)
+
+회사 정보(2026-11-16, C-20). 한 기업 전용이라 한 줄(id=1)만 쓴다. 처음 켤 때 가상 회사 AIIT 의 값을 넣는다(`services/company.py` DEFAULT_PROFILE). 회사 질문과 AI 공고 초안에 참고 자료로 들어간다.
+
+| 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
+|---|---|---|---|---|---|
+| id | integer | PK | N | 1 | 늘 1 |
+| name | varchar(100) | | N | 'AIIT' | 회사 이름. 바꾸면 모든 job_postings.company_name 도 바꾼다 |
+| basics | text | | N | '' | 기본 정보(설립·대표·본사·임직원·주요 서비스) |
+| intro | text | | N | '' | 회사 소개 |
+| jobs_intro | text | | N | '' | 직무 소개 |
+| ai_ax_role | text | | N | '' | AI/AX 가 하는 일 |
+| news_query | varchar(100) | | N | '네이버' | 최근 소식 검색어. 질문에 넣을 때는 이 말을 회사 이름으로 바꾼다 |
+| news_refreshed_at | timestamptz | | Y | | 마지막으로 소식을 찾은 시각 |
+| updated_at | timestamptz | | N | now | 고친 시각 |
+
+### 4-29. company_news (회사 최근 소식)
+
+회사 최근 소식(2026-11-16, C-20). Google 뉴스 RSS 에서 찾은 기사의 제목과 링크만 둔다(본문 없음). 보이는 소식은 최대 30개, 6개월(183일)이 지나면 지운다. 제목에 검색어나 회사 이름이 없는 기사는 넣지 않는다. 직무 관련 최근 소식(면접 질문 만들 때 잠깐 쓰는 것)은 이 테이블에 넣지 않는다.
+
+| 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
+|---|---|---|---|---|---|
+| id | integer | PK | N | 자동 증가 | |
+| title | varchar(300) | | N | | 기사 제목(끝의 ' - 언론사'는 뗌) |
+| url | varchar(1000) | UQ | N | | 기사 링크(Google 뉴스를 거치는 주소) |
+| publisher | varchar(100) | | N | '' | 출처(언론사) |
+| published_at | timestamptz | | Y | | 기사 날짜. 인덱스 |
+| fetched_at | timestamptz | | N | now | 찾은 시각 |
+| hidden_at | timestamptz | | Y | | 관리자가 [제거]한 시각. 줄을 남겨 다음에 찾아도 다시 넣지 않는다 |
+| embedding | vector(1024) | | Y | | 제목의 BGE-M3 임베딩. 회사 질문 찾을 글과 가까운 소식 3개를 고른다. pgvector 가 있을 때만 `migrate.py` 가 더한다(인덱스 없음, 30개뿐) |
+
 ## 5. DB 밖에 두는 임시 값 (Redis)
 
 짧게 쓰고 버리는 값은 테이블을 만들지 않고 Redis에 둔다. 토큰은 원래 값이 아니라 해시로 키를 만든다. Redis 는 Celery 의 작업 대기열(broker)과 결과 보관(`result_expires` 600초)에도 쓴다.
@@ -862,3 +904,13 @@ UNIQUE (interview_question_id, eval_item)
 사용자 결정과 코드에 맞춰 고친 내용이다. 이 내용은 v1.2 에 들어 있다.
 
 - 4-18 questions: `posting_id`·`job_code`(적용 범위, C-17)를 더했다. `source` 에 AI 생성(`generated`) 구분, `status` 를 CHECK 와 같은 5값(active · preparing · pending · rejected · excluded)으로 적었다.
+
+## 2026-11-16 보정 (v1.3)
+
+사용자 결정(CONFLICTS C-20)과 코드에 맞춰 고친 내용이다.
+
+- 4-18 questions: 예비 질문 테이블로 설명을 바꿨다. `created_at` 을 더했다. 실제 DB 의 질문 6,505개(엑셀·AI 후보)를 지우고 기본 40개를 넣었다.
+- 4-20 interview_questions: `source` 값과 예비 질문을 지울 때의 처리.
+- 4-6 job_postings `company_name`: 회사 이름을 넣는다(U1 을 바꿈).
+- 4-28 company_profile·4-29 company_news 를 새로 적었다(테이블 27 → 29개).
+

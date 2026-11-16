@@ -15,7 +15,8 @@ const MENU = [
     { href: "/admin/postings", icon: "▤", label: "공고 관리" },
     { href: "/admin/applicants", icon: "▥", label: "지원자" },
     { href: "/admin/next-stage", icon: "▦", label: "다음 전형" },
-    { href: "/admin/questions", icon: "▨", label: "질문 관리" },
+    { href: "/admin/questions", icon: "▨", label: "예비 질문" },
+    { href: "/admin/company", icon: "▩", label: "회사 정보" },
     { href: "/admin/dashboard", icon: "▧", label: "대시보드" },
     { href: "/admin/settings", icon: "⚙", label: "운영 설정" },
 ];

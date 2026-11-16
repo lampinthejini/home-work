@@ -5,7 +5,7 @@ AI(llm-rt)는 제목·부서 소개(company_intro)·주요 업무·자격 요건
 진행 상태는 api 프로세스 안에 둔다 (1단계, 프로세스 1개 기준). 재시작으로 상태가 사라지면 '실패'로 보여 다시 시도하게 한다.
 
 문장 쓰기는 LangGraph 그래프로 돈다 (2026-11-10 사용자 결정). 갈림길은 코드가 정한다.
-  새 초안:   retrieve(같은 직무 예전 공고) → draft → check(칸별) ─ 문제 칸 → rewrite → check ─ 통과·횟수 끝 → save(DB)
+  새 초안:   retrieve(같은 직무 예전 공고 · 회사 정보) → draft → check(칸별) ─ 문제 칸 → rewrite → check ─ 통과·횟수 끝 → save(DB)
   다시 쓰기: rewrite(관리자가 고른 칸, 요청 메모) → check ─ 문제 → rewrite → check ─ 통과·횟수 끝 → deliver(화면에만)
 두 흐름은 thread_id = 'posting-draft:{공고 id}' 하나를 같이 써서, 다시 쓰기 때 처음 입력·참고 공고를 체크포인트에서 읽는다.
 interrupt 로 멈춰 두지 않는 것은 로컬 Python 3.10 에서 interrupt 가 동작하지 않고, 멈춘 작업을 서버에 남기지 않기 위해서다.
@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from .. import db as dbModule
 from ..interview import checkpoint
 from ..models import JobPosting
-from . import llm
+from . import company, llm
 
 log = logging.getLogger("huge.posting_draft")
 
@@ -277,6 +277,14 @@ def withReferences(prompt: str, references: list[str]) -> str:
             f"예전 공고에만 있는 사실을 새 공고에 넣지 마라.\n{blocks}")
 
 
+def withCompany(prompt: str, companyInfo: str) -> str:
+    """저장해 둔 회사 정보 (2026-11-16 사용자 결정, C-20). 부서 소개·업무를 회사가 하는 일에 맞추는 데만 쓴다."""
+    if not companyInfo:
+        return prompt
+    return (f"{prompt}\n\n우리 회사 정보다. 부서 소개와 업무를 회사가 하는 일에 맞추는 데 참고하고, "
+            f"여기에 없는 수치·사실은 지어내지 마라.\n<회사>\n{fenceText(companyInfo)}\n</회사>")
+
+
 def normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -343,8 +351,11 @@ def buildDraftGraph():
         with dbModule.SessionLocal() as db:
             posting = db.get(JobPosting, state["postingId"])
             references = findReferences(db, posting) if posting is not None else []
+            companyInfo = company.postingContext(db)
         notes = [f"같은 직무의 예전 공고 {len(references)}건을 참고했습니다"] if references else []
-        return {"references": references, "draft": None, "draftAttempts": 0, "problems": {}, "rewrites": {},
+        notes.append("저장된 회사 정보를 참고했습니다")
+        return {"prompt": withCompany(state["prompt"], companyInfo), "references": references,
+                "draft": None, "draftAttempts": 0, "problems": {}, "rewrites": {},
                 "request": None, "notes": notes, "error": None}
 
     async def draft(state: DraftState) -> dict:

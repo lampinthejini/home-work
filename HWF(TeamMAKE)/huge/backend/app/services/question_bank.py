@@ -1,61 +1,80 @@
-"""질문 DB 불러오기 (TRD 7-4 ①, PRD 5-5). manage.py load_questions 가 부른다.
+"""예비 질문 (2026-11-16 사용자 결정, CONFLICTS C-20).
 
-- IT 직무 엑셀: '기업_'·'생성_' 시트. 머신러닝·딥러닝·컴퓨터 비전·데이터 사이언스·파이썬 시트만 active,
-  나머지는 준비 중 직무용(status='preparing'). '코딩문제여부'가 '예'이거나 질문 글이 빈 행은 뺀다.
-- 인성 엑셀: 지원동기·동기/지원 이유·조직 문화 적합성은 company, 나머지는 personality.
-- 같은 (시트, 행 번호)는 다시 넣지 않는다. 같은 질문 글은 duplicate_group 으로 묶는다.
-- 임베딩(BGE-M3)은 3단계에서 붙인다.
+엑셀 질문 DB 는 지웠다. 질문 DB 는 예비 질문(source='reserve') 하나만 쓴다:
+- 기본 질문: 종류(인성·회사·이력서 기반·직무)마다 10개 (RESERVE_QUESTIONS, manage reset_questions 가 넣는다)
+- AI 가 만든 질문: 면접·공고 게시 때 만든 질문 중 개인적이지 않고 같은 종류 예비 질문과 0.8 미만으로 비슷한 것을
+  승인 없이 바로 넣는다. 종류마다 RESERVE_LIMIT_PER_KIND 개가 차면 더 넣지 않는다.
+예비 질문은 AI 가 질문을 만들 때 보는 예시(RAG)이고, 못 만들었을 때 대신 내는 질문이다.
 """
 
 import re
 
-import openpyxl
 from sqlalchemy.orm import Session
 
 from ..domain.scoring import EVAL_ITEMS_BY_KIND
-from ..models import AuditLog, Question
+from ..models import AuditLog, InterviewQuestion, Question, QuestionUsage
 from . import rag
 
-JOB_SHEET_KEYWORDS = ("머신러닝", "딥러닝", "컴퓨터 비전", "데이터 사이언", "파이썬")
-COMPANY_CATEGORIES = {"지원동기", "동기/지원 이유", "조직 문화 적합성"}
-PERSONALITY_SHEET = "인성질문전체"
+RESERVE_LIMIT_PER_KIND = 100
+RESERVE_KINDS = ("personality", "company", "resume", "job")
+DEFAULT_JOB_CODE = "AI_AX"
+SEED_CATEGORY = "기본"
 
-# 종류별 예비 질문 (source='reserve', QST-05). 이력서 기반 자리는 '경험·프로젝트' 예비 질문으로 바꾼다.
-# 종류별 5개 이상 (TRD 15장 T-05). '엑셀'로 표시한 줄은 질문 엑셀 2개에서 회사 이름·특정 직무가 없는 질문을 골라 옮긴 것.
+# 종류마다 10개 (AI/AX 엔지니어 기준). 회사 질문은 회사 정보(services/company.py DEFAULT_PROFILE)에 맞춘다
 RESERVE_QUESTIONS = {
-    "resume": [
-        "가장 기억에 남는 프로젝트 하나를 골라 본인 역할을 설명해 주세요.",
-        "최근에 맡았던 일 중 가장 어려웠던 문제 하나와 해결 방법을 설명해 주세요.",
-        "이력서에 적은 경험 중 가장 자신 있는 기술을 어떻게 익혔는지 설명해 주세요.",
-        "과거 업무 경험과 이 직무와의 연관성을 설명해 주시겠어요?",  # 엑셀: 인성 · 자기소개/이력서
-        "이전 경험에서 무엇을 배웠나요?",  # 엑셀: 인성 · 자기소개/이력서
-    ],
-    "job": [
-        "과적합이 무엇인지와 이를 줄이는 방법 한 가지를 설명해 주세요.",
-        "모델 성능을 평가할 때 정확도만 보면 안 되는 경우를 예로 들어 설명해 주세요.",
-        "학습 데이터와 실제 데이터의 분포가 다를 때 생기는 문제를 설명해 주세요.",
-        "파이썬에서 리스트와 튜플의 차이를 설명해 주세요.",
-        "결측값을 대치하는 데 흔히 사용되는 기법들을 설명해 주시겠어요?",  # 엑셀: IT · 기업_머신러닝
-        "딥러닝의 드롭아웃(dropout)이란 무엇인가요?",  # 엑셀: IT · 생성_딥러닝
-    ],
     "personality": [
-        "팀에서 의견이 달랐던 경험과 그때 어떻게 했는지 말씀해 주세요.",
-        "실수를 했던 경험과 그 뒤에 무엇을 바꿨는지 말씀해 주세요.",
-        "건설적인 피드백을 받았던 경험을 말씀해 주시겠어요? 어떻게 대처했나요?",  # 엑셀: 인성 · 피드백
-        "목표 달성을 위해 다른 부서와 협업해야 했던 상황을 설명해 주세요.",  # 엑셀: 인성 · 협업/팀워크
-        "비전문가에게 기술적 개념을 어떻게 설명하나요?",  # 엑셀: 인성 · 커뮤니케이션
+        "팀원과 의견이 달랐을 때 어떻게 합의점을 찾으셨나요?",
+        "맡은 일에서 실수를 했을 때 어떻게 바로잡으셨나요?",
+        "받은 피드백 가운데 가장 도움이 된 것은 무엇이고, 어떻게 반영하셨나요?",
+        "마감이 겹치는 여러 일을 동시에 맡았을 때 우선순위를 어떻게 정하셨나요?",
+        "새로운 기술을 짧은 시간 안에 익혀야 했을 때 어떻게 공부하셨나요?",
+        "목표를 이루지 못했던 일에서 가장 크게 배운 점은 무엇인가요?",
+        "다른 직군 동료와 협업할 때 소통을 위해 가장 신경 쓰는 점은 무엇인가요?",
+        "AI가 만든 결과가 틀렸을 때 어떻게 대응해야 한다고 생각하시나요?",
+        "스스로 문제를 찾아 개선을 제안했던 일을 말씀해 주세요.",
+        "반복되는 일을 더 효율적으로 바꿔 본 적이 있다면 어떻게 바꾸셨나요?",
     ],
     "company": [
-        "이 회사에 지원한 이유를 말씀해 주세요.",
-        "이 직무에서 이루고 싶은 목표를 말씀해 주세요.",
-        "어떤 회사 문화에서 잘하시나요?",  # 엑셀: 인성 · 조직 문화 적합성
-        "긍정적인 팀 환경에 어떻게 기여하나요?",  # 엑셀: 인성 · 조직 문화 적합성
-        "이 직무에 대한 동기는 무엇인가요?",  # 엑셀: 인성 · 지원동기
+        "AIIT에 지원하게 된 계기는 무엇인가요?",
+        "AIIT의 서비스 가운데 AI로 가장 먼저 개선하고 싶은 것은 무엇인가요?",
+        "자체 언어 모델 AIIT-X를 가진 회사에서 AI/AX 엔지니어로 어떤 일을 해 보고 싶으신가요?",
+        "AIIT가 사내 업무에 AI를 도입한다면 가장 먼저 바꿔야 할 업무는 무엇이라고 생각하시나요?",
+        "작은 조직이 스스로 목표를 정하고 빠르게 실험하는 문화에서 어떻게 일하고 싶으신가요?",
+        "입사 후 1년 안에 AIIT에서 이루고 싶은 목표는 무엇인가요?",
+        "AIIT가 생성형 AI 서비스를 내놓을 때 사용자 신뢰를 얻으려면 무엇이 중요하다고 생각하시나요?",
+        "검색·쇼핑·결제처럼 여러 서비스를 가진 회사에서 AI를 적용할 때의 장점은 무엇이라고 생각하시나요?",
+        "AIIT의 핵심 가치 가운데 본인과 가장 잘 맞는 것은 무엇인가요?",
+        "AI 업계의 최근 변화 가운데 AIIT가 가장 주목해야 할 흐름은 무엇이라고 생각하시나요?",
+    ],
+    "resume": [
+        "가장 기억에 남는 프로젝트 하나를 골라 본인이 맡은 역할을 설명해 주세요.",
+        "프로젝트에서 가장 어려웠던 기술 문제와 해결 방법을 설명해 주세요.",
+        "이력서에 적은 기술 가운데 가장 자신 있는 것을 실제로 어떻게 써 보셨나요?",
+        "지금까지의 경험이 AI/AX 엔지니어 직무와 어떻게 이어진다고 생각하시나요?",
+        "프로젝트에서 데이터를 모으고 정리할 때 무엇을 가장 신경 쓰셨나요?",
+        "프로젝트 결과를 어떤 기준으로 평가하셨나요?",
+        "팀 프로젝트에서 본인의 판단으로 방향을 바꾼 일이 있다면 그 이유는 무엇인가요?",
+        "이전 프로젝트를 다시 한다면 무엇을 다르게 하고 싶으신가요?",
+        "AI나 자동화로 일을 줄여 본 사례를 설명해 주세요.",
+        "프로젝트에서 쓴 모델이나 도구를 고른 이유는 무엇인가요?",
+    ],
+    "job": [
+        "과적합이 생기는 원인과 이를 줄이는 방법은 무엇인가요?",
+        "RAG는 무엇이고, 파인튜닝보다 RAG가 나은 경우는 언제인가요?",
+        "LLM이 사실과 다른 답을 만드는 환각을 줄이는 방법에는 무엇이 있나요?",
+        "벡터 검색에서 문서를 나누는 크기는 무엇을 기준으로 정하나요?",
+        "분류 모델을 평가할 때 정확도만 보면 안 되는 경우는 언제인가요?",
+        "학습 데이터와 실제 데이터의 분포가 달라지면 어떤 문제가 생기나요?",
+        "모델을 배포한 뒤 성능이 떨어지는 것을 알아채려면 무엇을 지켜봐야 하나요?",
+        "프롬프트 인젝션이란 무엇이고 어떻게 막을 수 있나요?",
+        "큰 모델을 작은 GPU에서 돌리기 위한 경량화 방법에는 무엇이 있나요?",
+        "파이썬에서 리스트와 제너레이터의 차이는 무엇이고 언제 제너레이터를 쓰나요?",
     ],
 }
 
 
-# 다른 회사 이름이 들어간 질문과 면접과 무관한 글 (CONFLICTS F4-2, U1 '한 기업 전용'). 걸리면 status='excluded'.
+# 다른 회사 이름이 들어간 질문과 면접과 무관한 글 (CONFLICTS F4-2, U1 '한 기업 전용'). 걸리면 예비 질문에 넣지 않는다.
+# 네이버는 AIIT 의 모티프라 최근 소식을 AIIT 이름으로 바꿔 넣는다 — 질문에 남아 있으면 뺀다 (C-20).
 # 기술 이름(TensorFlow·AWS·Amazon SageMaker 등)은 회사 제품이어도 기술 지식 질문이라 남긴다.
 OTHER_COMPANY = re.compile(
     r"(?<![A-Za-z])(Stripe|SAP|Coinbase|Chime|SoFi|NVIDIA|Robinhood|Netflix|Goldman Sachs|Glider AI|Morgan Stanley|PayPal|"
@@ -64,7 +83,7 @@ OTHER_COMPANY = re.compile(
     r"|(?<![A-Za-z-])Square(?![A-Za-z-])"  # Chi-Square 는 남긴다
     r"|(?<![A-Za-z])Amazon(?!\s[A-Z])"  # Amazon SageMaker 같은 서비스 이름은 남긴다
     r"|(?<![A-Za-z])(Shell|Visa|Meta|Apple)(?=[가-힣])"  # shell 스크립트·메타데이터와 구분
-    r"|아마존|구글|넷플릭스|페이스북|우버|에어비앤비|마이크로소프트|트위터|링크드인|테슬라|골드만|엔비디아|애플(?!리케이션)"
+    r"|네이버|NAVER|아마존|구글|넷플릭스|페이스북|우버|에어비앤비|마이크로소프트|트위터|링크드인|테슬라|골드만|엔비디아|애플(?!리케이션)"
 )
 UNRELATED = re.compile(r"연봉|자격증을 받|W3Schools|채용 공고가 있나요|과정을 완료하면")
 
@@ -77,143 +96,69 @@ def excludedReason(text: str) -> str | None:
     return None
 
 
-def excludeOtherCompanies(db: Session) -> int:
-    """이미 넣은 엑셀 질문 중 걸리는 것을 'excluded'로 바꾼다 (load_questions 때마다 다시 확인)."""
-    count = 0
-    for q in db.query(Question).filter(Question.source == "excel", Question.status.in_(("active", "preparing"))):
-        if excludedReason(q.text):
-            q.status = "excluded"
-            count += 1
-    db.commit()
-    return count
-
-
-def pickDuplicates(ids: list[int], pairs: list[tuple[int, int, float]]) -> dict[int, tuple[int, float]]:
-    """id 순서로 보며 앞에서 남긴 질문과 겹치면 뺀다. {뺄 id: (가장 비슷한 남긴 id, 유사도)}."""
-    earlier: dict[int, list[tuple[int, float]]] = {}
-    for first, second, similarity in pairs:
-        earlier.setdefault(second, []).append((first, similarity))
-    kept: set[int] = set()
-    duplicates = {}
-    for questionId in sorted(ids):
-        hits = [hit for hit in earlier.get(questionId, []) if hit[0] in kept]
-        if hits:
-            duplicates[questionId] = max(hits, key=lambda hit: hit[1])
-        else:
-            kept.add(questionId)
-    return duplicates
-
-
-def dedupeExcel(db: Session) -> dict[str, int]:
-    """사용 중인 엑셀 질문끼리 뜻이 겹치면 앞선 것만 남기고 'excluded'로 바꾼다 (CONFLICTS). 임베딩을 만든 뒤에 돌린다."""
-    if not rag.supported(db):
-        raise RuntimeError("pgvector 는 PostgreSQL 에서만 쓸 수 있습니다")
-    result = {}
-    for kind in ("personality", "company", "job"):
-        ids = [i for (i,) in db.query(Question.id).filter_by(source="excel", status="active", kind=kind)]
-        duplicates = pickDuplicates(ids, rag.similarPairs(db, kind, rag.BANK_DUPLICATE_SIMILARITY))
-        for questionId, (similarTo, similarity) in duplicates.items():
-            db.get(Question, questionId).status = "excluded"
-            db.add(AuditLog(action="question.dedupe", target=str(questionId),
-                            detail={"from": "active", "to": "excluded", "similar_to": similarTo, "similarity": round(similarity, 3)}))
-        result[kind] = len(duplicates)
-    db.commit()
-    return result
-
-
 def normalizeText(text: str) -> str:
     return re.sub(r"[\s\W_]+", "", text or "").lower()
 
 
-def cell(row: tuple, header: list[str], name: str):
-    try:
-        return row[header.index(name)]
-    except (ValueError, IndexError):
-        return None
+def newReserve(kind: str, text: str, category: str, jobCode: str | None) -> Question:
+    return Question(source="reserve", kind=kind, category=category, text=text, status="active", answer_seconds=90,
+                    eval_items=EVAL_ITEMS_BY_KIND[kind], duplicate_group=normalizeText(text)[:128], job_code=jobCode)
 
 
-def existingKeys(db: Session) -> set[tuple[str, int]]:
-    return {(s, r) for s, r in db.query(Question.sheet, Question.row_no).filter(Question.sheet.isnot(None))}
-
-
-def loadItQuestions(db: Session, path: str, keys: set) -> dict:
-    stats = {"inserted": 0, "skipped_coding": 0, "skipped_empty": 0, "duplicate_rows": 0}
-    workbook = openpyxl.load_workbook(path, read_only=True)
-    for sheetName in workbook.sheetnames:
-        if not sheetName.startswith(("기업_", "생성_")):
-            continue
-        rows = list(workbook[sheetName].iter_rows(values_only=True))
-        if not rows:
-            continue
-        header = [str(h).strip() if h is not None else "" for h in rows[0]]
-        active = any(k in sheetName for k in JOB_SHEET_KEYWORDS)
-        for rowNo, row in enumerate(rows[1:], start=2):
-            text = (cell(row, header, "질문(한글)") or "").strip()
-            if not text:
-                stats["skipped_empty"] += 1
-                continue
-            if (cell(row, header, "코딩문제여부") or "").strip() == "예":
-                stats["skipped_coding"] += 1
-                continue
-            if (sheetName, rowNo) in keys:
-                stats["duplicate_rows"] += 1
-                continue
-            category = cell(row, header, "분야") or cell(row, header, "직무") or sheetName.split("_", 1)[1]
-            db.add(Question(
-                source="excel", kind="job", category=str(category), text=text, sheet=sheetName, row_no=rowNo,
-                duplicate_group=normalizeText(text)[:128],
-                status="excluded" if excludedReason(text) else "active" if active else "preparing",
-                answer_seconds=90, eval_items=EVAL_ITEMS_BY_KIND["job"],
-            ))
-            stats["inserted"] += 1
-    return stats
-
-
-def loadPersonalityQuestions(db: Session, path: str, keys: set) -> dict:
-    stats = {"inserted": 0, "company": 0, "personality": 0, "skipped_empty": 0}
-    workbook = openpyxl.load_workbook(path, read_only=True)
-    sheet = workbook.worksheets[0]
-    rows = list(sheet.iter_rows(values_only=True))
-    header = [str(h).strip() if h is not None else "" for h in rows[0]]
-    for rowNo, row in enumerate(rows[1:], start=2):
-        text = (cell(row, header, "질문(한글)") or "").strip()
-        if not text:
-            stats["skipped_empty"] += 1
-            continue
-        if (sheet.title, rowNo) in keys:
-            continue
-        category = (cell(row, header, "카테고리") or "").strip()
-        kind = "company" if category in COMPANY_CATEGORIES else "personality"
-        db.add(Question(
-            source="excel", kind=kind, category=category, text=text, sheet=sheet.title, row_no=rowNo,
-            duplicate_group=normalizeText(text)[:128], status="excluded" if excludedReason(text) else "active", answer_seconds=90,
-            eval_items=EVAL_ITEMS_BY_KIND[kind],
-        ))
-        stats["inserted"] += 1
-        stats[kind] += 1
-    return stats
-
-
-def loadReserveQuestions(db: Session) -> int:
-    existing = {t for (t,) in db.query(Question.text).filter(Question.source == "reserve")}
+def seedReserve(db: Session) -> int:
+    """기본 질문 40개를 넣는다. 예비 질문이 하나라도 있으면 넣지 않는다 (관리자가 지운 기본 질문이 되살아나지 않게)."""
+    if db.query(Question.id).filter(Question.source == "reserve").first():
+        return 0
     count = 0
     for kind, texts in RESERVE_QUESTIONS.items():
         for text in texts:
-            if text in existing:
-                continue
-            db.add(Question(source="reserve", kind=kind, category="예비", text=text, status="active",
-                            answer_seconds=90, eval_items=EVAL_ITEMS_BY_KIND[kind], duplicate_group=normalizeText(text)[:128]))
+            db.add(newReserve(kind, text, SEED_CATEGORY, DEFAULT_JOB_CODE if kind == "job" else None))
             count += 1
+    db.commit()
     return count
 
 
-def loadAll(db: Session, itPath: str, personalityPath: str) -> dict:
-    keys = existingKeys(db)
-    result = {
-        "it": loadItQuestions(db, itPath, keys),
-        "personality": loadPersonalityQuestions(db, personalityPath, keys),
-        "reserve": loadReserveQuestions(db),
-    }
+def deleteQuestions(db: Session, ids: list[int]) -> int:
+    """질문을 지운다. 이미 낸 면접 질문의 출처 표시는 비운다 (면접 기록은 그대로)."""
+    if not ids:
+        return 0
+    db.query(InterviewQuestion).filter(InterviewQuestion.source_question_id.in_(ids)).update(
+        {"source_question_id": None}, synchronize_session=False)
+    db.query(QuestionUsage).filter(QuestionUsage.question_id.in_(ids)).delete(synchronize_session=False)
+    return db.query(Question).filter(Question.id.in_(ids)).delete(synchronize_session=False)
+
+
+def resetQuestions(db: Session) -> dict:
+    """엑셀·AI 생성·예전 예비 질문을 모두 지우고 기본 질문 40개를 넣는다 (manage reset_questions, 2026-11-16 사용자 요청)."""
+    ids = [i for (i,) in db.query(Question.id)]
+    deleted = deleteQuestions(db, ids)
+    db.add(AuditLog(action="question.reset", target="questions", detail={"deleted": deleted}))
     db.commit()
-    result["excluded"] = excludeOtherCompanies(db)
-    return result
+    return {"deleted": deleted, "seeded": seedReserve(db)}
+
+
+def reserveCount(db: Session, kind: str) -> int:
+    return db.query(Question.id).filter(Question.source == "reserve", Question.kind == kind).count()
+
+
+def isKnown(db: Session, text: str) -> bool:
+    return db.query(Question.id).filter(Question.duplicate_group == normalizeText(text)[:128]).first() is not None
+
+
+def saveReserve(db: Session, kind: str, text: str, vector: list[float] | None, category: str,
+                jobCode: str | None = None) -> Question | None:
+    """AI 가 만든 질문을 예비 질문으로 넣는다. 넣지 않으면 None: 다른 회사·무관한 글, 같은 글, 종류별 상한,
+    같은 종류 예비 질문과 0.8 이상 비슷함 (벡터가 있을 때). 개인 정보 검사는 부르는 쪽이 한다."""
+    if kind not in RESERVE_KINDS or excludedReason(text) or isKnown(db, text):
+        return None
+    if reserveCount(db, kind) >= RESERVE_LIMIT_PER_KIND:
+        return None
+    vectorsOn = vector is not None and rag.supported(db)
+    if vectorsOn and rag.maxStoredSimilarity(db, kind, vector) >= rag.RESERVE_DUPLICATE_SIMILARITY:
+        return None
+    question = newReserve(kind, text, category, jobCode)
+    db.add(question)
+    db.flush()
+    if vectorsOn:
+        rag.storeVector(db, question.id, vector)
+    return question

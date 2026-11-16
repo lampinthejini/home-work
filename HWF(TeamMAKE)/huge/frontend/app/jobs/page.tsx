@@ -13,7 +13,7 @@ import { EMPLOYMENT_LABEL, type AttemptStatus } from "@/lib/status";
 
 type JobCode = { code: string; name: string; status: "open" | "preparing" };
 export type PostingCard = {
-    posting_id: string; title: string; job_code: string; employment_type: string; location: string;
+    posting_id: string; title: string; job_code: string; company_name?: string; employment_type: string; location: string;
     headcount: number; open_at: string; close_at: string; release_at: string; has_coding_test: boolean; my_attempt_status: AttemptStatus | null;
 };
 type ListResponse = { items: PostingCard[]; total: number; page: number; size: number };
@@ -124,6 +124,7 @@ function JobList() {
                                             {p.my_attempt_status && <StatusBadge status={p.my_attempt_status} />}
                                         </div>
                                         <div>
+                                            {p.company_name && <div className="small muted">{p.company_name}</div>}
                                             <h3 style={{ margin: "2px 0 6px" }}>{p.title}</h3>
                                             <div className="small muted">{EMPLOYMENT_LABEL[p.employment_type] ?? p.employment_type} · {p.location} · {p.headcount}명</div>
                                         </div>

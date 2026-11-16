@@ -2,7 +2,9 @@
 
 Oct 29, 2026 · @혜현
 
-**v1.4 (개인용 개정본)** · 2026-11-13 · 7장 이탈: 코딩테스트 첫 화면 이탈에도 코딩 시계를 멈추지 않음, 경고 창 확인 때 '이탈 후 돌아옴 · 이탈 시간' 기록 (CONFLICTS C-18, 사용자 결정 2026-11-13). 기준 문서 PRD v1.9 · TRD v1.8 · 화면정의서 v0.9
+**v1.5 (개인용 개정본)** · 2026-11-16 · 관리자 예비 질문 API(`/admin/questions` 다시 씀: 목록·PATCH·여러 개 삭제, approve·reject 삭제), 관리자 회사 정보 API(`/admin/company` 4개) 추가, 공고 객체 `company_name` 에 회사 이름, 게시 뒤 예비 질문, 질문 `source` 값 (CONFLICTS C-20, 사용자 결정 2026-11-16). 기준 문서 PRD v2.0 · TRD v1.9 · 화면정의서 v1.0
+
+v1.4 (개인용 개정본) · 2026-11-13 · 7장 이탈: 코딩테스트 첫 화면 이탈에도 코딩 시계를 멈추지 않음, 경고 창 확인 때 '이탈 후 돌아옴 · 이탈 시간' 기록 (CONFLICTS C-18, 사용자 결정 2026-11-13). 기준 문서 PRD v1.9 · TRD v1.8 · 화면정의서 v0.9
 
 v1.3 (개인용 개정본) · 2026-11-10 · 팀 원본 아님. 2026-11-06·11-09·11-10 검토 보정을 반영했다(자세한 것은 문서 끝 보정 절): 코드 대조로 고친 곳(E7~E18), 논의사항 정리, AI 질문 품질·질문 적용 범위·질문 후보·AI 공고 초안 그래프(CONFLICTS C-13~C-17). 변경 기록은 12장과 문서 끝 보정 절 참고
 
@@ -14,11 +16,11 @@ v1.0 · 2026-10-29 · 최초 작성
 
 ## 1. 개요
 
-이 문서는 프런트엔드(Next.js)와 백엔드(FastAPI)가 주고받는 REST API 72개(이 중 5개는 현재 구현 없음: 구현 범위 밖 3개, 마이페이지 이력서 올리기 2개)와 면접 실시간 메시지 20종, 답변 음성 이진 프레임을 한곳에 정리한 명세다. 경로·요청·응답·오류를 여기서 맞추고, 칸 하나하나의 DB 정의는 테이블 정의서를 따른다.
+이 문서는 프런트엔드(Next.js)와 백엔드(FastAPI)가 주고받는 REST API 76개(이 중 5개는 현재 구현 없음: 구현 범위 밖 3개, 마이페이지 이력서 올리기 2개)와 면접 실시간 메시지 20종, 답변 음성 이진 프레임을 한곳에 정리한 명세다. 경로·요청·응답·오류를 여기서 맞추고, 칸 하나하나의 DB 정의는 테이블 정의서를 따른다.
 
 | 항목 | 내용 |
 | --- | --- |
-| 기준 문서 | TRD v1.8(5장·4-3·14장), PRD v1.9, 화면정의서 v0.9(§1.1 결정 D-01\~D-10, §12 추가 API), 테이블 정의서 v1.2, 기술 아키텍처 v1.3(ADR-01·04·05) |
+| 기준 문서 | TRD v1.9(5장·4-3·14장), PRD v2.0, 화면정의서 v1.0(§1.1 결정 D-01\~D-10, §12 추가 API), 테이블 정의서 v1.3, 기술 아키텍처 v1.4(ADR-01·04·05) |
 | 화면 주소 | `http://127.0.0.1:8080` — 같은 PC 브라우저에서만 접속 |
 | REST 기본 주소 | `http://127.0.0.1:8080/api` — frontend가 Next.js rewrites(`/api/*` → api)로 api(8000)에 넘긴다. 미디어 파일도 `/api/media/…` · `/api/admin/media/…`로 같은 rewrites를 지난다(2-6). 이 문서의 경로는 `/api`를 뺀 값 |
 | 실시간 주소 | WebSocket `ws://127.0.0.1:8000/ws/interview/{session_id}` (답변 음성도 이 연결의 이진 메시지로 보낸다. WebRTC·UDP 포트는 쓰지 않는다, CONFLICTS V4) |
@@ -235,7 +237,7 @@ v1.0 · 2026-10-29 · 최초 작성
   "source": "manual",
   "title": "AI/AX 엔지니어 (신입·경력)",
   "job_code": "AI_AX",
-  "company_name": "",
+  "company_name": "AIIT",
   "company_intro": "…",
   "duties": "…",
   "requirements": "…",
@@ -251,7 +253,7 @@ v1.0 · 2026-10-29 · 최초 작성
 }
 ```
 
-- 회사명은 화면에 표기하지 않는다(한 기업 전용 면접 시스템, CONFLICTS U1). 그래서 입력·게시 필수 항목에서 뺐고, 응답의 `company_name`은 DB 칸이 남아 있어 빈 글자로만 온다. 화면은 쓰지 않는다. 기업 질문은 '우리 회사'로 부른다.
+- `company_name`은 회사 정보(`GET /admin/company`)의 회사 이름이다(2026-11-16, C-20 — U1 '표기 안 함'을 바꿈). 공고를 만들 때 서버가 넣고, 회사 정보에서 이름을 바꾸면 모든 공고가 함께 바뀐다. 입력·게시 필수 항목에는 없다(보내도 쓰지 않음). 공고 목록 카드와 상세 화면이 보여 준다.
 - `company_intro`는 화면에서 **'부서 소개'**로 부른다. 칸 이름은 그대로 `company_intro`다(CONFLICTS V1). 게시 필수 칸이다.
 - `source`: `manual` · `ai_draft`(AI 초안을 만든 공고, 화면정의서 §12 #18 추가값). `open_api` · `dummy`는 공고 불러오기(미구현)용 값이라 지금은 나오지 않는다. 〔`ai_draft`는 TRD `source` 목록에 없음, 12장 A-10〕
 - `contact_email`은 화면정의서 D-03에서 추가한 칸이다. 기본값은 관리자 이메일.
@@ -289,14 +291,28 @@ v1.0 · 2026-10-29 · 최초 작성
 - `close`: 게시 중이 아니면 409 `NOT_PUBLISHED`. 응답 200 — `{ "closed_at": "…", "not_taken": 4, "ended_by_close": 1 }`. 시작 전 지원은 `not_taken_closed`, 진행 중·장애 중단은 `ended_closed`가 되고 채점 작업이 들어간다(TRD 10장).
 - `DELETE` 204: 지원이 하나라도 있으면(작성 중 포함) 409 `HAS_APPLICANTS`. 이 공고를 가리키는 관리자 알림(마감 임박)은 함께 지운다.
 - 마감된 공고에 `PATCH`하면 409 `POSTING_CLOSED`.
-- 게시가 끝나면 api 가 뒤에서 이 공고의 직무·회사 질문 후보를 만들어 질문관리 '검토 대기'로 넣는다(TRD 7-4 ②, C-17). 응답을 기다리게 하지 않고, 실패해도 게시는 그대로다.
+- 게시가 끝나면 api 가 뒤에서 이 공고의 직무·회사 질문을 만들어 승인 없이 예비 질문에 넣는다(TRD 7-4 ①②, C-20). 응답을 기다리게 하지 않고, 실패해도 게시는 그대로다.
 
-### GET /admin/questions · POST /admin/questions/{id}/approve · /reject
+### GET /admin/questions · PATCH /admin/questions/{id} · POST /admin/questions/delete
 
-- AI 가 만든 질문(`source=generated`: 면접 때 만든 것 · 공고 기반 · 인터넷 참고)만 다룬다. 엑셀·예비 질문은 404.
-- `GET` 쿼리: `status`(pending·active·rejected, 기본 pending), `kind`(personality·company·job). 최근 200개.
-- 응답 200 — `{ "items": [{ "id": 6421, "kind": "company", "text": "…", "status": "pending", "category": "공고 기반", "scope": { "type": "posting", "posting_id": "…", "label": "AI/AX 엔지니어 (신입)" } }], "counts": { "pending": 3, "active": 1, "rejected": 0 } }`. `scope.type`은 `posting`(그 공고 전용) · `job`(`job_code`와 직무 이름) · `common`(공통) (C-17, 2026-11-10).
-- `approve`는 `active`(질문은행에서 씀), `reject`는 `rejected`로 바꾸고 감사 기록을 남긴다. 응답은 질문 1개(위 모양).
+예비 질문(`source=reserve`)을 다룬다 (2026-11-16, C-20. 화면정의서 S-R11). 예전 `approve`·`reject`와 `status` 쿼리는 없앴다. 예비 질문이 아닌 id 는 404 `NOT_FOUND`.
+
+- `GET` 쿼리: `kind`(personality · company · resume · job, 없으면 전체). 최신순으로 모두 준다(종류마다 100개 상한이라 최대 400개).
+- 응답 200 — `{ "items": [{ "id": 12, "kind": "job", "text": "…", "category": "공고 기반", "job_code": "AI_AX", "job_name": "AI/AX 엔지니어", "job_only": true, "is_new": true, "created_at": "2026-11-16T19:40:00+09:00" }], "counts": { "personality": 10, "company": 12, "resume": 10, "job": 20 }, "limit": 100 }`. `category`: `기본` · `AI 생성` · `공고 기반` · `인터넷 참고`. `job_only`가 `false`면 모든 공고에서 쓰고 화면은 "공통"으로 보인다. `is_new`는 들어온 지 하루가 안 됐을 때 `true`.
+- `PATCH` 요청 — `{ "text": "…"(5~200자, 앞뒤·겹친 공백은 하나로), "job_only": true }`(둘 중 하나만 보내도 됨). 글을 바꾸면 임베딩을 다시 만든다(임베딩 서버가 없으면 비워 두고 다음 시작 때 채움). 관리자가 고친 글은 유사도로 막지 않는다. 400 `QUESTION_TEXT_INVALID`(5자 미만), 409 `QUESTION_DUPLICATE`(같은 글이 이미 있음). 감사 기록 `question.edit`(바꾼 글 전후). 응답 200은 질문 1개(위 모양).
+- `POST /admin/questions/delete` 요청 — `{ "ids": [12, 13] }`(1~400개). 예비 질문만 지운다(다른 id 는 건너뜀). 이미 낸 면접 질문(`interview_questions`)은 남기고 연결(`source_question_id`)만 비우며, 공고별 사용 횟수도 함께 지운다. 감사 기록 `question.delete`. 응답 200 — `{ "deleted": 2 }`.
+
+### GET /admin/company · PUT /admin/company
+
+회사 정보와 회사 최근 소식 (2026-11-16, C-20. 화면정의서 S-R12). 회사는 하나다(한 기업 전용).
+
+- 응답 200 — `{ "profile": { "name": "AIIT", "basics": "…", "intro": "…", "jobs_intro": "…", "ai_ax_role": "…", "news_query": "네이버", "news_refreshed_at": "2026-11-16T20:15:15+09:00" }, "news": [{ "id": 31, "title": "…", "url": "https://news.google.com/rss/articles/…", "publisher": "농민신문", "published_at": "2026-11-16T…" }], "news_limit": 30 }`. `news`는 [제거]하지 않은 소식을 최신순으로.
+- `PUT` 요청 — `profile`의 칸 가운데 바꿀 것만(`name`·`news_query` 1~100자, 나머지 3000자까지, 앞뒤 공백은 지움). `name`을 바꾸면 모든 공고의 `company_name`도 바꾼다. 감사 기록을 남긴다. 응답 200은 `GET`과 같은 모양.
+
+### POST /admin/company/news/refresh · POST /admin/company/news/{id}/hide
+
+- `refresh`: 지금 회사 최근 소식을 다시 찾는다(Google 뉴스 RSS, 검색어 `news_query`, 최근 6개월을 한 달씩 6번). 제목에 검색어나 회사 이름이 없는 기사는 뺀다. 응답 200 — `GET /admin/company` 모양에 `"refresh": { "ok": true, "added": 3, "total": 30 }`. 검색이 모두 실패하면 `ok: false`이고 있던 소식은 그대로 둔다. 앱을 켤 때도 한 번 돈다.
+- `hide`: 그 소식을 목록에서 뺀다. 다음에 찾아도 다시 넣지 않는다. 없는 id 는 404 `NOT_FOUND`. 응답 200은 `GET /admin/company` 모양.
 
 ### POST /admin/postings/import
 
@@ -948,7 +964,7 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 ```
 
 - 분석이 끝나지 않았으면 `result`가 `null`이고 `analysis_status`를 함께 준다. 이력서·기록은 그대로 보인다.
-- `questions[]`는 기본 질문과 꼬리질문(`kind: follow_up`)을 질문 번호·답변 순서대로 한 줄씩 담는다. `scores`는 기본 질문 줄에만 들어간다. `qtype`은 `personality` · `company` · `job` · `resume`, `source`는 `generated`(RAG로 만든 질문) · `excel`(질문은행) · `reserve`(예비 질문), 질문은행·예비로 바꾼 경우 `substituted`와 이유(`substitute_reason`)를 준다(CONFLICTS U5). 예전 명세서의 `answers[]`·`follow_ups[]`는 이 `questions[]`로 합쳤다.
+- `questions[]`는 기본 질문과 꼬리질문(`kind: follow_up`)을 질문 번호·답변 순서대로 한 줄씩 담는다. `scores`는 기본 질문 줄에만 들어간다. `qtype`은 `personality` · `company` · `job` · `resume`, `source`는 `generated`(RAG로 만든 질문) · `reserve`(예비 질문·고정 문장) · `excel`(2026-11-16 전 면접에만 남은 옛 질문은행 값), 예비로 바꾼 경우 `substituted`와 이유(`substitute_reason`)를 준다(CONFLICTS U5·C-20). 예전 명세서의 `answers[]`·`follow_ups[]`는 이 `questions[]`로 합쳤다.
 - `highlights.kind`: `good`(4\~5점) · `deducted`(1\~2점). 각 최대 3개(TRD 8-4). `quote`는 근거 문장이다.
 - 코딩 `feedback`은 점수에 반영하지 않는다. 숨겨진 테스트 내용은 넣지 않는다. 코딩은 문제 목록(배열)이고 점수는 `result.coding_score`에 있다.
 - `events`의 `type`은 이탈(`visibility` · `blur` · `fullscreen` · `navigate`, `judged: cheating`)·`disconnect`·`interrupted`·`unload`·`permission`·`device_error`·`resume_limit` 등이다. `judged`는 `cheating` · `fault` · `not_fault` · `info`다(CONFLICTS T2).
@@ -993,13 +1009,13 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
   "needs_review": [ { "application_id": "…", "name": "홍길동", "posting_title": "…", "since": "…", "reason": "threshold_mismatch" } ],
   "mail_failed": { "count": 3, "items": [ { "to": "ho***@example.com", "kind": "result_released", "title": "…", "reason": "550 no such user", "at": "…" } ] },
   "mail_deferred_today": 0,
-  "questions": { "bank": 5900, "reserve_total": 21 },
+  "questions": { "bank": 0, "reserve_total": 52 },
   "reserve_questions": [ { "category": "personality", "count": 5, "below_minimum": false } ],
   "coding_problems": { }
 }
 ```
 
-`mail_failed`는 최근 7일 최종 실패, `mail_deferred_today`는 오늘 미룬 메일 수다(하루 상한 기능이 없어 지금은 거의 0). `reserve_questions[].category`는 질문 종류(`personality` · `company` · `resume` · `job`)이고 5개 미만이면 `below_minimum`이 `true`다. `coding_problems`는 난이도별 문제 수다.
+`mail_failed`는 최근 7일 최종 실패, `mail_deferred_today`는 오늘 미룬 메일 수다(하루 상한 기능이 없어 지금은 거의 0). `reserve_questions[].category`는 질문 종류(`personality` · `company` · `resume` · `job`)이고 5개 미만이면 `below_minimum`이 `true`다. `coding_problems`는 난이도별 문제 수다. `questions.bank`는 옛 엑셀·검토 대기 질문 수라 2026-11-16 부터 0이다(C-20). 화면은 이 칸을 더 보이지 않는다(화면정의서 논의사항 38).
 
 `needs_review[].reason` 값: `threshold_mismatch`(AI 판정이 합격 기준과 어긋나 1회 다시 판정해도 같음, 화면정의서 D-06) · `invalid_format`(형식·값 범위 검증 실패) · `quote_not_found`(근거 문장이 원문에 없음) · `analysis_timeout`(3회 재시도·30분 초과) · `sandbox_error`(코드 실행 환경 오류) · `instruction_suspected`(답변에 채점 지시로 보이는 말이 있어 채점하지 않음, 이전 명세서 사유 목록에 없던 새 값. 위 reprocess 참고). 화면은 이 값으로 평가 지연 사유를 보여 준다.
 
@@ -1083,6 +1099,8 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 | 관리자 | `MEDIA_EXPIRED` | 410 | 보관 기간 만료(녹화) |
 | 관리자 | `NOT_NEEDS_REVIEW` | 409 | 재처리 대상이 아닙니다 |
 | 관리자 | `INVALID_SETTING` | 400 | 화면에서 바꿀 수 없는 설정이거나 형식이 맞지 않음, 범위 밖(1~20을 입력해 주세요) |
+| 관리자 | `QUESTION_TEXT_INVALID` | 400 | 질문은 5자 이상 써 주세요 (C-20) |
+| 관리자 | `QUESTION_DUPLICATE` | 409 | 같은 질문이 이미 있습니다 (C-20) |
 | 관리자 | `INVALID_SORT` | 400 | 정렬 기준이 올바르지 않습니다 |
 | 관리자 | `COMPARE_COUNT` | 400 | 2~3명을 골라 주세요 |
 | 관리자 | `MEMO_EMPTY` | 400 | 메모 내용을 입력해 주세요 |
@@ -1216,3 +1234,13 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 - `POST /admin/postings/{id}/draft-ai/revise` 추가, `draft-ai/status` 에 `stage`·처리 기록 (C-15).
 - `POST /admin/postings/{id}/publish`: 게시 뒤 질문 후보를 '검토 대기'로 만든다(응답과 무관, C-17).
 - `GET /admin/questions`: 출처(`category`)와 적용 범위(`scope`)를 함께 준다 (C-17).
+
+## 2026-11-16 보정 (v1.5)
+
+사용자 결정(CONFLICTS C-20)과 코드에 맞춰 고친 내용이다.
+
+- `/admin/questions` 를 예비 질문 API 로 다시 썼다: `GET`(종류·개수·상한·NEW), `PATCH`(글·해당 직무만), `POST /delete`. `approve`·`reject` 를 지웠다.
+- `/admin/company` 4개(보기·고치기·소식 다시 찾기·소식 제거)를 넣었다. REST 72 → 76개.
+- 공고 객체 `company_name` 에 회사 이름이 온다(U1 을 바꿈). 게시 뒤 질문은 예비 질문으로 바로 들어간다.
+- 지원자 상세 `questions[].source` 값, 대시보드 `questions.bank`(0), 오류 코드 2개.
+

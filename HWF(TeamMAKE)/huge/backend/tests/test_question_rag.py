@@ -1,4 +1,4 @@
-"""질문 10개 RAG 구성 (TRD 7-4, 사용자 결정 U5): RAG 로 먼저 만들고, 못 만들면 질문은행 → 예비 질문.
+"""질문 10개 RAG 구성 (TRD 7-4, 사용자 결정 U5): RAG 로 먼저 만들고, 못 만들면 예비 질문 (C-20: 예시도 예비 질문).
 
 임베딩·pgvector·LLM 은 가짜로 바꾼다. 질문 글의 뜻은 '키워드 → 축' 숫자 목록으로 흉내 낸다.
 """
@@ -10,7 +10,7 @@ from datetime import timedelta
 import pytest
 
 from app.models import Application, InterviewQuestion, JobPosting, Question, User
-from app.services import llm, question_compose, rag
+from app.services import company, llm, question_compose, rag
 from app.timeutil import now
 
 RESUME = {
@@ -32,8 +32,9 @@ def fakeVector(text: str) -> list[float]:
 
 
 class FakeWorld:
-    def __init__(self, sessionFactory, copyExamples=False, ungrounded=False, embedDown=False):
+    def __init__(self, sessionFactory, copyExamples=False, ungrounded=False, embedDown=False, exampleSimilarity=0.8):
         self.sessionFactory = sessionFactory
+        self.exampleSimilarity = exampleSimilarity
         self.copyExamples, self.ungrounded, self.embedDown = copyExamples, ungrounded, embedDown
         self.prompts: list[str] = []
         self.counter = 0
@@ -46,10 +47,10 @@ class FakeWorld:
     async def health(self, timeoutSec=3):
         return not self.embedDown
 
-    def similar(self, db, slotKind, vector, count, excludeIds):
-        rows = (db.query(Question).filter(Question.kind == rag.EXAMPLE_KIND[slotKind], Question.source == "excel")
+    def similar(self, db, slotKind, vector, count, excludeIds, jobCode=None):
+        rows = (db.query(Question).filter(Question.kind == rag.EXAMPLE_KIND[slotKind], Question.source == "reserve")
                 .filter(Question.id.notin_(excludeIds or {-1})).order_by(Question.id).limit(count).all())
-        return [rag.Example(q.id, q.text, 0.8, fakeVector(q.text)) for q in rows]
+        return [rag.Example(q.id, q.text, self.exampleSimilarity, fakeVector(q.text)) for q in rows]
 
     def vectorsFor(self, db, ids):
         return {q.id: fakeVector(q.text) for q in db.query(Question).filter(Question.id.in_(ids))}
@@ -64,8 +65,9 @@ class FakeWorld:
         assert schema is question_compose.RagQuestion
         self.prompts.append(user)
         self.counter += 1
-        examples = user.split("그대로 베끼지 말 것]\n")[1].split("\n\n")[0].splitlines()
-        if self.copyExamples:
+        marker = "그대로 베끼지 말 것]\n"
+        examples = user.split(marker)[1].split("\n\n")[0].splitlines() if marker in user else []
+        if self.copyExamples and examples:
             return schema(question=examples[0][2:], task_count=1)
         if "[만들 질문] 이력서 기반" in user:
             evidence = "사내 문서 검색 정확도를 12% 올림" if not self.ungrounded else "추천 시스템을 혼자 만들었음"
@@ -90,6 +92,7 @@ def world(sessionFactory, monkeypatch):
         monkeypatch.setattr(rag, "maxStoredSimilarity", fake.maxStoredSimilarity)
         monkeypatch.setattr(rag, "storeVector", fake.storeVector)
         monkeypatch.setattr(llm, "structured", fake.structured)
+        monkeypatch.setattr(company, "relatedNews", lambda db, vector, count=3: company.listNews(db)[:count])
 
         async def noAudio(db, app):
             return None
@@ -108,10 +111,11 @@ def makeApplication(sessionFactory) -> str:
         db.flush()
         bank = {"personality": ["갈등을 해결한 경험을 말해 주세요.", "협업에서 맡은 역할은 무엇이었나요?", "실패에서 배운 점은 무엇인가요?"],
                 "company": ["우리 회사에 지원한 이유는 무엇인가요?", "우리 회사 문화에 어떻게 기여할 수 있나요?", "입사 후 목표는 무엇인가요?"],
-                "job": [f"모델 과적합을 막는 방법 {i}은 무엇인가요?" for i in range(8)]}
+                "job": [f"모델 과적합을 막는 방법 {i}은 무엇인가요?" for i in range(8)],
+                "resume": ["프로젝트에서 맡은 역할을 설명해 주세요.", "프로젝트에서 어려웠던 점은 무엇인가요?"]}
         for kind, texts in bank.items():
             for i, text in enumerate(texts):
-                db.add(Question(source="excel", kind=kind, text=text, sheet=kind, row_no=i, duplicate_group=f"{kind}-{i}"))
+                db.add(Question(source="reserve", kind=kind, text=text, category="기본", duplicate_group=f"{kind}-{i}"))
         for kind in ("personality", "company", "job", "resume"):
             db.add(Question(source="reserve", kind=kind, text=f"예비 {kind} 질문입니다. 경험을 말해 주세요.", duplicate_group=f"r-{kind}"))
         app = Application(user_id=user.id, posting_id=posting.id, attempt_status="ready", resume_snapshot=RESUME)
@@ -144,13 +148,13 @@ def test_ragGeneratesEverySlotWithExamplesResumeAndCompany(sessionFactory, world
     assert len(jobExamples) == 4 and all(jobExamples) and jobExamples[0] != jobExamples[1]
 
 
-def test_copyingExampleFallsBackToQuestionBank(sessionFactory, world):
+def test_copyingExampleFallsBackToReserve(sessionFactory, world):
     fake = world(copyExamples=True)
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)
     job = next(r for r in rows if r.qtype == "job")
-    assert (job.source, job.substituted, job.regen_count, job.substitute_reason) == ("excel", True, 3, "copied_example")
+    assert (job.source, job.substituted, job.regen_count, job.substitute_reason) == ("reserve", True, 3, "copied_example")
     assert len({r.text for r in rows}) == 10
     assert fake.counter == 30  # 자리마다 3번까지 다시 만들기
 
@@ -163,13 +167,13 @@ def test_resumeQuestionNotInResumeUsesReserve(sessionFactory, world):
     assert resume[0].source == "reserve" and resume[0].substitute_reason == "resume_not_grounded"
 
 
-def test_embedServerDownUsesQuestionBankWithoutLlm(sessionFactory, world):
+def test_embedServerDownUsesReserveWithoutLlm(sessionFactory, world):
     fake = world(embedDown=True)
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)
     assert fake.counter == 0
-    assert {r.source for r in rows if r.qtype != "resume"} == {"excel"}
+    assert {r.source for r in rows} == {"reserve"}
     assert all(r.substituted and r.substitute_reason == "rag_unavailable" for r in rows)
 
 
@@ -185,7 +189,7 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
     appId = makeApplication(sessionFactory)
     with sessionFactory() as db:
         app = db.get(Application, appId)
-        first = db.query(Question).filter_by(kind="personality", source="excel").order_by(Question.id).first()
+        first = db.query(Question).filter_by(kind="personality", source="reserve").order_by(Question.id).first()
         chosen = [{"text": "다른 글", "vector": fakeVector(first.text)}]  # 뜻이 같은 질문을 이미 골랐다
         ctx = {"usedGroups": set(), "usedIds": set()}
         picked = question_compose.bankFallback(db, app, "personality", chosen, ctx)
@@ -194,7 +198,7 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
 
 @pytest.mark.parametrize(("similarity", "lastText", "regenCount"), [
     (0.95, "회사 질문 셋째은 무엇인가요?", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
-    (0.85, "회사 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (질문 관리에만 넣지 않는다)
+    (0.85, "회사 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (예비 질문에만 넣지 않는다)
 ])
 def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, monkeypatch, similarity, lastText, regenCount):
     fake = world()
@@ -264,7 +268,7 @@ def test_concurrentUsageCountDoesNotConflict(sessionFactory):
     appId = makeApplication(sessionFactory)
     with sessionFactory() as db:
         app = db.get(Application, appId)
-        qid = db.query(Question).filter_by(source="excel").first().id
+        qid = db.query(Question).filter_by(source="reserve").first().id
         question_compose.countUsage(db, app.posting_id, [qid])
         question_compose.countUsage(db, app.posting_id, [qid])  # 이미 있는 행 → 충돌 없이 +1
         from app.models import QuestionUsage
@@ -289,19 +293,20 @@ def test_embedDownMidwaySendsRestToBankQuickly(sessionFactory, world, monkeypatc
     assert all(r.substituted for r in rows[1:])
 
 
-def pendingQuestions(sessionFactory) -> list[Question]:
+def savedQuestions(sessionFactory) -> list[Question]:
     with sessionFactory() as db:
-        return db.query(Question).filter_by(source="generated").order_by(Question.id).all()
+        return db.query(Question).filter_by(category=question_compose.GENERATED_CATEGORY).order_by(Question.id).all()
 
 
-def test_generatedQuestionsSavedForReviewExceptResume(sessionFactory, world):
+def test_generatedQuestionsSavedToReserveExceptResume(sessionFactory, world):
     world()
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
-    saved = pendingQuestions(sessionFactory)
+    saved = savedQuestions(sessionFactory)
     assert len(saved) == 8  # 10자리 중 이력서 기반 2개는 넣지 않는다
     assert {q.kind for q in saved} == {"personality", "company", "job"}
-    assert all(q.status == "pending" and q.duplicate_group for q in saved)
+    assert all(q.source == "reserve" and q.status == "active" and q.duplicate_group for q in saved)  # 승인 없이 바로 (C-20)
+    assert {q.kind: q.job_code for q in saved} == {"personality": None, "company": None, "job": "AI_AX"}  # 직무 질문만 '해당 직무만'
     with sessionFactory() as db:
         first = db.get(Application, appId)
         other = User(email="other@example.com", password_hash="x", name="이지원", role="applicant")  # 공고마다 한 사람 1건
@@ -312,20 +317,20 @@ def test_generatedQuestionsSavedForReviewExceptResume(sessionFactory, world):
         db.commit()
         secondId = second.id
     asyncio.run(question_compose.compose(secondId))
-    texts = [q.text for q in pendingQuestions(sessionFactory)]
+    texts = [q.text for q in savedQuestions(sessionFactory)]
     assert len(texts) == len(set(texts))  # 같은 질문은 두 번 넣지 않는다
 
 
-@pytest.mark.parametrize(("stored", "saved"), [(0.85, False), (0.75, True)])
-def test_savePendingSkipsQuestionSimilarToStored(sessionFactory, world, monkeypatch, stored, saved):
+@pytest.mark.parametrize(("stored", "saved"), [(0.8, False), (0.79, True)])
+def test_saveGeneratedSkipsQuestionSimilarToReserve(sessionFactory, world, monkeypatch, stored, saved):
     world()
     monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: stored)
     appId = makeApplication(sessionFactory)
     text = "우리 회사에서 해 보고 싶은 일은 무엇인가요?"
     with sessionFactory() as db:
         app = db.get(Application, appId)
-        question_compose.savePending(db, app, [{"source": "generated", "qtype": "company", "text": text, "vector": fakeVector(text)}])
-    assert bool(pendingQuestions(sessionFactory)) is saved
+        question_compose.saveGenerated(db, app, [{"source": "generated", "qtype": "company", "text": text, "vector": fakeVector(text)}])
+    assert bool(savedQuestions(sessionFactory)) is saved
 
 
 def test_personalGeneratedQuestionNotSaved(sessionFactory):
@@ -339,28 +344,27 @@ def test_personalGeneratedQuestionNotSaved(sessionFactory):
         assert not question_compose.isPersonal("데이터 불균형을 다루는 방법을 설명해 주세요.", terms, app)
 
 
-def test_pendingQuestionNotUsedUntilApproved(sessionFactory, adminClient):
+def test_generatedQuestionUsedAsFallbackRightAway(sessionFactory):
+    """예비 질문에 들어간 AI 질문은 승인 없이 대신 낼 질문으로 쓴다 (C-20)."""
     appId = makeApplication(sessionFactory)
     with sessionFactory() as db:
-        q = Question(source="generated", kind="company", text="우리 회사에서 해 보고 싶은 일은 무엇인가요?", status="pending",
-                     duplicate_group="g-new")
-        db.add(q)
-        db.commit()
-        qid = q.id
         app = db.get(Application, appId)
-        assert qid not in [c.id for c in question_compose.candidates(db, app, "company", set(), set())]
-    listed = adminClient.get("/admin/questions?status=pending").json()
-    assert [i["id"] for i in listed["items"]] == [qid] and listed["counts"]["pending"] == 1
-    assert adminClient.post(f"/admin/questions/{qid}/approve").json()["status"] == "active"
+        question_compose.saveGenerated(db, app, [{"source": "generated", "qtype": "company", "text": "AIIT에서 해 보고 싶은 일은 무엇인가요?",
+                                                  "vector": None}])
+        saved = db.query(Question).filter_by(category=question_compose.GENERATED_CATEGORY).one()
+        assert saved.id in [c.id for c in question_compose.candidates(db, app, "company", set(), set())]
+
+
+def test_reserveLimitPerKind(sessionFactory, monkeypatch):
+    from app.services import question_bank
+
+    monkeypatch.setattr(question_bank, "RESERVE_LIMIT_PER_KIND", 4)
+    appId = makeApplication(sessionFactory)  # 회사 질문 예비 4개 (기본 3 + 예비 1)
     with sessionFactory() as db:
         app = db.get(Application, appId)
-        assert qid in [c.id for c in question_compose.candidates(db, app, "company", set(), set())]
-    assert adminClient.post(f"/admin/questions/{qid}/reject").json()["status"] == "rejected"
-    with sessionFactory() as db:
-        from app.models import AuditLog
-        assert [a.action for a in db.query(AuditLog).filter(AuditLog.action.like("question.%"))] == ["question.approve", "question.reject"]
-        excelId = db.query(Question).filter_by(source="excel").first().id
-    assert adminClient.post(f"/admin/questions/{excelId}/reject").status_code == 404  # 엑셀 질문은 여기서 바꾸지 않는다
+        question_compose.saveGenerated(db, app, [{"source": "generated", "qtype": "company", "text": "AIIT의 일하는 방식 중 끌리는 점은 무엇인가요?",
+                                                  "vector": None}])
+        assert db.query(Question).filter_by(category=question_compose.GENERATED_CATEGORY).count() == 0
 
 
 def test_applicantCannotReviewQuestions(client):
@@ -440,25 +444,28 @@ def test_jobQuestionMustAskKnowledgeNotExperience(text):
     assert question_compose.checkGenerated("job", ok, "") is None
 
 
-def test_onlyOneTaskPerQuestion():
-    out = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정할 때 무엇을 기준으로 삼나요?", task_count=2)
-    assert question_compose.checkGenerated("job", out, "") == "too_many_tasks"
+def test_atMostTwoTasksPerQuestion():
+    """TRD 7-4 ④: 요구하는 일 2개 이하 (11-10 의 '한 가지만' 규칙은 2026-11-16 사용자 결정으로 되돌림)."""
+    two = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정할 때 무엇을 기준으로 삼고, 왜 그렇게 하나요?", task_count=2)
+    assert question_compose.checkGenerated("job", two, "") is None
+    three = question_compose.RagQuestion(question="RAG 에서 청크 크기를 정할 때 무엇을 기준으로 삼나요?", task_count=3)
+    assert question_compose.checkGenerated("job", three, "") == "too_many_tasks"
 
 
 def test_retryShowsPreviousQuestionToFix(sessionFactory, world, monkeypatch):
-    """실측: '어떤 역할을 했고, 그 이유는 무엇인가요?' 를 6번 되풀이했다. 다시 만들 때 이전 질문을 보여 주고 고치게 한다."""
+    """실측: 같은 잘못된 질문을 6번 되풀이했다. 다시 만들 때 이전 질문을 보여 주고 고치게 한다."""
     fake = world()
     calls = []
 
-    async def compoundFirst(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+    async def badFirst(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
         calls.append(user)
         if len(calls) == 1:
-            return schema(question="협업 중 어떤 역할을 맡았고, 그 이유는 무엇인가요?", task_count=1)
+            return schema(question="협업 중 맡은 역할을 간단히 말씀해 주세요?", task_count=1)
         return await fake.structured(schema, system, user, timeoutSec, maxTokens, temperature, lane)
 
-    monkeypatch.setattr(llm, "structured", compoundFirst)
+    monkeypatch.setattr(llm, "structured", badFirst)
     asyncio.run(question_compose.compose(makeApplication(sessionFactory)))
-    assert "협업 중 어떤 역할을 맡았고, 그 이유는 무엇인가요?" in calls[1] and "한 가지만" in calls[1]
+    assert "협업 중 맡은 역할을 간단히 말씀해 주세요?" in calls[1] and "답변 방식 지시" in calls[1]
 
 
 @pytest.mark.parametrize("text", [
@@ -498,3 +505,36 @@ def test_promptAsksNaturalEndingsAndNoInsideExperience():
     prompt = question_compose.ragPrompt("company", "직무: AI", "", [], [], None, "지원 동기")
     assert "는가요" in prompt and "입사 전" in prompt
     assert "이번 질문의 초점: 지원 동기" in prompt and "기술 주제" not in prompt
+
+
+# ---------- 예시 최소 유사도 (2026-11-16 사용자 결정) ----------
+
+def test_closeExamplesDropsFarOnes():
+    examples = [rag.Example(1, "가까움", 0.62, []), rag.Example(2, "경계", rag.EXAMPLE_MIN_SIMILARITY, []), rag.Example(3, "멂", 0.47, [])]
+    assert [e.id for e in rag.closeExamples(examples)] == [1, 2]
+
+
+def test_farExamplesAreNotShownAndQuestionIsMadeFromTopic(sessionFactory, world):
+    """가장 가까운 예비 질문도 먼 경우: 예시 없이 주제만으로 만든다 (예전에는 AI 를 부르지 않고 바로 예비 질문)."""
+    fake = world(exampleSimilarity=0.47)
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    rows = composed(sessionFactory, appId)
+    assert len(rows) == 10 and {r.source for r in rows if r.qtype != "resume"} == {"generated"}
+    assert not any(r.substituted for r in rows if r.qtype != "resume")
+    jobPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 직무")]
+    assert len(jobPrompts) == 4 and all("[비슷한 예비 질문 없음" in p and "모델 과적합을 막는 방법" not in p for p in jobPrompts)
+    assert all("이번 질문의 기술 주제:" in p for p in jobPrompts)  # 무엇을 물을지는 주제가 정한다
+
+
+def test_jobTopicsSkipHeadingAndAttitudeLines():
+    """실측 공고(2026-11-16): '주요 업무:'·'자격 요건:' 제목 줄과 협업·학습 능력 같은 태도 줄이 직무 주제가 됐다."""
+    posting = JobPosting(
+        duties="\n주요 업무:\n- LLM 기반 서비스를 설계하고 개발합니다.\n[담당 업무]\n- RAG 기반 검색 시스템을 구현합니다.",
+        requirements="자격 요건:\n- Python을 활용한 개발 경험을 갖춘 분\n- 문제 해결 능력과 학습 능력을 갖춘 분\n"
+                     "- 협업과 소통을 통해 팀과 함께 일할 수 있는 분\n- Git으로 협업한 경험이 있는 분",
+        preferred="우대 사항\n- 벡터 DB 운영 경험이 있는 분")
+    assert question_compose.jobTopics(posting, {"skills": ["PyTorch", "커뮤니케이션"]}) == [
+        "LLM 기반 서비스를 설계하고 개발합니다.", "Python을 활용한 개발 경험을 갖춘 분", "벡터 DB 운영 경험이 있는 분",
+        "RAG 기반 검색 시스템을 구현합니다.", "Git으로 협업한 경험이 있는 분", "PyTorch"]
+

@@ -3,7 +3,6 @@
 실측(2026-11-10 시뮬레이션, llm-rt Qwen3 4B)에서 나온 것을 막는다:
 - 찌꺼기: 끝에 붙는 JSON 조각("…인가요?'}"), 이모지("✅✅"), 한글에 붙은 영어("본ly")
 - 답변 방식 지시: "1문장으로", "간단히", "90초 내에"
-- 한 번에 여러 개 묻기: "~했고, ~", "~이며, ~", "~와 그 이유", 의문사 두 개
 """
 
 import re
@@ -22,14 +21,6 @@ META_PHRASE = re.compile(
     r"|\d+\s*(자|글자)\s*(이내|이하|안|로)"
     r"|간단히|간략히|간단하게|짧게|한마디로|요약해\s*(서|주)"
 )
-COMPOUND = re.compile(
-    r"(고|며|이며|으며|이고|하고|했고|였고|었고|하시고|주시고)\s*,"  # "~했고, ~" "~이며, ~"
-    r"|그리고|또한|아울러|더불어"
-    r"|[와과]\s*,|[와과]\s*그\s"  # "방법과 그 이유를" "이유와, 그 이유가" (실측)
-    r"|(무엇이며|무엇이고|이며|으며)\s+그\s"
-)
-QUESTION_WORD = re.compile(r"무엇|어떻게|어떤|왜|얼마나|언제|어디")
-TWO_SENTENCES = re.compile(r"[?.!]\s+\S")  # 실측: "…무엇인가요? 한 가지 원리를 설명해 주세요." "…하시나요. (예: …)"
 STATEMENT_END = re.compile(r"[입습]니다\??$")  # 실측: "…된 계기입니다?" 처럼 서술문 끝에 물음표만 붙인 것
 QUESTION_END = re.compile(r"(\?|요\.?|까\.?)$")  # 실측: "…동기입니다." "…관심을 갖게 된 이유" 는 질문이 아니다
 # 면접 존댓말로 어색한 끝 (실측 2026-11-10: "…매력을 느꼈는가요?"). "느끼셨나요"·"생각하시나요"로 쓴다. "인가요"는 괜찮다
@@ -59,8 +50,6 @@ def textProblem(text: str) -> str | None:
         return "junk_text"
     if META_PHRASE.search(text):
         return "meta_phrase"
-    if text.count("?") > 1 or TWO_SENTENCES.search(text) or COMPOUND.search(text) or len(QUESTION_WORD.findall(text)) > 1:
-        return "compound_question"
     if not QUESTION_END.search(text) or STATEMENT_END.search(text):
         return "not_question"
     if AWKWARD_END.search(text):

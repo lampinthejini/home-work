@@ -7,7 +7,7 @@ from ..domain.scoring import DEFAULT_WEIGHTS, validateCodingRatio, validateWeigh
 from ..errors import ApiError
 from ..models import Application, EvaluationCriteria, JobCode, JobPosting, PostingRevision
 from ..timeutil import asKst, iso, now, releaseAtFor
-from . import admission
+from . import admission, company
 
 REQUIRED_FIELDS = ["title", "company_intro", "duties", "requirements", "employment_type",
                    "location", "headcount", "open_at", "close_at", "contact_email"]
@@ -209,7 +209,8 @@ def closePosting(db: Session, posting: JobPosting) -> dict:
 
 
 def newDraft(db: Session, adminEmail: str) -> JobPosting:
-    posting = JobPosting(status="draft", source="manual", contact_email=adminEmail)
+    # 회사 이름은 회사 정보에서 (2026-11-16 사용자 결정, C-20)
+    posting = JobPosting(status="draft", source="manual", contact_email=adminEmail, company_name=company.getProfile(db).name)
     posting.criteria.append(EvaluationCriteria(version=1, weights=dict(DEFAULT_WEIGHTS), coding_enabled=False, coding_ratio=30, pass_score=70))
     db.add(posting)
     db.commit()

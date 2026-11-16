@@ -24,7 +24,7 @@ from app import worker  # noqa: E402
 from app.db import Base, getDb  # noqa: E402
 from app.errors import ApiError, apiErrorHandler, validationErrorHandler  # noqa: E402
 from app.models import User  # noqa: E402
-from app.routers import admin, admin_ops, admin_questions, applications, auth, interview, me, postings  # noqa: E402
+from app.routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings  # noqa: E402
 from app.security import hashPassword  # noqa: E402
 from app.services import admission, posting_questions, question_compose  # noqa: E402
 from app.services.postings import seedJobCodes  # noqa: E402
@@ -32,6 +32,16 @@ from app.timeutil import now  # noqa: E402
 
 ADMIN_PASSWORD = "Admin#Pass2026"
 APPLICANT_PASSWORD = "Apply#Pass2026"
+
+
+@pytest.fixture(autouse=True)
+def noJobNewsSearch(monkeypatch):
+    """질문 만들기 전 직무 소식 검색(job_news)이 테스트에서 실제 인터넷으로 나가지 않게 한다."""
+    from app.services import job_news
+
+    async def nothing(query):
+        return []
+    monkeypatch.setattr(job_news, "fetchQuery", nothing)
 
 
 @pytest.fixture()
@@ -59,7 +69,7 @@ def client(sessionFactory):
     app = FastAPI()
     app.add_exception_handler(ApiError, apiErrorHandler)
     app.add_exception_handler(RequestValidationError, validationErrorHandler)
-    for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin):
+    for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin):
         app.include_router(module.router)
 
     def overrideDb():

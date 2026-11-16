@@ -1,4 +1,5 @@
-"""AI 가 만든 질문 글 검사 (본질문·꼬리질문 공통, 2026-11-10 사용자 결정): 찌꺼기·답변 방식 지시·한 번에 여러 개 묻기."""
+"""AI 가 만든 질문 글 검사 (본질문·꼬리질문 공통, 2026-11-10 사용자 결정): 찌꺼기·답변 방식 지시.
+두 가지를 묻는 질문은 막지 않는다 (2026-11-16 사용자 결정 — 뒷부분만 남기다 맥락이 사라졌다)."""
 
 import pytest
 
@@ -38,8 +39,8 @@ def test_answerFormatInstructionsAreRejected(text):
     "어떤 상황에서 어떻게 갈등을 풀었나요?",
     "청크 크기는 어떻게 정하나요? 그 기준은 무엇인가요?",
 ])
-def test_compoundQuestionsAreRejected(text):
-    assert qt.textProblem(text) == "compound_question"
+def test_twoPartQuestionsPass(text):
+    assert qt.textProblem(text) is None
 
 
 def test_tooLongQuestionIsRejected():
@@ -59,10 +60,10 @@ def test_goodQuestionsPass(text):
 
 
 def test_followupUsesSameTextCheck():
-    """꼬리질문에도 찌꺼기·답변 방식·여러 개 묻기 검사를 똑같이 건다."""
+    """꼬리질문에도 찌꺼기·답변 방식 검사를 똑같이 건다."""
     assert graph.validateFollowup("vague", "그때 데이터 전처리는 구체적으로 어떻게 하셨나요?✅") == "junk_text"
     assert graph.validateFollowup("vague", "그 수치를 간단히 말씀해 주시겠어요?") == "meta_phrase"
-    assert graph.validateFollowup("vague", "어떤 지표를 봤고, 그 결과는 어땠나요?") == "compound_question"
+    assert graph.validateFollowup("vague", "어떤 지표를 봤고, 그 결과는 어땠나요?") is None
     assert graph.validateFollowup("vague", "그때 데이터 전처리는 구체적으로 어떻게 하셨나요?") is None
 
 
@@ -77,10 +78,14 @@ def test_notAQuestionIsRejected(text):
 
 @pytest.mark.parametrize("text", [
     "비전 검사 모델의 정확도와 신뢰성 사이의 균형을 유지하기 위한 기준은 무엇인가요? 한 가지 원리를 설명해 주세요.",  # 실측
-    "데이터의 정확성을 어떻게 보장하시나요. (예: 문서의 품질 기준, 검증 절차 등)",  # 실측
+    "특정 프로젝트에서 팀원과 협업할 때 어떤 방식으로 소통하셨나요? 특히 효과적인 의사소통 방식은 무엇인가요?",
 ])
-def test_twoSentencesAreRejected(text):
-    assert qt.textProblem(text) == "compound_question"
+def test_twoSentencesPass(text):
+    assert qt.textProblem(text) is None
+
+
+def test_questionEndingInExampleParenIsNotAQuestion():
+    assert qt.textProblem("데이터의 정확성을 어떻게 보장하시나요. (예: 문서의 품질 기준, 검증 절차 등)") == "not_question"  # 실측
 
 
 @pytest.mark.parametrize("text", [

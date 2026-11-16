@@ -1,7 +1,7 @@
-"""질문 적용 범위와 공고 기반 질문 후보 (2026-11-10 사용자 결정, CONFLICTS C-17).
+"""질문 적용 범위와 공고 기반 예비 질문 (C-17, 2026-11-16 C-20 으로 바뀜).
 
-- 회사 질문은 그 공고에서만(posting_id), 직무 질문은 같은 직무에서만(job_code), 인성 질문은 공통(둘 다 비움).
-- 공고를 게시하면 그 공고로 직무·회사 질문 후보를 만들어 '검토 대기'로 넣는다. 관리자가 승인해야 쓴다.
+- 직무 질문은 같은 직무에서만(job_code, '해당 직무만'), 나머지는 공통. 예전 공고 전용(posting_id) 질문은 그 공고에서만 쓴다.
+- 공고를 게시하면 그 공고로 직무·회사 질문을 만들어 예비 질문에 바로 넣는다 (승인 없음).
 """
 
 import asyncio
@@ -9,7 +9,7 @@ import json
 from datetime import timedelta
 
 from app.models import Application, AuditLog, JobPosting, Question, User
-from app.services import llm, posting_questions, question_compose, rag
+from app.services import company, llm, posting_questions, question_compose, rag
 from app.timeutil import now
 from tests.test_question_rag import RESUME, fakeVector
 
@@ -24,7 +24,7 @@ def addPosting(db, title="AI/AX 엔지니어 (신입)", jobCode="AI_AX") -> JobP
     return posting
 
 
-def addQuestion(db, kind, text, postingId=None, jobCode=None, status="active", source="generated") -> Question:
+def addQuestion(db, kind, text, postingId=None, jobCode=None, status="active", source="reserve") -> Question:
     q = Question(source=source, kind=kind, category="AI 생성", text=text, status=status, duplicate_group=text[:128],
                  posting_id=postingId, job_code=jobCode)
     db.add(q)
@@ -52,8 +52,8 @@ def test_bankCandidatesRespectScope(sessionFactory):
     assert sameJob.id in job and otherJob.id not in job
 
 
-def test_savedPendingQuestionsGetScope(sessionFactory, monkeypatch):
-    """면접 때 AI 가 만든 질문을 검토 대기로 넣을 때도 범위를 붙인다 (실측: 다른 공고의 회사 질문이 범위 없이 active 였다)."""
+def test_savedGeneratedQuestionsGetScope(sessionFactory, monkeypatch):
+    """면접 때 AI 가 만든 질문을 예비 질문에 넣을 때 직무 질문만 '해당 직무만'으로 둔다."""
     monkeypatch.setattr(rag, "supported", lambda db: False)
     with sessionFactory() as db:
         posting = addPosting(db)
@@ -67,9 +67,9 @@ def test_savedPendingQuestionsGetScope(sessionFactory, monkeypatch):
             ("company", "우리 회사의 검색 서비스에서 가장 해 보고 싶은 일은 무엇인가요?"),
             ("job", "청크 크기는 무엇을 기준으로 정하나요?"),
             ("personality", "의견이 다른 팀원을 어떻게 설득하셨나요?"))]
-        question_compose.savePending(db, app, chosen)
-        saved = {q.kind: q for q in db.query(Question).filter_by(status="pending")}
-    assert (saved["company"].posting_id, saved["company"].job_code) == (posting.id, None)
+        question_compose.saveGenerated(db, app, chosen)
+        saved = {q.kind: q for q in db.query(Question).filter_by(source="reserve")}
+    assert (saved["company"].posting_id, saved["company"].job_code) == (None, None)
     assert (saved["job"].posting_id, saved["job"].job_code) == (None, "AI_AX")
     assert (saved["personality"].posting_id, saved["personality"].job_code) == (None, None)
 
@@ -82,7 +82,7 @@ class FakePostingLlm:
         self.prompts.append(user)
         self.count += 1
         if self.bad:
-            return schema(question="역할을 했고, 그 이유는 무엇인가요?", task_count=1)  # 여러 개 묻기 → 버린다
+            return schema(question="맡은 역할을 간단히 말씀해 주세요?", task_count=1)  # 답변 방식 지시 → 버린다
         kind = user.split("[만들 질문] ")[1].split(" ")[0]
         topic = user.split("이번 질문의 기술 주제: ")[1][:6] if "기술 주제" in user else "회사"
         return schema(question=f"{kind} {topic} 질문 {self.count}번은 무엇인가요?", task_count=1)
@@ -96,12 +96,13 @@ def withFakes(sessionFactory, monkeypatch, fake):
     async def embed(texts, timeoutSec=10):
         return [fakeVector(t) for t in texts]
     monkeypatch.setattr(rag, "embed", embed)
-    monkeypatch.setattr(rag, "similar", lambda db, kind, vector, count, ex: [])
+    monkeypatch.setattr(rag, "similar", lambda db, kind, vector, count, ex, jobCode=None: [])
+    monkeypatch.setattr(company, "relatedNews", lambda db, vector, count=3: [])
     monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: 0.0)
     monkeypatch.setattr(rag, "storeVector", lambda db, questionId, vector: None)
 
 
-def test_publishGeneratesScopedPendingCandidates(sessionFactory, monkeypatch):
+def test_publishSavesScopedReserveQuestions(sessionFactory, monkeypatch):
     fake = FakePostingLlm()
     withFakes(sessionFactory, monkeypatch, fake)
     with sessionFactory() as db:
@@ -109,14 +110,14 @@ def test_publishGeneratesScopedPendingCandidates(sessionFactory, monkeypatch):
         db.commit()
     result = asyncio.run(posting_questions.generateForPosting(postingId))
     with sessionFactory() as db:
-        rows = db.query(Question).filter_by(status="pending").all()
+        rows = db.query(Question).filter_by(category=posting_questions.CATEGORY).all()
         audit = db.query(AuditLog).filter_by(action="question.posting_candidates").one()
     job = [q for q in rows if q.kind == "job"]
     company = [q for q in rows if q.kind == "company"]
     assert len(job) == 3 and len(company) == posting_questions.COMPANY_COUNT  # 업무 2줄 + 자격 1줄 = 주제 3개
     assert all(q.job_code == "AI_AX" and q.posting_id is None for q in job)
-    assert all(q.posting_id == postingId and q.job_code is None for q in company)
-    assert all(q.source == "generated" and q.category == posting_questions.CATEGORY for q in rows)
+    assert all(q.posting_id is None and q.job_code is None for q in company)
+    assert all(q.source == "reserve" and q.status == "active" for q in rows)
     assert result == {"saved": len(rows), "skipped": 0} and audit.detail["saved"] == len(rows)
     assert "<이력서>\n(없음)" in fake.prompts[0]  # 공고만 보고 만든다 (지원자 정보 없음)
 
@@ -128,7 +129,7 @@ def test_badOrDuplicateCandidatesAreNotSaved(sessionFactory, monkeypatch):
         db.commit()
     assert asyncio.run(posting_questions.generateForPosting(postingId))["saved"] == 0
     withFakes(sessionFactory, monkeypatch, FakePostingLlm())
-    monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: 0.85)  # 질문은행과 겹침(0.8 이상)
+    monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: 0.8)  # 예비 질문과 겹침(0.8 이상)
     assert asyncio.run(posting_questions.generateForPosting(postingId))["saved"] == 0
 
 
@@ -151,20 +152,8 @@ def test_publishSchedulesCandidates(adminClient, sessionFactory, monkeypatch):
     assert scheduled == [postingId]
 
 
-def test_adminListShowsScopeAndCategory(adminClient, sessionFactory):
-    with sessionFactory() as db:
-        posting = addPosting(db)
-        addQuestion(db, "company", "우리 회사의 검색 서비스에 관심을 갖게 된 계기는 무엇인가요?", postingId=posting.id, status="pending")
-        addQuestion(db, "job", "리랭킹이 필요한 이유는 무엇인가요?", jobCode="AI_AX", status="pending")
-        db.commit()
-    items = {i["kind"]: i for i in adminClient.get("/admin/questions").json()["items"]}
-    assert items["company"]["scope"] == {"type": "posting", "posting_id": posting.id, "label": "AI/AX 엔지니어 (신입)"}
-    assert items["job"]["scope"] == {"type": "job", "job_code": "AI_AX", "label": "AI/AX 엔지니어"}
-    assert items["job"]["category"] == "AI 생성"
-
-
 def test_loadWebCandidates(sessionFactory, tmp_path, monkeypatch):
-    """인터넷 참고 후보 파일: 질문은행과 겹치지 않는 것만 검토 대기로 넣는다. 두 번 돌려도 다시 넣지 않는다."""
+    """인터넷 참고 후보 파일: 예비 질문으로 넣는다. 두 번 돌려도 다시 넣지 않는다."""
     monkeypatch.setattr(rag, "supported", lambda db: False)
     path = tmp_path / "web.json"
     path.write_text(json.dumps({"questions": [
@@ -179,9 +168,9 @@ def test_loadWebCandidates(sessionFactory, tmp_path, monkeypatch):
         db.commit()
         assert posting_questions.loadWebCandidates(db, str(path), posting.id) == 3
         assert posting_questions.loadWebCandidates(db, str(path), posting.id) == 0
-        rows = {q.kind: q for q in db.query(Question).filter_by(status="pending")}
+        rows = {q.kind: q for q in db.query(Question).filter_by(category=posting_questions.WEB_CATEGORY)}
     assert rows["job"].job_code == "AI_AX" and rows["job"].posting_id is None
-    assert rows["company"].posting_id == posting.id
+    assert rows["company"].posting_id is None and rows["company"].job_code is None
     assert rows["personality"].posting_id is None and rows["personality"].job_code is None
     assert all(q.category == posting_questions.WEB_CATEGORY for q in rows.values())
 

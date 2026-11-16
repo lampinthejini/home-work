@@ -232,6 +232,33 @@ class Question(Base):
     # 회사 질문은 그 공고에서만(posting_id), 직무 질문은 같은 직무에서만(job_code)
     posting_id: Mapped[str | None] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=True, index=True)
     job_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # 예비 질문 NEW 표시 (하루 동안)
+
+
+class CompanyProfile(Base):
+    """회사 정보 (2026-11-16 사용자 결정, CONFLICTS C-20). 한 기업 전용이라 한 줄(id=1)만 쓴다."""
+    __tablename__ = "company_profile"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    name: Mapped[str] = mapped_column(String(100), default="AIIT")
+    basics: Mapped[str] = mapped_column(Text, default="")  # 기본 정보 (설립·대표·본사·임직원·주요 서비스)
+    intro: Mapped[str] = mapped_column(Text, default="")  # 회사 소개
+    jobs_intro: Mapped[str] = mapped_column(Text, default="")  # 직무 소개
+    ai_ax_role: Mapped[str] = mapped_column(Text, default="")  # AI/AX 가 하는 일
+    news_query: Mapped[str] = mapped_column(String(100), default="네이버")  # 최근 소식 검색어
+    news_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class CompanyNews(Base):
+    """회사 최근 소식 (뉴스·게시글 제목과 링크). 관리자가 [제거]하면 hidden_at 을 남겨 다음 새로 찾기에서 다시 들어오지 않게 한다."""
+    __tablename__ = "company_news"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(300))
+    url: Mapped[str] = mapped_column(String(1000), unique=True)
+    publisher: Mapped[str] = mapped_column(String(100), default="")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class QuestionUsage(Base):

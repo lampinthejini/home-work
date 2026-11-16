@@ -4,7 +4,7 @@ import { longDateTime, shortDateTime } from "@/lib/format";
 import { EMPLOYMENT_LABEL } from "@/lib/status";
 
 export type PostingDetail = {
-    posting_id: string; status: string; title: string; job_code: string; company_intro: string; duties: string;
+    posting_id: string; status: string; title: string; job_code: string; company_name?: string; company_intro: string; duties: string;
     requirements: string; preferred: string; employment_type: string; location: string; headcount: number; open_at: string;
     close_at: string; release_at: string; contact_email: string; has_coding_test: boolean;
     revisions?: { revised_at: string; field: string; summary: string }[];
@@ -31,6 +31,7 @@ export function PostingBody({ posting: p, action }: { posting: PostingDetail; ac
                 <span className="badge badge-blue">AI/AX 엔지니어</span>
                 {p.has_coding_test && <span className="badge badge-gray">코딩테스트 포함</span>}
             </div>
+            {p.company_name && <div className="muted" style={{ fontWeight: 600 }}>{p.company_name}</div>}
             <h1 style={{ marginBottom: 4 }}>{p.title || "(제목 없음)"}</h1>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 24, alignItems: "start", marginTop: 20 }}>
                 <article className="card stack">

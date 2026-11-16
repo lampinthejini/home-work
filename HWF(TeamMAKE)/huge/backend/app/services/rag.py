@@ -3,6 +3,7 @@
 - 임베딩: embed 컨테이너(BGE-M3, 1024차원, 길이 1로 맞춤 → 내적 = 코사인 유사도)
 - 찾기: PostgreSQL pgvector (HNSW, vector_cosine_ops). SQLite(개발 테스트)에서는 쓰지 않는다
 - 기준: 만든 질문이 예시와 0.9 이상 비슷하면 베낀 것, 이미 고른 질문과 0.9 이상이면 중복 (TRD 7-4 ②③)
+- 예시는 예비 질문에서 찾는다 (엑셀 질문 DB 는 2026-11-16 지움, CONFLICTS C-20)
 """
 
 import logging
@@ -19,14 +20,16 @@ log = logging.getLogger("huge.rag")
 
 EMBED_DIM = 1024
 COPY_SIMILARITY = 0.9
+# 예시로 보여 줄 최소 유사도 (2026-11-16 사용자 결정). 가장 가까운 것도 이보다 멀면 예시 없이 주제만으로 만든다.
+# 실측(같은 날, 기본 예비 40개 + AI 질문): 주제와 상관없는 예시는 0.40~0.47, 맞는 예시는 0.5 이상
+EXAMPLE_MIN_SIMILARITY = 0.5
 DUPLICATE_SIMILARITY = 0.9
-BANK_DUPLICATE_SIMILARITY = 0.8  # 질문은행에 남길 때는 더 엄격하게 (면접 안 중복은 위 0.9)
+RESERVE_DUPLICATE_SIMILARITY = 0.8  # 예비 질문에 넣을 때 (2026-11-16 사용자 결정: 0.7 → 0.8. 면접 안 중복은 위 0.9)
 EMBED_TIMEOUT_SEC = 10
 INDEX_BATCH = 32
 # HNSW 는 가까운 N개를 찾은 뒤 조건으로 거른다. 안 쓰는 질문(excluded·preparing)이 자리를 차지해 예시가 모자라지 않게 넓힌다 (실측 40 → 0개, 200 → 3개, 5ms)
 SEARCH_WIDTH = 200
-# 이력서 기반 질문은 질문 DB 에 같은 종류가 없어 직무 질문을 예시로 쓴다
-EXAMPLE_KIND = {"personality": "personality", "company": "company", "job": "job", "resume": "job"}
+EXAMPLE_KIND = {"personality": "personality", "company": "company", "job": "job", "resume": "resume"}
 
 
 class EmbedUnavailable(Exception):
@@ -125,15 +128,23 @@ def indexQuestions(db: Session) -> int:
             log.info("embedded %d questions", done)
 
 
-def similar(db: Session, slotKind: str, vector: list[float], count: int, excludeIds: set[int]) -> list[Example]:
-    """같은 종류의 쓰는 질문(엑셀) 중 뜻이 가장 가까운 것 count 개 (RAG 예시, TRD 7-4 ③-2)."""
+def similar(db: Session, slotKind: str, vector: list[float], count: int, excludeIds: set[int],
+            jobCode: str | None = None) -> list[Example]:
+    """같은 종류 예비 질문 중 뜻이 가장 가까운 것 count 개 (RAG 예시, TRD 7-4 ③-2). 다른 직무 전용 질문은 뺀다."""
     db.execute(text(f"SET LOCAL hnsw.ef_search = {SEARCH_WIDTH}"))
     rows = db.execute(text(
         "SELECT id, text, embedding::text AS emb, 1 - (embedding <=> CAST(:v AS vector)) AS sim FROM questions "
-        "WHERE kind = :kind AND status = 'active' AND source = 'excel' AND embedding IS NOT NULL "
+        "WHERE kind = :kind AND status = 'active' AND source = 'reserve' AND embedding IS NOT NULL "
+        "AND (job_code IS NULL OR job_code = :job) "
         "AND NOT (id = ANY(:ex)) ORDER BY embedding <=> CAST(:v AS vector) LIMIT :n"),
-        {"v": toLiteral(vector), "kind": EXAMPLE_KIND[slotKind], "ex": list(excludeIds) or [-1], "n": count}).all()
+        {"v": toLiteral(vector), "kind": EXAMPLE_KIND[slotKind], "ex": list(excludeIds) or [-1], "n": count,
+         "job": jobCode or ""}).all()
     return [Example(r.id, r.text, float(r.sim), parseVector(r.emb)) for r in rows]
+
+
+def closeExamples(examples: list[Example]) -> list[Example]:
+    """뜻이 너무 먼 예시는 뺀다 (먼 예시를 보여 주면 작은 모델이 그 주제로 끌려간다)."""
+    return [e for e in examples if e.similarity >= EXAMPLE_MIN_SIMILARITY]
 
 
 def maxStoredSimilarity(db: Session, kind: str, vector: list[float]) -> float:
@@ -142,15 +153,6 @@ def maxStoredSimilarity(db: Session, kind: str, vector: list[float]) -> float:
         "SELECT 1 - (embedding <=> CAST(:v AS vector)) FROM questions WHERE kind = :kind AND embedding IS NOT NULL "
         "ORDER BY embedding <=> CAST(:v AS vector) LIMIT 1"), {"v": toLiteral(vector), "kind": kind}).scalar()
     return float(sim) if sim is not None else 0.0
-
-
-def similarPairs(db: Session, kind: str, threshold: float) -> list[tuple[int, int, float]]:
-    """같은 종류의 사용 중 엑셀 질문 중 threshold 이상 비슷한 쌍 (앞 id, 뒤 id, 유사도)."""
-    rows = db.execute(text(
-        "SELECT a.id, b.id, 1 - (a.embedding <=> b.embedding) FROM questions a JOIN questions b ON a.id < b.id AND a.kind = b.kind "
-        "WHERE a.kind = :kind AND a.source = 'excel' AND b.source = 'excel' AND a.status = 'active' AND b.status = 'active' "
-        "AND 1 - (a.embedding <=> b.embedding) >= :t"), {"kind": kind, "t": threshold}).all()
-    return [(x, y, float(s)) for x, y, s in rows]
 
 
 def storeVector(db: Session, questionId: int, vector: list[float]) -> None:

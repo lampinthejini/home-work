@@ -175,14 +175,14 @@ function Dashboard() {
                 )}
                 <hr style={{ border: 0, borderTop: "1px solid var(--color-line)", width: "100%" }} />
                 <div className="small">
-                    📚 <strong>문항 현황</strong> 면접 질문 {ops.questions.bank.toLocaleString()} · 예비 질문 {ops.questions.reserve_total}
+                    📚 <strong>문항 현황</strong> 예비 질문 {ops.questions.reserve_total}
                     {" ("}{ops.reserve_questions.map((r, i) => (
                         <span key={r.category} style={r.below_minimum ? { color: "var(--color-warning-text)", fontWeight: 600 } : undefined}>
                             {i > 0 && " · "}{QTYPE_LABEL[r.category] ?? r.category} {r.count}{r.below_minimum ? " ⚠" : ""}
                         </span>
                     ))}{")"}
                     <div>코딩테스트 문제 {Object.entries(ops.coding_problems).map(([level, n]) => `${level} ${n}`).join(" · ")}</div>
-                    <div className="tiny muted">ⓘ 문항 추가·수정은 적재 명령(manage.py)으로 합니다. 예비 질문은 종류별 5개 이상이 필요합니다.</div>
+                    <div className="tiny muted">ⓘ 예비 질문은 <Link href="/admin/questions">예비 질문</Link> 화면에서 고치거나 지웁니다(종류마다 5개 이상 필요, 100개까지). 코딩테스트 문제는 적재 명령(manage.py)으로 넣습니다.</div>
                 </div>
             </div>
             {reprocess && (

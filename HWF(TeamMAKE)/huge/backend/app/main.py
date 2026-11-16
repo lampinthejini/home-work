@@ -15,8 +15,8 @@ from .domain import status as st
 from .errors import ApiError, apiErrorHandler, unexpectedErrorHandler, validationErrorHandler
 from .interview import checkpoint, lifecycle
 from .models import Application, InterviewSession
-from .routers import admin, admin_ops, admin_questions, applications, auth, interview, me, postings
-from .services import admission, llm, question_compose, resume_extract, storage
+from .routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings
+from .services import admission, company, llm, question_bank, question_compose, rag, resume_extract, storage
 from .services.postings import seedJobCodes
 from .settings_store import getSetting
 from .timeutil import now
@@ -59,6 +59,29 @@ def recoverAfterRestart() -> None:
         db.close()
 
 
+def seedCompanyAndQuestions() -> None:
+    """회사 정보와 기본 예비 질문 40개 (비어 있을 때만, CONFLICTS C-20)."""
+    with SessionLocal() as db:
+        company.getProfile(db)
+        seeded = question_bank.seedReserve(db)
+        if seeded:
+            log.info("seeded %d reserve questions", seeded)
+
+
+async def indexMissing() -> None:
+    """임베딩이 빈 예비 질문(새로 넣은 기본 질문·임베딩 서버가 없을 때 고친 질문)을 채운다. 실패하면 다음 시작 때 다시."""
+    def run() -> int:
+        with SessionLocal() as db:
+            return rag.indexQuestions(db) if rag.supported(db) else 0
+
+    try:
+        done = await asyncio.to_thread(run)
+        if done:
+            log.info("embedded %d questions", done)
+    except (rag.EmbedUnavailable, RuntimeError) as exc:
+        log.warning("question embedding skipped: %s", exc)
+
+
 def spawn(coro) -> None:
     task = asyncio.get_running_loop().create_task(coro)
     backgroundTasks.add(task)
@@ -73,8 +96,11 @@ async def lifespan(_app: FastAPI):
         seedJobCodes(db)
     await asyncio.to_thread(storage.ensureBucket)
     recoverAfterRestart()
+    seedCompanyAndQuestions()
     await checkpoint.openSaver()  # 면접 진행 그래프 체크포인트 (ADR-07)
     spawn(warmUp())
+    spawn(indexMissing())
+    spawn(company.refreshNews())  # 회사 최근 소식은 앱을 켤 때마다 새로 찾는다 (사용자 결정 2026-11-16)
     spawn(jobs.runForever())
     yield
     for task in list(backgroundTasks):
@@ -115,7 +141,7 @@ app.add_middleware(UploadSizeGuard)
 app.add_exception_handler(ApiError, apiErrorHandler)
 app.add_exception_handler(RequestValidationError, validationErrorHandler)
 app.add_exception_handler(Exception, unexpectedErrorHandler)
-for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin):
+for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin):
     app.include_router(module.router)
 
 

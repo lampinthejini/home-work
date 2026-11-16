@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-11-16 — 엑셀 질문 DB → 예비 질문, 회사 정보(AIIT)·최근 소식
+
+> 한 줄 요약: 엑셀 질문 DB 와 질문 관리(검토 대기)를 없애고 **예비 질문**(기본 40개 + 승인 없이 들어오는 AI 질문)으로 바꿨다. 가상 회사 **AIIT** 의 회사 정보·회사 최근 소식을 회사 질문과 AI 공고 초안에 쓰고, 직무 질문에는 질문 만들기 전 찾은 직무 관련 최근 소식을 참고로 준다 (CONFLICTS C-19·C-20).
+
+### 바뀐 것
+
+| 곳 | 내용 |
+|---|---|
+| `backend/app/services/question_bank.py` | 엑셀 불러오기 삭제, `RESERVE_QUESTIONS` 40개, `seedReserve`·`saveReserve`(다른 회사·같은 글·100개 상한·유사도 0.8)·`resetQuestions` |
+| `backend/app/services/rag.py` | 예시 최소 유사도 0.5(`closeExamples`), 예비 질문 유사도 0.8 |
+| `backend/app/services/question_compose.py` | 대체 예비 질문 → 고정 문장, 가까운 예시가 없어도 주제로 생성, `isTopicLine`(칸 제목·태도 줄 빼기), 회사 정보·소식·직무 소식을 프롬프트에, `saveGenerated` |
+| `backend/app/services/company.py` · `job_news.py` (새) | 회사 정보·회사 최근 소식(Google 뉴스 RSS, 6번 나눠 찾기, 관계없는 기사 빼기) · 직무 관련 최근 소식(30초·10개·저장 안 함) |
+| `backend/app/routers/admin_questions.py` · `admin_company.py` | 예비 질문 목록·고치기·삭제, 회사 정보·소식 다시 찾기·제거 |
+| `backend/app/models.py` · `migrate.py` · `main.py` · `manage.py` | `CompanyProfile`·`CompanyNews`, `questions.created_at`, 시작할 때 회사 정보·기본 질문·임베딩·소식 |
+| `frontend` | 사이드바 '예비 질문'·'회사 정보', 두 화면, 공고에 회사 이름 |
+| `frontend/app/admin/dashboard/page.tsx` | 문항 현황에서 '면접 질문'(늘 0) 숫자를 빼고, 안내를 [예비 질문] 화면 링크로 (화면정의서 논의사항 38) |
+
+### 문서 (모두 `개인용/`)
+
+- 버전업: PRD v2.0 · TRD v1.9 · 화면정의서 v1.0 · API 명세서 v1.5 · 테이블 정의서 v1.3 · AI 아키텍처 v1.8 · 기술 아키텍처 v1.4 · 플로우차트 11v · 기능정의서 0.6v · 테스트케이스 v0.6 · 시나리오 v1.3
+- 가이드: 관리자(예비 질문·회사 정보 장), 개발자·코드열람·코드읽기코스(예비 질문·소식), 프로그램명세서(바뀐 파일 보정 표). PDF 는 다시 만들지 않음
+- `CLAUDE.md` 문서 표, `huge/README.md`
+
+### 테스트
+
+| 무엇 | 결과 |
+|---|---|
+| 백엔드 `python -m pytest` (`tests/test_stt_server.py` 제외) | 473 passed, 4 skipped |
+| `tests/test_stt_server.py` | 2개 실패 — 이 작업 전 `ai/stt/server.py` 변경에서 생김, 원인 확인 필요 |
+| `ruff check .`, 프론트엔드 `tsc --noEmit`·`lint` | 통과 |
+
+### 남은 것
+
+- `openpyxl` 이 requirements 에만 남음
+- 예비 질문·회사 정보 화면 브라우저 확인
+
+---
+
 ## 2026-11-13 — 코딩테스트 화면 이탈 규칙, 이탈 시간 기록
 
 > 한 줄 요약: 코딩테스트에서 처음 화면을 벗어나도 **코딩 시계가 멈추지 않는다.** 경고 창에서 확인을 누르면 **'이탈 후 돌아옴 · 이탈 시간 N초'** 가 관리자 장애·이탈 기록에 남는다 (CONFLICTS C-18).

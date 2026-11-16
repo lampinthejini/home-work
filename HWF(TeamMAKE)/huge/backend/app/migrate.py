@@ -35,6 +35,8 @@ ALIGN_STATEMENTS = [
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS needs_review_since timestamptz",
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()",
     "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS locked_at timestamptz",
+    # 예비 질문 NEW 표시 (CONFLICTS C-20). 예전 질문은 지금 시각이 들어간다
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()",
     # 이미 잠긴 기준은 그 공고의 첫 응시 시각을 잠근 시각으로 본다
     "UPDATE evaluation_criteria c SET locked_at = (SELECT min(a.attempt_consumed_at) FROM applications a WHERE a.posting_id = c.posting_id) "
     "WHERE c.locked AND c.locked_at IS NULL",
@@ -56,6 +58,8 @@ VECTOR_STATEMENTS = [
     "CREATE EXTENSION IF NOT EXISTS vector",
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS embedding vector(1024)",
     "CREATE INDEX IF NOT EXISTS ix_questions_embedding ON questions USING hnsw (embedding vector_cosine_ops)",
+    # 회사 최근 소식 임베딩 (회사 질문 RAG, CONFLICTS C-20). 30개 안팎이라 색인은 만들지 않는다
+    "ALTER TABLE company_news ADD COLUMN IF NOT EXISTS embedding vector(1024)",
 ]
 
 
