@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+from contextlib import asynccontextmanager
 
 import numpy as np
 import redis
@@ -29,7 +30,15 @@ HOTWORDS = (
     "RAG LLM API GPU LangGraph FastAPI PyTorch"
 )
 
-app = FastAPI(title="huge-stt")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # 켤 때 미리 받아쓰기는 여기서 한다. uvicorn 은 이게 끝나야 요청을 받으므로 /health 는 준비된 뒤에야 답한다.
+    # 모듈을 불러올 때 돌리지 않는 것은 테스트(가짜 numpy·모델로 불러옴)가 이 단계를 건너뛰게 하려는 것이다.
+    await asyncio.to_thread(warmUp)
+    yield
+
+
+app = FastAPI(title="huge-stt", lifespan=lifespan)
 model = WhisperModel(MODEL_NAME, device="cuda", compute_type=COMPUTE_TYPE)
 gpuLock = threading.Lock()
 redisClient = redis.Redis.from_url(REDIS_URL)
@@ -57,6 +66,23 @@ def runTranscribe(audio: np.ndarray, withWords: bool) -> dict:
             for w in seg.words:
                 words.append({"start": round(w.start, 2), "end": round(w.end, 2), "word": w.word})
     return {"text": " ".join(t for t in texts if t), "words": words}
+
+
+def warmUp() -> None:
+    """켤 때 한 번 받아 적어 둔다 (2026-11-16 실측: 부팅 뒤 첫 받아쓰기가 약 80초 걸려 면접 1번 답변이 20초 제한에 걸림).
+    lifespan 이 서버가 요청을 받기 전에 부르므로 끝날 때까지 /health 가 답하지 않는다 — 준비된 뒤에야 healthy 가 된다."""
+    started = time.monotonic()
+    noise = (np.random.default_rng(0).standard_normal(SAMPLE_RATE * 2) * 0.01).astype(np.float32)
+    try:
+        # 잡음은 VAD 가 지워 디코더가 돌지 않으므로, 디코더는 VAD 없이 한 번, VAD(Silero) 는 따로 한 번 불러 둔다
+        segments, _ = model.transcribe(noise, language="ko", vad_filter=False, beam_size=5, word_timestamps=True,
+                                       condition_on_previous_text=False, hotwords=HOTWORDS)
+        list(segments)
+        runTranscribe(noise, withWords=True)
+    except Exception as exc:  # noqa: BLE001 — 미리 돌리기 실패는 서버를 막지 않는다 (첫 요청이 느릴 뿐)
+        print(f"stt warm-up failed: {type(exc).__name__}", flush=True)
+        return
+    print(f"stt warm-up done in {time.monotonic() - started:.1f}s", flush=True)
 
 
 def transcribeWithGpu(audio: np.ndarray) -> dict:

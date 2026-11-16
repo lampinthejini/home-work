@@ -19,6 +19,7 @@
 | `backend/app/routers/admin_questions.py` · `admin_company.py` | 예비 질문 목록·고치기·삭제, 회사 정보·소식 다시 찾기·제거 |
 | `backend/app/models.py` · `migrate.py` · `main.py` · `manage.py` | `CompanyProfile`·`CompanyNews`, `questions.created_at`, 시작할 때 회사 정보·기본 질문·임베딩·소식 |
 | `frontend` | 사이드바 '예비 질문'·'회사 정보', 두 화면, 공고에 회사 이름 |
+| `ai/stt/server.py` | 켤 때 미리 받아쓰기(`warmUp`, 부팅 뒤 첫 받아쓰기 약 80초 문제)를 모듈 맨 아래가 아니라 FastAPI `lifespan` 에서 부름. 서버는 여전히 준비된 뒤에야 요청을 받고, 가짜 numpy·모델로 파일을 불러오는 `tests/test_stt_server.py` 2개가 다시 통과 |
 | `frontend/app/admin/dashboard/page.tsx` | 문항 현황에서 '면접 질문'(늘 0) 숫자를 빼고, 안내를 [예비 질문] 화면 링크로 (화면정의서 논의사항 38) |
 
 ### 문서 (모두 `개인용/`)
@@ -31,8 +32,8 @@
 
 | 무엇 | 결과 |
 |---|---|
-| 백엔드 `python -m pytest` (`tests/test_stt_server.py` 제외) | 473 passed, 4 skipped |
-| `tests/test_stt_server.py` | 2개 실패 — 이 작업 전 `ai/stt/server.py` 변경에서 생김, 원인 확인 필요 |
+| 백엔드 `python -m pytest` (전체) | 475 passed, 4 skipped |
+| `tests/test_stt_server.py` | 2개 통과 (warm-up 을 lifespan 으로 옮긴 뒤. 그전에는 불러올 때 `np.random` 이 없어 ERROR) |
 | `ruff check .`, 프론트엔드 `tsc --noEmit`·`lint` | 통과 |
 
 ### 남은 것
