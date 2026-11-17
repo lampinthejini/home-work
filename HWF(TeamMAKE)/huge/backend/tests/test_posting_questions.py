@@ -9,7 +9,7 @@ import json
 from datetime import timedelta
 
 from app.models import Application, AuditLog, JobPosting, Question, User
-from app.services import company, llm, posting_questions, question_compose, rag
+from app.services import company, llm, posting_questions, question_compose, rag, tech_blog
 from app.timeutil import now
 from tests.test_question_rag import RESUME, fakeVector
 
@@ -97,7 +97,8 @@ def withFakes(sessionFactory, monkeypatch, fake):
         return [fakeVector(t) for t in texts]
     monkeypatch.setattr(rag, "embed", embed)
     monkeypatch.setattr(rag, "similar", lambda db, kind, vector, count, ex, jobCode=None: [])
-    monkeypatch.setattr(company, "relatedNews", lambda db, vector, count=3: [])
+    monkeypatch.setattr(company, "relatedProjects", lambda db, vector, count: [])
+    monkeypatch.setattr(tech_blog, "relatedPosts", lambda db, vector, count, excludeIds=frozenset(): [])
     monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: 0.0)
     monkeypatch.setattr(rag, "storeVector", lambda db, questionId, vector: None)
 

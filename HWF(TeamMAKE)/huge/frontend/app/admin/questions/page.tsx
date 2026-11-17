@@ -34,7 +34,7 @@ function Questions() {
 
     useEffect(() => { load(); }, [load]);
 
-    async function patch(id: number, body: { text?: string; job_only?: boolean }) {
+    async function patch(id: number, body: { text: string }) {
         setBusy(true);
         try {
             const updated = await api<Item>(`/admin/questions/${id}`, { method: "PATCH", body });
@@ -106,8 +106,6 @@ function Questions() {
                                 </th>
                                 <th style={{ width: 100 }}>질문분야</th>
                                 <th>질문</th>
-                                <th style={{ width: 140 }}>직무</th>
-                                <th style={{ width: 110 }}>해당 직무만 보기</th>
                                 <th style={{ width: 80 }} />
                             </tr>
                         </thead>
@@ -135,11 +133,6 @@ function Questions() {
                                             </div>
                                         )}
                                         {q.category && <div className="small muted">{q.category}</div>}
-                                    </td>
-                                    <td className="small">{q.job_only ? q.job_name : "공통"}</td>
-                                    <td>
-                                        <input type="checkbox" aria-label={`${q.job_name} 공고에서만 쓰기`} checked={q.job_only} disabled={busy}
-                                            onChange={() => patch(q.id, { job_only: !q.job_only })} />
                                     </td>
                                     <td>
                                         <Button size="sm" kind="secondary" disabled={busy} onClick={() => setConfirmIds([q.id])}>삭제</Button>

@@ -35,7 +35,7 @@ docker exec huge-app-api-1 python -m app.manage sample_posting  # 예시 공고 
 - stt·tts·embed·ocr 는 밖으로 나가는 망에 붙지 않아 실행 중에 모델을 받을 수 없습니다. 모델을 바꾸면 `sh scripts/fetch-models.sh` 를 다시 돌립니다. 망 분리는 `compose.ai.yml` 기준이고, 포트를 여는 frontend·api·mailpit 은 front 망에 남습니다.
 - 로그인 차단은 IP 기준입니다. 외부에 공개할 때는 **앞단 프록시가 `X-Forwarded-For` 를 진짜 접속 IP 로 덮어쓰게** 하고, api(8000)·frontend(8080) 포트를 직접 열지 않습니다. 그러지 않으면 헤더를 꾸며 차단을 피할 수 있습니다. 이때 `LOGIN_EXEMPT_IPS` 는 내 IP 로 바꿉니다.
 - 메일은 개발용 Mailpit 으로 갑니다 (<http://127.0.0.1:8025>).
-- api 는 회사 최근 소식(앱 시작·[새로 찾기])과 직무 관련 최근 소식(면접 질문 만들기 전, 30초 안)을 위해 Google 뉴스 RSS 에 **검색어만** 보냅니다. 인터넷이 없으면 소식 없이 동작합니다. Google 뉴스 RSS 는 개인·비상업 용도 조건이 있습니다 (CONFLICTS C-20).
+- api 는 직무 관련 최근 소식(면접 질문 만들기 전, 30초 안)을 위해 Google 뉴스 RSS 에 **검색어만** 보냅니다. 인터넷이 없으면 소식 없이 동작합니다. Google 뉴스 RSS 는 개인·비상업 용도 조건이 있습니다 (CONFLICTS C-20). 회사 최근 소식은 2026-11-17 에 지웠고, 회사 프로젝트는 관리자가 '회사 정보'에 적습니다 (C-21). 회사 기술 블로그는 앱을 켤 때와 [새로 가져오기] 때 회사 정보에 적힌 주소(기본 D2 Atom)를 읽습니다. 인터넷이 없으면 있던 글로 동작합니다 (C-22).
 
 ### DB 직접 보기 (개발자용)
 

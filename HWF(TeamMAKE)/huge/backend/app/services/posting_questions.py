@@ -47,7 +47,7 @@ def saveCandidate(db: Session, posting: JobPosting | None, kind: str, text: str,
 
 
 async def examplesFor(db: Session, posting: JobPosting, kind: str, topic: str | None) -> tuple[list[rag.Example], list[float] | None]:
-    """예비 질문 예시와 찾을 글의 벡터 (회사 질문은 이 벡터로 가까운 최근 소식을 고른다)."""
+    """예비 질문 예시와 찾을 글의 벡터 (회사 질문은 이 벡터로 가까운 회사 프로젝트를 고른다)."""
     try:
         vector = (await rag.embed([qc.queryText(kind, posting, {}, topic)]))[0]
         return rag.closeExamples(rag.similar(db, kind, vector, EXAMPLE_COUNT, set(), posting.job_code)), vector
@@ -55,15 +55,17 @@ async def examplesFor(db: Session, posting: JobPosting, kind: str, topic: str | 
         return [], None
 
 
-async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None, made: list[tuple[str, list[float] | None]]):
+async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None, made: list[tuple[str, list[float] | None]],
+                  usedPosts: set[int] | None = None):
     """질문 1개를 만들어 검사한다. (글, 벡터) 또는 (None, None)."""
     vectorsOn = rag.supported(db)
     examples, queryVector = await examplesFor(db, posting, kind, topic) if vectorsOn else ([], None)
     postingText = fence(qc.companyText(posting, brief=kind == "job"))
-    companyInfo = fence(company.questionContext(db, queryVector)) if kind == "company" else ""
+    companyInfo = fence(company.questionContext(db, queryVector, usedPosts)) if kind == "company" else ""
+    techPosts = fence(company.techLines(db, queryVector, usedPosts)) if kind == "job" else ""
     problem = None
     for _ in range(ATTEMPTS):
-        prompt = qc.ragPrompt(kind, postingText, "", examples, [t for t, _ in made], problem, topic, companyInfo)
+        prompt = qc.ragPrompt(kind, postingText, "", examples, [t for t, _ in made], problem, topic, companyInfo, techPosts=techPosts)
         try:
             out = await llm.structured(qc.RagQuestion, qc.SYSTEM, prompt, TIMEOUT_SEC, maxTokens=400, temperature=0.6)
         except llm.LlmError:
@@ -98,11 +100,12 @@ async def generateForPosting(postingId: str) -> dict:
                 return {"saved": 0, "skipped": 0}
             slots = [("job", t) for t in qc.jobTopics(posting, {})[:JOB_TOPIC_LIMIT]] + [("company", angle) for angle in COMPANY_ANGLES]
             made: list[tuple[str, list[float] | None]] = []
+            usedPosts: set[int] = set()  # 후보마다 다른 기술 글
             for kind, topic in slots:
                 if question_bank.reserveCount(db, kind) >= question_bank.RESERVE_LIMIT_PER_KIND:
                     skipped += 1  # 이 종류 예비 질문이 다 찼으면 LLM 을 쓰지 않는다
                     continue
-                text, vector = await makeOne(db, posting, kind, topic, made)
+                text, vector = await makeOne(db, posting, kind, topic, made, usedPosts)
                 if text is None or not saveCandidate(db, posting, kind, text, vector, CATEGORY):
                     skipped += 1
                     continue

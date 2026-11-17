@@ -233,7 +233,7 @@ export async function publishPosting(ctx: APIRequestContext, title: string, codi
     const closeAt = new Date(Date.now() + 24 * 60 * 60_000);
     const created = await ctx.post("/api/admin/postings", {
         data: {
-            title, job_code: "AI_AX", company_name: "E2E", company_intro: "E2E 자동 테스트용 공고입니다.",
+            title, job_code: "AI_AX", company_intro: "E2E 자동 테스트용 공고입니다.",
             duties: "LLM 기반 서비스 개발", requirements: "Python 개발 경험", preferred: "", employment_type: "full_time",
             location: "서울", headcount: 1, open_at: openAt.toISOString(), close_at: closeAt.toISOString(), contact_email: E2E_ADMIN_EMAIL,
             criteria: { weights: DEFAULT_WEIGHTS, coding_enabled: codingEnabled, coding_ratio: 30, pass_score: 70 },

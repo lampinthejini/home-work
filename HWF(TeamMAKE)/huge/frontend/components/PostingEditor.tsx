@@ -7,7 +7,7 @@ import { PostingBody, type PostingDetail } from "@/components/PostingBody";
 import { useApp } from "@/components/Providers";
 import { Button, Field, Modal } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
-import { type AdminPosting, DEFAULT_WEIGHTS, type DraftStatus } from "@/lib/admin";
+import { type AdminPosting, DEFAULT_WEIGHTS, type DraftStatus, fitWeights } from "@/lib/admin";
 import { fromLocalInput, toLocalInput } from "@/lib/format";
 import { EMPLOYMENT_LABEL, EVAL_LABEL } from "@/lib/status";
 
@@ -56,10 +56,14 @@ function step1Errors(f: Form, published: boolean): Partial<Record<FieldKey, stri
     return e;
 }
 
+function weightSum(w: Record<string, number>): number {
+    return Object.values(w).reduce((a, b) => a + b, 0);
+}
+
 function weightError(w: Record<string, number>): string | null {
-    const sum = Object.values(w).reduce((a, b) => a + b, 0);
     if (Object.values(w).some((v) => v < 5 || v % 5)) return "비율은 5% 단위, 항목마다 5% 이상이어야 합니다";
-    return sum === 100 ? null : `합계가 ${sum}%입니다. 100%로 맞춰 주세요`;
+    const sum = weightSum(w);
+    return sum === 100 ? null : `합계가 ${sum}%입니다. [다음]이나 [임시저장]을 누르면 비율대로 100%로 맞춥니다`;
 }
 
 /** 2단계(평가 기준)에서 다음·저장을 막는 사유. 합격 기준 칸을 비우면 0점이 아니라 입력 요청 */
@@ -152,6 +156,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
     const [busy, setBusy] = useState<"save" | "publish" | null>(null);
     const [leaving, setLeaving] = useState(false);
     const [confirmPublish, setConfirmPublish] = useState(false);
+    const [fitted, setFitted] = useState<{ before: Record<string, number>; after: Record<string, number> } | null>(null);
     const published = posting?.status === "published";
     const criteriaLocked = Boolean(posting?.criteria?.locked);
     const dirty = JSON.stringify(form) !== JSON.stringify(saved);
@@ -188,7 +193,17 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
         return body;
     }
 
+    /** 합계만 100%가 아니면 비율대로 맞추고 알린다 (2026-11-17 사용자 요청). 맞췄으면 true — 관리자가 확인한 뒤 다시 누른다 */
+    function fitIfNeeded(): boolean {
+        if (criteriaLocked || weightSum(form.weights) === 100 || Object.values(form.weights).some((v) => v < 5 || v % 5)) return false;
+        const after = fitWeights(form.weights);
+        setFitted({ before: form.weights, after });
+        set("weights", after);
+        return true;
+    }
+
     async function save(quiet = false): Promise<string | null> {
+        if (step === 2 && fitIfNeeded()) return null;
         setBusy("save");
         try {
             const res = id
@@ -216,6 +231,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
             const first = Object.keys(e)[0];
             if (first) { document.getElementById(`f-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
         }
+        if (step === 2 && fitIfNeeded()) return;
         if (step === 2 && !criteriaLocked && criteriaError(form)) return;
         setStep((s) => s + 1);
         window.scrollTo(0, 0);
@@ -246,7 +262,8 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
     };
     const wErr = weightError(form.weights);
     const cErr = criteriaError(form);
-    const sum = Object.values(form.weights).reduce((a, b) => a + b, 0);
+    const sum = weightSum(form.weights);
+    const nextBlocked = step === 2 && !criteriaLocked && Boolean(cErr) && !(wErr && sum !== 100 && cErr === wErr);
 
     return (
         <div className="stack">
@@ -370,7 +387,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                 <span style={{ flex: 1 }} />
                 <Button kind="secondary" busy={busy === "save"} onClick={() => save()}>{published ? "수정 저장" : "임시저장"}</Button>
                 {step > 1 && <button type="button" className="btn btn-secondary" onClick={() => setStep((s) => s - 1)}>이전</button>}
-                {step < 3 && <Button onClick={next} disabled={step === 2 && !criteriaLocked && Boolean(cErr)} reason={cErr ?? undefined}>다음 ▶</Button>}
+                {step < 3 && <Button onClick={next} disabled={nextBlocked} reason={nextBlocked ? cErr ?? undefined : undefined}>다음 ▶</Button>}
                 {step === 3 && !published && <Button busy={busy === "publish"} onClick={() => setConfirmPublish(true)}>게시하기</Button>}
             </div></div>
 
@@ -378,6 +395,22 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                 <Modal title="저장하지 않은 내용이 있습니다" onClose={() => setLeaving(false)} actions={(
                     <><button type="button" className="btn btn-secondary" onClick={() => setLeaving(false)}>계속 작성</button><button type="button" className="btn btn-danger" onClick={() => router.push("/admin/postings")}>나가기</button></>
                 )}><p>저장하지 않은 내용이 있습니다. 나갈까요?</p></Modal>
+            )}
+            {fitted && (
+                <Modal title="가중치 합계를 100%로 맞췄습니다" onClose={() => setFitted(null)} actions={(
+                    <Button onClick={() => setFitted(null)}>확인</Button>
+                )}>
+                    <p>합계가 {weightSum(fitted.before)}%여서 비율을 지켜 100%로 다시 나눴습니다. 5% 단위라 비율은 가장 가깝게 맞춥니다.</p>
+                    <table className="table">
+                        <thead><tr><th>항목</th><th>입력</th><th>맞춘 값</th></tr></thead>
+                        <tbody>
+                            {Object.keys(fitted.after).map((k) => (
+                                <tr key={k}><td>{EVAL_LABEL[k] ?? k}</td><td>{fitted.before[k]}%</td><td><strong>{fitted.after[k]}%</strong></td></tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <p className="small muted">확인한 뒤 [다음]이나 [임시저장]을 다시 눌러 주세요. 값은 −/+ 로 더 고칠 수 있습니다.</p>
+                </Modal>
             )}
             {confirmPublish && (
                 <Modal title="공고를 게시할까요?" onClose={() => setConfirmPublish(false)} actions={(

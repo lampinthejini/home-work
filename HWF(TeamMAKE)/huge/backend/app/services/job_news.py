@@ -14,11 +14,12 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import timedelta
+from email.utils import parsedate_to_datetime
 
 import httpx
 
 from ..timeutil import now
-from . import company, rag
+from . import rag
 
 log = logging.getLogger("huge.job_news")
 
@@ -27,6 +28,8 @@ JOB_NEWS_TIMEOUT_SEC = 30
 JOB_NEWS_DAYS = 30
 PER_SLOT = 2
 EMBED_TIMEOUT_SEC = 10
+NEWS_TIMEOUT_SEC = 15
+NEWS_URL = "https://news.google.com/rss/search"
 
 # 직무별 검색어와 '상관있는 제목' 규칙. 운영 직무는 AI/AX 하나 (PRD 2-4)
 JOB_NEWS_QUERIES = {"AI_AX": ("생성형 AI", "AI 에이전트", "LLM", "AI 전환 AX", "RAG 검색")}
@@ -41,12 +44,32 @@ class JobNews:
     vector: list[float] | None = None
 
 
+def parseRss(xmlText: str) -> list[dict]:
+    """Google 뉴스 RSS → [{title, url, publisher, published_at}]. 제목 끝의 ' - 언론사'는 따로 뗀다.
+    (회사 최근 소식이 쓰던 것을 2026-11-17 회사 소식을 지우며 여기로 옮김, CONFLICTS C-21)"""
+    items = []
+    for item in ET.fromstring(xmlText).iter("item"):
+        title = (item.findtext("title") or "").strip()
+        url = (item.findtext("link") or "").strip()
+        if not title or not url.startswith("https://"):
+            continue
+        publisher = (item.findtext("source") or "").strip()
+        if publisher and title.endswith(f" - {publisher}"):
+            title = title[: -len(publisher) - 3].strip()
+        try:
+            published = parsedate_to_datetime(item.findtext("pubDate") or "")
+        except (TypeError, ValueError):
+            published = None
+        items.append({"title": title[:300], "url": url[:1000], "publisher": publisher[:100], "published_at": published})
+    return items
+
+
 async def fetchQuery(query: str) -> list[dict]:
     params = {"q": f"{query} when:{JOB_NEWS_DAYS}d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
-    async with httpx.AsyncClient(timeout=company.NEWS_TIMEOUT_SEC, follow_redirects=True) as http:
-        res = await http.get(company.NEWS_URL, params=params)
+    async with httpx.AsyncClient(timeout=NEWS_TIMEOUT_SEC, follow_redirects=True) as http:
+        res = await http.get(NEWS_URL, params=params)
     res.raise_for_status()
-    return company.parseRss(res.text)
+    return parseRss(res.text)
 
 
 def pickRelevant(groups: list[list[dict]], pattern: re.Pattern, limit: int = JOB_NEWS_LIMIT) -> list[str]:

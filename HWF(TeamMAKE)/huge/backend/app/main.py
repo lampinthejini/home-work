@@ -16,7 +16,7 @@ from .errors import ApiError, apiErrorHandler, unexpectedErrorHandler, validatio
 from .interview import checkpoint, lifecycle
 from .models import Application, InterviewSession
 from .routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings
-from .services import admission, company, llm, question_bank, question_compose, rag, resume_extract, storage
+from .services import admission, company, llm, question_bank, question_compose, rag, resume_extract, storage, tech_blog
 from .services.postings import seedJobCodes
 from .settings_store import getSetting
 from .timeutil import now
@@ -82,6 +82,14 @@ async def indexMissing() -> None:
         log.warning("question embedding skipped: %s", exc)
 
 
+async def embedCompanyProjects() -> None:
+    """임베딩이 빈 회사 프로젝트를 채운다 (저장 때 임베딩 서버가 없었던 것)."""
+    with SessionLocal() as db:
+        done = await company.embedMissingProjects(db)
+    if done:
+        log.info("embedded %d company projects", done)
+
+
 def spawn(coro) -> None:
     task = asyncio.get_running_loop().create_task(coro)
     backgroundTasks.add(task)
@@ -100,7 +108,8 @@ async def lifespan(_app: FastAPI):
     await checkpoint.openSaver()  # 면접 진행 그래프 체크포인트 (ADR-07)
     spawn(warmUp())
     spawn(indexMissing())
-    spawn(company.refreshNews())  # 회사 최근 소식은 앱을 켤 때마다 새로 찾는다 (사용자 결정 2026-11-16)
+    spawn(embedCompanyProjects())
+    spawn(tech_blog.refreshPosts())  # 회사 기술 블로그는 앱을 켤 때마다 새로 가져온다 (사용자 결정 2026-11-17, C-22)
     spawn(jobs.runForever())
     yield
     for task in list(backgroundTasks):

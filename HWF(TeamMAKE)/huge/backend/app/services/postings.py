@@ -124,7 +124,8 @@ def applyCriteria(db: Session, posting: JobPosting, body, locked: bool) -> list[
 def updatePosting(db: Session, posting: JobPosting, body) -> JobPosting:
     if posting.status == "closed":
         raise ApiError(409, "POSTING_CLOSED", "마감된 공고는 고칠 수 없습니다.")
-    fields = body.model_dump(exclude_unset=True, exclude={"criteria"})
+    # 회사 이름은 회사 정보에서만 온다 (C-20, API 명세서 v1.5: 보내도 쓰지 않음)
+    fields = body.model_dump(exclude_unset=True, exclude={"criteria", "company_name"})
     if "job_code" in fields:
         job = db.get(JobCode, fields["job_code"])
         if job is None:

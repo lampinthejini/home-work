@@ -10,7 +10,8 @@ from datetime import timedelta
 import pytest
 
 from app.models import Application, InterviewQuestion, JobPosting, Question, User
-from app.services import company, llm, question_compose, rag
+from app.services import company, llm, question_compose, rag, tech_blog
+from app.settings_store import setSetting
 from app.timeutil import now
 
 RESUME = {
@@ -92,7 +93,9 @@ def world(sessionFactory, monkeypatch):
         monkeypatch.setattr(rag, "maxStoredSimilarity", fake.maxStoredSimilarity)
         monkeypatch.setattr(rag, "storeVector", fake.storeVector)
         monkeypatch.setattr(llm, "structured", fake.structured)
-        monkeypatch.setattr(company, "relatedNews", lambda db, vector, count=3: company.listNews(db)[:count])
+        monkeypatch.setattr(company, "relatedProjects", lambda db, vector, count: company.listProjects(db)[:count])
+        monkeypatch.setattr(tech_blog, "relatedPosts", lambda db, vector, count, excludeIds=frozenset():
+                            [p for p in tech_blog.listPosts(db) if p.id not in excludeIds][:count])
 
         async def noAudio(db, app):
             return None
@@ -156,7 +159,95 @@ def test_copyingExampleFallsBackToReserve(sessionFactory, world):
     job = next(r for r in rows if r.qtype == "job")
     assert (job.source, job.substituted, job.regen_count, job.substitute_reason) == ("reserve", True, 3, "copied_example")
     assert len({r.text for r in rows}) == 10
-    assert fake.counter == 30  # 자리마다 3번까지 다시 만들기
+    # 자리마다 3번까지 다시 만들기. 예시가 3개 미만인 자리는 베낀 예시를 다 빼고 나면 주제만으로 만들어 통과할 수 있다
+    # (몇 자리인지는 예비 질문 고르는 순서 — 지원 건 번호 해시 — 에 따라 달라진다)
+    assert fake.counter <= 30
+    assert all(r.regen_count == 3 for r in rows if r.source == "reserve" and r.substitute_reason == "copied_example")
+
+
+def test_copiedExampleIsNotShownAgainInRetry(sessionFactory, world):
+    """베낀 예시는 그 자리의 다음 시도에서 빼서, 같은 예시를 다시 베끼지 못하게 한다."""
+    fake = world(copyExamples=True)
+    asyncio.run(question_compose.compose(makeApplication(sessionFactory)))
+    jobPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 직무")][:3]  # 첫 직무 자리의 세 번 시도
+    shown = [p.split("그대로 베끼지 말 것]\n")[1].split("\n\n")[0].splitlines() for p in jobPrompts]
+    assert len(shown[0]) == 3 and len(shown[1]) == 2 and len(shown[2]) == 1
+    assert shown[0][0] not in shown[1] and shown[1][0] not in shown[2]
+
+
+def test_slotWithExamplesUsedUpIsMadeFromTopic(sessionFactory, world):
+    """예시를 다 베껴 빼고 나면 예시 없이 주제만으로 만든다 (예비 질문으로 바로 가지 않는다)."""
+    fake = world(copyExamples=True)
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        setSetting(db, "question_regen_limit", 4)  # 예시 3개를 다 베껴 뺀 뒤 한 번 더
+    asyncio.run(question_compose.compose(appId))
+    job = next(r for r in composed(sessionFactory, appId) if r.qtype == "job")
+    assert (job.source, job.regen_count) == ("generated", 3)
+    assert any("[비슷한 예비 질문 없음" in p for p in fake.prompts if p.startswith("[만들 질문] 직무"))
+
+
+def test_startTimeoutKeepsGeneratedAndFillsOnlyTheRest(sessionFactory, world, monkeypatch):
+    """TRD 7-4 ⑥: 시작 뒤 기다림이 넘으면 진행 중인 시도를 끊고, 못 만든 자리만 예비 질문. 만든 질문은 버리지 않는다."""
+    fake = world()
+    original = fake.structured
+
+    async def slowAfterThree(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        if fake.counter >= 3:
+            fake.counter += 1
+            await asyncio.sleep(3600)  # 끊지 않으면 끝나지 않는 LLM 호출
+        return await original(schema, system, user, timeoutSec, maxTokens, temperature, lane)
+
+    monkeypatch.setattr(llm, "structured", slowAfterThree)
+    appId = makeApplication(sessionFactory)
+
+    async def run():
+        question_compose.runningTasks[appId] = asyncio.create_task(question_compose.compose(appId))  # conftest 가 scheduleCompose 를 막아 둠
+        await asyncio.wait_for(question_compose.ensureComposed(appId, waitSec=0.5), timeout=10)
+
+    asyncio.run(run())
+    rows = composed(sessionFactory, appId)
+    assert len(rows) == 10
+    assert [r.source for r in rows[:3]] == ["generated"] * 3
+    assert all(r.source == "reserve" and r.substitute_reason == "budget" for r in rows[3:])
+    with sessionFactory() as db:
+        assert db.get(Application, appId).questions_status == "ready"
+    assert appId not in question_compose.runningTasks and appId not in question_compose.hurryEvents
+
+
+def test_startTimeoutDuringSlowAudioKeepsSavedQuestions(sessionFactory, world, monkeypatch):
+    """질문은 다 만들었는데 음성 만들기가 오래 걸리면, 저장된 질문으로 시작한다 (음성 없는 질문은 자막만, INT-01)."""
+    world()
+
+    async def slowAudio(db, app):
+        await asyncio.sleep(3600)
+    monkeypatch.setattr(question_compose, "synthesizeAll", slowAudio)
+    monkeypatch.setattr(question_compose, "HURRY_WAIT_SEC", 0.2)
+    appId = makeApplication(sessionFactory)
+
+    async def run():
+        question_compose.runningTasks[appId] = asyncio.create_task(question_compose.compose(appId))  # conftest 가 scheduleCompose 를 막아 둠
+        await asyncio.sleep(0.3)  # 질문 10개는 이미 저장, 음성 만드는 중
+        await asyncio.wait_for(question_compose.ensureComposed(appId, waitSec=0.2), timeout=10)
+
+    asyncio.run(run())
+    rows = composed(sessionFactory, appId)
+    assert len(rows) == 10 and {r.source for r in rows} == {"generated"}
+    with sessionFactory() as db:
+        assert db.get(Application, appId).questions_status == "ready"
+
+
+def test_composeLogsCarryApplicationId(sessionFactory, world, caplog):
+    """여러 지원자 질문이 동시에 만들어져도 로그 줄마다 어느 지원 건인지 알 수 있다."""
+    world(copyExamples=True)
+    appId = makeApplication(sessionFactory)
+    with caplog.at_level("INFO", logger="huge.compose"):
+        asyncio.run(question_compose.compose(appId))
+    lines = [r.getMessage() for r in caplog.records if r.name == "huge.compose"]
+    assert lines and all(f"app={appId}" in line for line in lines)
+    assert any(line.startswith("compose start") for line in lines)
+    done = next(line for line in lines if line.startswith("composed questions"))
+    assert "generated=" in done and "reserve=" in done and "sec=" in done
 
 
 def test_resumeQuestionNotInResumeUsesReserve(sessionFactory, world):

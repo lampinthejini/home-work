@@ -48,6 +48,17 @@ ALIGN_STATEMENTS = [
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS posting_id varchar(36) REFERENCES job_postings(id) ON DELETE CASCADE",
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS job_code varchar(32)",
     "CREATE INDEX IF NOT EXISTS ix_questions_posting_id ON questions (posting_id)",
+    # 회사 최근 소식(뉴스)을 지우고 회사 프로젝트로 바꿈 (CONFLICTS C-21, 2026-11-17 사용자 결정)
+    "DROP TABLE IF EXISTS company_news",
+    "ALTER TABLE company_profile DROP COLUMN IF EXISTS news_query",
+    "ALTER TABLE company_profile DROP COLUMN IF EXISTS news_refreshed_at",
+    # 경영 이념·인재상·사내 기술 스택·기술 블로그 (CONFLICTS C-22, 2026-11-17 사용자 결정)
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS mission text NOT NULL DEFAULT ''",
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS talent text NOT NULL DEFAULT ''",
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_stack text NOT NULL DEFAULT ''",
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_feed_url varchar(500) NOT NULL DEFAULT ''",
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_source_name varchar(100) NOT NULL DEFAULT ''",
+    "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_refreshed_at timestamptz",
 ]
 # 중복 행이 이미 있으면 만들지 못한다. 그때는 경고만 남기고 서비스는 뜬다 (2026-11-09)
 UNIQUE_STATEMENTS = [
@@ -58,8 +69,9 @@ VECTOR_STATEMENTS = [
     "CREATE EXTENSION IF NOT EXISTS vector",
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS embedding vector(1024)",
     "CREATE INDEX IF NOT EXISTS ix_questions_embedding ON questions USING hnsw (embedding vector_cosine_ops)",
-    # 회사 최근 소식 임베딩 (회사 질문 RAG, CONFLICTS C-20). 30개 안팎이라 색인은 만들지 않는다
-    "ALTER TABLE company_news ADD COLUMN IF NOT EXISTS embedding vector(1024)",
+    # 회사 프로젝트 임베딩 (회사 질문·공고 초안 RAG, CONFLICTS C-21). 30개까지라 색인은 만들지 않는다
+    "ALTER TABLE company_projects ADD COLUMN IF NOT EXISTS embedding vector(1024)",
+    "ALTER TABLE company_tech_posts ADD COLUMN IF NOT EXISTS embedding vector(1024)",
 ]
 
 

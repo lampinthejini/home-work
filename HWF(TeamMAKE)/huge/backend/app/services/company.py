@@ -1,75 +1,35 @@
-"""회사 정보와 최근 소식 (2026-11-16 사용자 결정, CONFLICTS C-20).
+"""회사 정보와 회사 프로젝트 (2026-11-16 사용자 결정 CONFLICTS C-20, 2026-11-17 C-21 로 바뀜).
 
-- 회사 정보: 가상 회사 AIIT(네이버를 모티프로 함)의 기본 정보·회사 소개·직무 소개·AI/AX 가 하는 일. 관리자가 고칠 수 있다.
-- 최근 소식: 앱을 켤 때 검색어(기본 '네이버')로 최근 6개월 뉴스를 Google 뉴스 RSS 에서 찾아 최대 NEWS_LIMIT 개를 둔다.
-  한 번에 찾으면 그날 기사만 나와서(실측 2026-11-16: 30개 모두 당일) 한 달씩 6번 찾아 달마다 몇 개씩 고른다.
-  제목에 검색어나 회사 이름이 없는 기사는 회사 소식이 아니라고 보고 뺀다 (aboutCompany).
-  사용자 결정으로 모티프 회사의 뉴스를 AIIT 소식으로 쓴다 — 질문에 넣을 때는 검색어를 회사 이름으로 바꾼다.
-  관리자가 [제거]한 소식은 hidden_at 을 남겨 다음에 다시 들어오지 않는다.
-- 회사 질문 RAG: 회사 정보는 늘 넣고, 최근 소식은 찾을 글과 가장 비슷한 것 몇 개만 넣는다 (pgvector, SQLite 에서는 최신 순).
-실패해도 면접·게시에는 영향이 없다 (기록만 남긴다).
+- 회사 정보: 가상 회사 AIIT(네이버를 모티프로 함)의 기본 정보·회사 소개·경영 이념·인재상·직무 소개·AI/AX 가 하는 일·사내 기술 스택.
+  관리자가 고칠 수 있다. 처음 값은 company_defaults.py (회사 소개서 PDF, C-22).
+- 회사 기술 블로그: tech_blog.py (C-22).
+- 회사 프로젝트: 회사가 진행한 프로젝트(이름·기간·내용)를 관리자가 적는다. 코드에 넣어 두지 않는다 (사용자 결정 2026-11-17).
+  예전의 '최근 소식'(뉴스 자동 찾기)은 지웠다.
+- 회사 질문 RAG: 회사 정보는 늘 넣고, 프로젝트는 찾을 글과 가장 비슷한 것 몇 개만 넣는다 (pgvector, SQLite 에서는 먼저 적은 순).
+- AI 공고 초안: 회사 정보(직무 소개 포함)와 그 공고와 가까운 프로젝트 몇 개를 넣는다.
+임베딩이 실패해도 저장·면접·게시에는 영향이 없다 (비어 있는 임베딩은 앱을 켤 때 다시 채운다).
 """
 
-import asyncio
 import logging
-import re
-import xml.etree.ElementTree as ET
-from datetime import date, timedelta
-from email.utils import parsedate_to_datetime
 
-import httpx
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..db import SessionLocal
-from ..models import AuditLog, CompanyNews, CompanyProfile, JobPosting
-from ..timeutil import now
+from ..models import AuditLog, CompanyProfile, CompanyProject, JobPosting
 from . import rag
+from .company_defaults import DEFAULT_PROFILE
 
 log = logging.getLogger("huge.company")
 
-NEWS_LIMIT = 30
-NEWS_MONTHS_DAYS = 183  # 최근 6개월
-NEWS_WINDOWS = 6  # 한 달씩 나눠 찾는다
-NEWS_TIMEOUT_SEC = 15
-NEWS_URL = "https://news.google.com/rss/search"
-CONTEXT_NEWS_COUNT = 3  # 회사 질문 하나에 넣는 소식 수
-CONTEXT_TEXT_CHARS = 400  # 회사 정보 칸마다 프롬프트에 넣는 글자 수
-PROFILE_FIELDS = ("name", "basics", "intro", "jobs_intro", "ai_ax_role", "news_query")
-
-# 처음 켤 때 넣는 회사 정보. 네이버를 모티프로 한 가상 회사라 숫자·연혁은 지어낸 것이다
-DEFAULT_PROFILE = {
-    "name": "AIIT",
-    "basics": (
-        "회사명: AIIT 주식회사\n"
-        "설립: 2001년\n"
-        "본사: 경기도 성남시 분당구 (사옥 'AIIT 그린타워')\n"
-        "임직원: 약 4,500명\n"
-        "주요 서비스: AIIT 검색, AIIT 쇼핑, AIIT 페이, AIIT 웹툰, AIIT 클라우드, AIIT 지도\n"
-        "핵심 가치: 사용자 중심 · 기술로 연결 · 함께 성장"
-    ),
-    "intro": (
-        "AIIT는 국내 최대 검색 포털에서 출발해 커머스·핀테크·콘텐츠·클라우드로 사업을 넓힌 인터넷 플랫폼 기업입니다. "
-        "하루 수천만 명이 쓰는 검색과 쇼핑, 결제, 웹툰 서비스를 운영하며, 자체 초거대 언어 모델 'AIIT-X'를 바탕으로 "
-        "모든 서비스에 AI를 붙이고 있습니다. 작은 조직이 스스로 목표를 정하고 빠르게 실험하는 문화를 중요하게 여깁니다."
-    ),
-    "jobs_intro": (
-        "- 서비스 개발: 검색·쇼핑·페이·웹툰 서비스의 백엔드와 프론트엔드를 만듭니다.\n"
-        "- 데이터·검색: 검색 품질, 추천, 광고 랭킹을 데이터로 개선합니다.\n"
-        "- AI/AX 엔지니어: 초거대 언어 모델과 AI 기술을 서비스와 사내 업무에 적용합니다.\n"
-        "- 클라우드·인프라: AIIT 클라우드와 데이터센터, GPU 학습 환경을 운영합니다.\n"
-        "- 서비스 기획·디자인: 사용자 경험을 설계하고 새 서비스를 기획합니다."
-    ),
-    "ai_ax_role": (
-        "- AIIT-X 기반 검색 요약, 쇼핑 AI 에이전트, 고객 상담 챗봇 같은 생성형 AI 서비스를 만듭니다.\n"
-        "- RAG와 사내 문서 검색으로 임직원의 반복 업무를 줄이는 업무 혁신(AX)을 이끕니다.\n"
-        "- 모델 파인튜닝·경량화와 MLOps로 AI 모델을 안정적으로 배포하고 운영합니다.\n"
-        "- 데이터 파이프라인을 만들고, AI 결과의 품질과 안전성(편향·개인정보)을 점검합니다.\n"
-        "- 현업 부서와 함께 AI로 바꿀 업무를 찾고 효과를 측정합니다."
-    ),
-    "news_query": "네이버",
-}
-
+PROJECT_LIMIT = 30
+CONTEXT_PROJECT_COUNT = 2  # 회사 질문 하나에 넣는 프로젝트 수
+POSTING_PROJECT_COUNT = 2  # AI 공고 초안에 넣는 프로젝트 수
+CONTEXT_TEXT_CHARS = 280  # 회사 질문에 회사 정보 칸마다 넣는 글자 수 (실측 2026-11-17: 350자·프로젝트 3개면 프롬프트 3,200토큰)
+POSTING_TEXT_CHARS = 180  # 공고 초안에 칸마다 넣는 글자 수 (칸이 더 많다. 실측 2026-11-17: 초안 프롬프트 약 2,700토큰 + 출력 최대 1,500)
+PROJECT_TEXT_CHARS = 220  # 프로젝트 하나의 내용을 프롬프트에 넣는 글자 수
+PROFILE_FIELDS = ("name", "basics", "intro", "mission", "talent", "jobs_intro", "ai_ax_role", "tech_stack",
+                  "tech_feed_url", "tech_source_name")
+PROJECT_FIELDS = ("title", "period", "summary")
 
 def getProfile(db: Session) -> CompanyProfile:
     """회사 정보 한 줄. 없으면 기본값으로 만들고, 회사명이 빈 공고에 회사 이름을 넣는다."""
@@ -84,7 +44,7 @@ def getProfile(db: Session) -> CompanyProfile:
 
 def profileView(profile: CompanyProfile) -> dict:
     return {**{f: getattr(profile, f) for f in PROFILE_FIELDS},
-            "news_refreshed_at": profile.news_refreshed_at.isoformat() if profile.news_refreshed_at else None}
+            "tech_refreshed_at": profile.tech_refreshed_at.isoformat() if profile.tech_refreshed_at else None}
 
 
 def updateProfile(db: Session, actorId: str, values: dict) -> CompanyProfile:
@@ -100,192 +60,137 @@ def updateProfile(db: Session, actorId: str, values: dict) -> CompanyProfile:
     return profile
 
 
-def visibleNews(db: Session):
-    return db.query(CompanyNews).filter(CompanyNews.hidden_at.is_(None))
+# ---------- 회사 프로젝트 ----------
+
+def projectView(p: CompanyProject) -> dict:
+    return {"id": p.id, "title": p.title, "period": p.period, "summary": p.summary}
 
 
-def newsView(n: CompanyNews) -> dict:
-    return {"id": n.id, "title": n.title, "url": n.url, "publisher": n.publisher,
-            "published_at": n.published_at.isoformat() if n.published_at else None}
+def listProjects(db: Session) -> list[CompanyProject]:
+    return db.query(CompanyProject).order_by(CompanyProject.id).all()
 
 
-def listNews(db: Session) -> list[CompanyNews]:
-    return visibleNews(db).order_by(CompanyNews.published_at.desc().nullslast(), CompanyNews.id.desc()).all()
+def addProject(db: Session, actorId: str, values: dict) -> CompanyProject | None:
+    """프로젝트를 더한다. PROJECT_LIMIT 개가 차 있으면 None."""
+    if db.query(CompanyProject).count() >= PROJECT_LIMIT:
+        return None
+    project = CompanyProject(**{f: values.get(f, "") for f in PROJECT_FIELDS})
+    db.add(project)
+    db.flush()
+    db.add(AuditLog(actor_id=actorId, action="company.project_add", target=str(project.id), detail={}))
+    db.commit()
+    return project
 
 
-def hideNews(db: Session, actorId: str, newsId: int) -> bool:
-    item = db.get(CompanyNews, newsId)
-    if item is None or item.hidden_at is not None:
+def updateProject(db: Session, actorId: str, projectId: int, values: dict) -> CompanyProject | None:
+    project = db.get(CompanyProject, projectId)
+    if project is None:
+        return None
+    changed = [f for f in PROJECT_FIELDS if f in values and values[f] is not None and values[f] != getattr(project, f)]
+    for field in changed:
+        setattr(project, field, values[field])
+    if changed and rag.supported(db):
+        db.execute(text("UPDATE company_projects SET embedding = NULL WHERE id = :id"), {"id": project.id})
+    db.add(AuditLog(actor_id=actorId, action="company.project_update", target=str(projectId), detail={"fields": changed}))
+    db.commit()
+    return project
+
+
+def deleteProject(db: Session, actorId: str, projectId: int) -> bool:
+    project = db.get(CompanyProject, projectId)
+    if project is None:
         return False
-    item.hidden_at = now()
-    db.add(AuditLog(actor_id=actorId, action="company.news_hide", target=str(newsId), detail={}))
+    db.delete(project)
+    db.add(AuditLog(actor_id=actorId, action="company.project_delete", target=str(projectId), detail={}))
     db.commit()
     return True
 
 
-# ---------- 최근 소식 찾기 ----------
-
-def parseRss(xmlText: str) -> list[dict]:
-    """Google 뉴스 RSS → [{title, url, publisher, published_at}]. 제목 끝의 ' - 언론사'는 따로 뗀다."""
-    items = []
-    for item in ET.fromstring(xmlText).iter("item"):
-        title = (item.findtext("title") or "").strip()
-        url = (item.findtext("link") or "").strip()
-        if not title or not url.startswith("https://"):
-            continue
-        publisher = (item.findtext("source") or "").strip()
-        if publisher and title.endswith(f" - {publisher}"):
-            title = title[: -len(publisher) - 3].strip()
-        try:
-            published = parsedate_to_datetime(item.findtext("pubDate") or "")
-        except (TypeError, ValueError):
-            published = None
-        items.append({"title": title[:300], "url": url[:1000], "publisher": publisher[:100], "published_at": published})
-    return items
+def projectLine(p: CompanyProject, chars: int = PROJECT_TEXT_CHARS) -> str:
+    head = p.title + (f" ({p.period})" if p.period else "")
+    return f"- {head}: {p.summary[:chars]}" if p.summary else f"- {head}"
 
 
-def monthWindows(today: date) -> list[tuple[date, date]]:
-    """오늘부터 6개월을 한 달 남짓씩 나눈 (after, before) 목록, 최근 것부터."""
-    step = NEWS_MONTHS_DAYS // NEWS_WINDOWS
-    return [(today - timedelta(days=step * (i + 1)), today - timedelta(days=step * i) + timedelta(days=1)) for i in range(NEWS_WINDOWS)]
-
-
-async def fetchNews(query: str, after: date, before: date) -> list[dict]:
-    params = {"q": f"{query} after:{after.isoformat()} before:{before.isoformat()}", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
-    async with httpx.AsyncClient(timeout=NEWS_TIMEOUT_SEC, follow_redirects=True) as http:
-        res = await http.get(NEWS_URL, params=params)
-    res.raise_for_status()
-    return parseRss(res.text)
-
-
-def recentUnique(items: list[dict], seen: set[str]) -> list[dict]:
-    """최근 6개월 안의 것만 최신 순으로. 날짜를 모르는 것·이미 고른 제목은 뺀다 (같은 기사가 여러 언론사로 나온 것)."""
-    since = now() - timedelta(days=NEWS_MONTHS_DAYS)
-    picked = []
-    for item in sorted((i for i in items if i["published_at"] and i["published_at"] >= since),
-                       key=lambda i: i["published_at"], reverse=True):
-        key = re.sub(r"\W+", "", item["title"])
-        if key not in seen:
-            seen.add(key)
-            picked.append(item)
-    return picked
-
-
-def aboutCompany(item: dict, terms: list[str]) -> bool:
-    """회사 소식인가: 제목에 검색어나 회사 이름이 있어야 한다 (2026-11-16 사용자 결정).
-    실측: 언론사 이름('네이버페이 머니스토리')만 검색어에 걸린 주식·건강 기사 7개가 섞였다."""
-    title = item["title"].lower()
-    return any(term.lower() in title for term in terms if term)
-
-
-def pickSpread(groups: list[list[dict]], limit: int = NEWS_LIMIT) -> list[dict]:
-    """달마다 limit/달 수 개씩 고르고, 모자라면 남은 것 중 최신 순으로 채운다."""
-    seen: set[str] = set()
-    groups = [recentUnique(g, seen) for g in groups]
-    share = limit // max(len(groups), 1)
-    picked = [item for g in groups for item in g[:share]]
-    rest = sorted((item for g in groups for item in g[share:]), key=lambda i: i["published_at"], reverse=True)
-    return sorted(picked + rest[:max(limit - len(picked), 0)], key=lambda i: i["published_at"], reverse=True)[:limit]
-
-
-def storeNews(db: Session, items: list[dict]) -> list[CompanyNews]:
-    """새로 찾은 소식으로 바꾼다: 이번에 찾지 못한 소식은 지우고, 없던 소식만 넣고, 6개월이 지난 것은 지운다.
-    보이는 소식이 NEWS_LIMIT 개를 넘으면 오래된 것부터 지운다. 제거한 소식(hidden_at)은 다시 넣지 않으려고 남긴다."""
-    if items:  # 하나도 못 찾았으면 있던 소식을 그대로 둔다
-        visibleNews(db).filter(CompanyNews.url.notin_([i["url"] for i in items])).delete(synchronize_session=False)
-    known = {u for (u,) in db.query(CompanyNews.url)}
-    added = []
-    for item in items:
-        if item["url"] in known:
-            continue
-        news = CompanyNews(**item)
-        db.add(news)
-        added.append(news)
-    db.flush()
-    since = now() - timedelta(days=NEWS_MONTHS_DAYS)
-    visibleNews(db).filter(CompanyNews.published_at < since).delete(synchronize_session=False)
-    for old in listNews(db)[NEWS_LIMIT:]:
-        db.delete(old)
-    db.flush()
-    return [n for n in added if n in db]
-
-
-async def refreshNews(actorId: str | None = None) -> dict:
-    """최근 소식 새로 찾기 (앱 시작 때, 관리자 [새로 찾기]). 실패하면 있던 소식을 그대로 둔다."""
-    with SessionLocal() as db:
-        profile = getProfile(db)
-        query = profile.news_query.strip() or profile.name
-        results = await asyncio.gather(*(fetchNews(query, after, before) for after, before in monthWindows(now().date())),
-                                       return_exceptions=True)
-        groups = [r for r in results if not isinstance(r, BaseException)]
-        failed = [type(r).__name__ for r in results if isinstance(r, BaseException)]
-        if failed:
-            log.warning("company news refresh: %d of %d searches failed (%s)", len(failed), len(results), ", ".join(set(failed)))
-        if not groups:
-            return {"ok": False, "added": 0, "total": visibleNews(db).count()}
-        terms = [query, profile.name]
-        found = pickSpread([[i for i in g if aboutCompany(i, terms)] for g in groups])
-        added = storeNews(db, found)
-        profile.news_refreshed_at = now()
-        db.add(AuditLog(actor_id=actorId, action="company.news_refresh", target="company_news",
-                        detail={"query": query, "found": len(found), "added": len(added)}))
-        db.commit()
-        await embedNews(db, added)
-        return {"ok": True, "added": len(added), "total": visibleNews(db).count()}
-
-
-async def embedNews(db: Session, items: list[CompanyNews]) -> None:
-    if not items or not rag.supported(db):
-        return
+async def embedMissingProjects(db: Session, timeoutSec: float = 60) -> int:
+    """임베딩이 빈 프로젝트를 채운다 (저장 직후, 앱을 켤 때). 실패하면 다음에 다시."""
+    if not rag.supported(db):
+        return 0
+    ids = [r.id for r in db.execute(text("SELECT id FROM company_projects WHERE embedding IS NULL")).all()]
+    projects = [db.get(CompanyProject, i) for i in ids]
+    if not projects:
+        return 0
     try:
-        vectors = await rag.embed([promptTitle(n.title, db) for n in items], timeoutSec=60)
+        vectors = await rag.embed([projectLine(p) for p in projects], timeoutSec=timeoutSec)
     except rag.EmbedUnavailable as exc:
-        log.warning("company news embed failed: %s", exc)
-        return
-    for news, vector in zip(items, vectors, strict=True):
-        db.execute(text("UPDATE company_news SET embedding = CAST(:v AS vector) WHERE id = :id"),
-                   {"v": rag.toLiteral(vector), "id": news.id})
+        log.warning("company project embed failed: %s", exc)
+        return 0
+    for project, vector in zip(projects, vectors, strict=True):
+        db.execute(text("UPDATE company_projects SET embedding = CAST(:v AS vector) WHERE id = :id"),
+                   {"v": rag.toLiteral(vector), "id": project.id})
     db.commit()
+    return len(projects)
+
+
+def relatedProjects(db: Session, vector: list[float] | None, count: int) -> list[CompanyProject]:
+    """찾을 글과 가장 비슷한 프로젝트 count 개 (RAG). 벡터가 없거나 SQLite 면 먼저 적은 순."""
+    if vector is not None and rag.supported(db):
+        rows = db.execute(text(
+            "SELECT id FROM company_projects WHERE embedding IS NOT NULL "
+            "ORDER BY embedding <=> CAST(:v AS vector) LIMIT :n"), {"v": rag.toLiteral(vector), "n": count}).all()
+        if rows:
+            return [db.get(CompanyProject, r.id) for r in rows]
+    return listProjects(db)[:count]
 
 
 # ---------- 질문·공고에 넣는 회사 정보 ----------
 
-def promptTitle(title: str, db: Session, profile: CompanyProfile | None = None) -> str:
-    """질문에 넣을 소식 제목: 검색어(모티프 회사 이름)를 우리 회사 이름으로 바꾼다 (사용자 결정 2026-11-16)."""
-    profile = profile or getProfile(db)
-    query = profile.news_query.strip()
-    if not query or query == profile.name:
-        return title
-    return re.sub(re.escape(query), profile.name, title, flags=re.IGNORECASE)
+# 프롬프트에 넣는 칸 (라벨, 칸). 회사 질문과 공고 초안이 쓰는 칸이 다르다.
+# llm-rt 는 요청 하나에 4,096 토큰이라(8,192 를 2개가 나눠 씀) 칸마다 앞부분만 넣는다.
+QUESTION_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("경영 이념", "mission"), ("인재상과 일하는 방식", "talent"),
+                   ("AI/AX 가 하는 일", "ai_ax_role"))
+POSTING_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("직무 소개", "jobs_intro"), ("AI/AX 가 하는 일", "ai_ax_role"),
+                  ("인재상과 일하는 방식", "talent"), ("사내 기술 스택", "tech_stack"))
 
 
-def relatedNews(db: Session, vector: list[float] | None, count: int = CONTEXT_NEWS_COUNT) -> list[CompanyNews]:
-    """찾을 글과 가장 비슷한 소식 count 개 (RAG). 벡터가 없거나 SQLite 면 최신 순."""
-    if vector is not None and rag.supported(db):
-        rows = db.execute(text(
-            "SELECT id FROM company_news WHERE hidden_at IS NULL AND embedding IS NOT NULL "
-            "ORDER BY embedding <=> CAST(:v AS vector) LIMIT :n"), {"v": rag.toLiteral(vector), "n": count}).all()
-        if rows:
-            return [db.get(CompanyNews, r.id) for r in rows]
-    return listNews(db)[:count]
-
-
-def profileText(profile: CompanyProfile, withJobs: bool = False) -> str:
-    parts = [f"회사 이름: {profile.name}", f"기본 정보: {profile.basics[:CONTEXT_TEXT_CHARS]}",
-             f"회사 소개: {profile.intro[:CONTEXT_TEXT_CHARS]}"]
-    if withJobs:
-        parts.append(f"직무 소개: {profile.jobs_intro[:CONTEXT_TEXT_CHARS]}")
-    parts.append(f"AI/AX 가 하는 일: {profile.ai_ax_role[:CONTEXT_TEXT_CHARS]}")
+def profileText(profile: CompanyProfile, fields=QUESTION_FIELDS, chars: int = CONTEXT_TEXT_CHARS) -> str:
+    parts = [f"회사 이름: {profile.name}"] + [f"{label}: {(getattr(profile, key) or '')[:chars]}" for label, key in fields]
     return "\n".join(p for p in parts if not p.endswith(": "))
 
 
-def questionContext(db: Session, vector: list[float] | None) -> str:
-    """회사 질문에 넣는 회사 정보 + 관련 최근 소식."""
+def withProjects(base: str, projects: list[CompanyProject]) -> str:
+    return base + ("\n회사가 진행한 프로젝트:\n" + "\n".join(projectLine(p) for p in projects) if projects else "")
+
+
+def pickPosts(db: Session, vector: list[float] | None, used: set[int] | None = None) -> list:
+    """가까운 기술 글. used 에 든 글(같은 면접의 앞 질문이 쓴 글)은 빼고, 다 썼으면 처음부터 다시 쓴다."""
+    from . import tech_blog
+
+    used = set() if used is None else used
+    posts = tech_blog.relatedPosts(db, vector, tech_blog.CONTEXT_POST_COUNT, used)
+    if not posts and used:
+        used.clear()
+        posts = tech_blog.relatedPosts(db, vector, tech_blog.CONTEXT_POST_COUNT, used)
+    used.update(p.id for p in posts)
+    return posts
+
+
+def techLines(db: Session, vector: list[float] | None, used: set[int] | None = None) -> str:
+    """질문 프롬프트에 넣는 기술 글 줄 (회사 질문·직무 질문 공통, 2026-11-17 사용자: 직무 질문에도 쓸 수 있음)."""
+    from . import tech_blog
+
     profile = getProfile(db)
-    news = [f"- {promptTitle(n.title, db, profile)}" for n in relatedNews(db, vector)]
-    return profileText(profile) + ("\n최근 소식:\n" + "\n".join(news) if news else "")
+    return "\n".join(tech_blog.promptLine(p, profile) for p in pickPosts(db, vector, used))
 
 
-def postingContext(db: Session) -> str:
-    """AI 공고 초안에 넣는 회사 정보 (직무 소개 포함, 소식은 넣지 않는다)."""
-    return profileText(getProfile(db), withJobs=True)
+def questionContext(db: Session, vector: list[float] | None, usedPosts: set[int] | None = None) -> str:
+    """회사 질문에 넣는 회사 정보 + 관련 프로젝트 + 관련 기술 글 (usedPosts 에 든 글은 뺀다)."""
+    profile = getProfile(db)
+    context = withProjects(profileText(profile), relatedProjects(db, vector, CONTEXT_PROJECT_COUNT))
+    lines = techLines(db, vector, usedPosts)
+    return context + ("\n회사가 요즘 다루는 기술 (지원자는 모를 수 있음):\n" + lines if lines else "")
+
+
+def postingContext(db: Session, vector: list[float] | None = None) -> str:
+    """AI 공고 초안에 넣는 회사 정보 (직무 소개·인재상·기술 스택 포함) + 그 공고와 가까운 프로젝트."""
+    return withProjects(profileText(getProfile(db), POSTING_FIELDS, POSTING_TEXT_CHARS),
+                        relatedProjects(db, vector, POSTING_PROJECT_COUNT))

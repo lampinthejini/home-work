@@ -44,6 +44,16 @@ def noJobNewsSearch(monkeypatch):
     monkeypatch.setattr(job_news, "fetchQuery", nothing)
 
 
+@pytest.fixture(autouse=True)
+def noTechBlogFetch(monkeypatch):
+    """회사 기술 블로그 가져오기(tech_blog)가 테스트에서 실제 인터넷으로 나가지 않게 한다."""
+    from app.services import tech_blog
+
+    async def offline(url):
+        raise tech_blog.httpx.ConnectError("offline in tests")
+    monkeypatch.setattr(tech_blog, "fetchFeed", offline)
+
+
 @pytest.fixture()
 def sessionFactory(monkeypatch):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)

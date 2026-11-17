@@ -23,12 +23,13 @@ from pydantic import BaseModel, Field
 from .. import db as dbModule
 from ..interview import checkpoint
 from ..models import JobPosting
-from . import company, llm
+from . import company, llm, rag
 
 log = logging.getLogger("huge.posting_draft")
 
 DRAFT_TIMEOUT_SEC = 150
 DRAFT_ATTEMPTS = 2
+PROJECT_QUERY_CHARS = 1000
 CAREER_LABEL = {"junior": "신입", "experienced": "경력", "any": "경력 무관"}
 
 # 차별로 보일 수 있는 표현 (화면정의서 O-05: 규칙 기반 사전). 막지 않고 알려 준다
@@ -277,8 +278,18 @@ def withReferences(prompt: str, references: list[str]) -> str:
             f"예전 공고에만 있는 사실을 새 공고에 넣지 마라.\n{blocks}")
 
 
+async def projectQueryVector(db, prompt: str) -> list[float] | None:
+    """이 공고 입력과 가까운 회사 프로젝트를 고르려는 벡터 (CONFLICTS C-21). 임베딩이 안 되면 None (먼저 적은 순)."""
+    if not rag.supported(db) or not company.listProjects(db):
+        return None
+    try:
+        return (await rag.embed([prompt[:PROJECT_QUERY_CHARS]]))[0]
+    except rag.EmbedUnavailable:
+        return None
+
+
 def withCompany(prompt: str, companyInfo: str) -> str:
-    """저장해 둔 회사 정보 (2026-11-16 사용자 결정, C-20). 부서 소개·업무를 회사가 하는 일에 맞추는 데만 쓴다."""
+    """저장해 둔 회사 정보와 가까운 회사 프로젝트 (C-20, C-21). 부서 소개·업무를 회사가 하는 일에 맞추는 데만 쓴다."""
     if not companyInfo:
         return prompt
     return (f"{prompt}\n\n우리 회사 정보다. 부서 소개와 업무를 회사가 하는 일에 맞추는 데 참고하고, "
@@ -351,7 +362,7 @@ def buildDraftGraph():
         with dbModule.SessionLocal() as db:
             posting = db.get(JobPosting, state["postingId"])
             references = findReferences(db, posting) if posting is not None else []
-            companyInfo = company.postingContext(db)
+            companyInfo = company.postingContext(db, await projectQueryVector(db, state["prompt"]))
         notes = [f"같은 직무의 예전 공고 {len(references)}건을 참고했습니다"] if references else []
         notes.append("저장된 회사 정보를 참고했습니다")
         return {"prompt": withCompany(state["prompt"], companyInfo), "references": references,

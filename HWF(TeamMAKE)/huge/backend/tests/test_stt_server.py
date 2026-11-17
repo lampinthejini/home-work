@@ -77,6 +77,46 @@ def testHotwordsAreGivenForFinalAndCaption(sttServer):
     assert len(seen) == 2
 
 
+def testExtraHotwordsGoFirstAndFixedWordsStay(sttServer):
+    """질문마다 주는 말은 앞에, 고정 낱말은 뒤에 남는다. 토큰 한도를 넘으면 더 주는 말의 뒤쪽부터 뺀다."""
+    module, _ = sttServer
+    assert module.hotwordsWith("") == module.HOTWORDS
+    assert module.hotwordsWith("  벡터 검색  Qwen ") == f"벡터 검색 Qwen {module.HOTWORDS}"
+
+    class OneTokenPerWord:
+        def encode(self, text, add_special_tokens=False):
+            return types.SimpleNamespace(ids=text.split())
+
+    module.model = types.SimpleNamespace(hf_tokenizer=OneTokenPerWord())
+    fixed = len(module.HOTWORDS.split())
+    room = module.HOTWORDS_TOKEN_LIMIT - fixed - 1
+    extra = " ".join(f"w{i}" for i in range(room + 5))
+    result = module.hotwordsWith(extra)
+    assert result.startswith("w0 w1") and result.endswith(module.HOTWORDS)
+    assert len(result.split()) < module.HOTWORDS_TOKEN_LIMIT
+
+
+def testTranscribeUsesHotwordsFromRequest(sttServer):
+    module, _ = sttServer
+    seen = []
+
+    class RecordingModel:
+        def transcribe(self, audio, **options):
+            seen.append(options["hotwords"])
+            return [], None
+
+    module.model = RecordingModel()
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=module.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://stt") as client:
+            await client.post("/transcribe", content=bytes(320), params={"hotwords": "프롬프트 인젝션"})
+            await client.post("/transcribe", content=bytes(320))
+
+    asyncio.run(scenario())
+    assert seen == [f"프롬프트 인젝션 {module.HOTWORDS}", module.HOTWORDS]
+
+
 def testHealthAnswersWhileTranscribing(sttServer):
     module, model = sttServer
 

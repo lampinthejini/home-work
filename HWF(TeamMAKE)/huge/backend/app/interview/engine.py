@@ -693,19 +693,21 @@ class LiveSession:
         answeredAt = time.monotonic()
         row = self.questionRow(rowId)
         pcm = bytes(self.pcm)
-        transcript, words, sttSec = await self.transcribeWithRetry(pcm)
+        with dbSession() as db:
+            hints = speech.sttHints(row.text, db.get(Application, self.appId).resume_snapshot or {})
+        transcript, words, sttSec = await self.transcribeWithRetry(pcm, hints)
         await self.saveAnswer(row, pcm, transcript, words, sttSec, endReason)
         await self.send({"type": "caption", "seq": row.seq, "answer_no": row.answer_order, "chunk_no": 10_000,
                          "text": transcript, "is_final": True})
         return {"answeredAt": answeredAt, "sttSec": sttSec}
 
-    async def transcribeWithRetry(self, pcm: bytes) -> tuple[str, list, float]:
+    async def transcribeWithRetry(self, pcm: bytes, hints: str = "") -> tuple[str, list, float]:
         if len(pcm) < 16000 * 2 * 0.3:  # 0.3초 미만 = 무음 답변
             return "", [], 0.0
         attempts = 1 + self.settings["stt_retry_limit"]
         for attempt in range(attempts):
             try:
-                result = await speech.transcribe(pcm, timeoutSec=self.settings["stt_attempt_timeout_sec"])
+                result = await speech.transcribe(pcm, timeoutSec=self.settings["stt_attempt_timeout_sec"], hints=hints)
                 return result.get("text", ""), result.get("words", []), float(result.get("elapsed_sec", 0))
             except speech.SpeechError as exc:
                 log.warning("stt attempt %d failed: %s", attempt + 1, exc)

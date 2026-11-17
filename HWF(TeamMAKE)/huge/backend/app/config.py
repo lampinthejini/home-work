@@ -24,8 +24,6 @@ class Env:
     adminEmail: str
     adminInitialPassword: str
     publicOrigin: str
-    itQuestionsPath: str
-    personalityQuestionsPath: str
     trustedProxyHost: str
     loginExemptIps: str
 
@@ -47,8 +45,6 @@ def loadEnv() -> Env:
         adminEmail=os.environ.get("ADMIN_EMAIL", "admin@huge.local"),
         adminInitialPassword=os.environ.get("ADMIN_INITIAL_PASSWORD", ""),
         publicOrigin=os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8080"),
-        itQuestionsPath=os.environ.get("IT_QUESTIONS_PATH", "/data/it_questions.xlsx"),
-        personalityQuestionsPath=os.environ.get("PERSONALITY_QUESTIONS_PATH", "/data/personality_questions.xlsx"),
         trustedProxyHost=os.environ.get("TRUSTED_PROXY_HOST", "frontend"),
         loginExemptIps=os.environ.get("LOGIN_EXEMPT_IPS", ""),
     )

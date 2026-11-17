@@ -7,7 +7,7 @@
 import asyncio
 from datetime import timedelta
 
-from app.services import company, job_news, question_compose, rag
+from app.services import job_news, question_compose, rag
 from app.timeutil import now
 from tests.test_question_rag import composed, fakeVector, makeApplication, world  # noqa: F401 — world 는 pytest fixture
 
@@ -99,9 +99,14 @@ def test_jobNewsSkippedWhenRagIsOff(sessionFactory, world, monkeypatch):  # noqa
     assert called == []  # 질문을 만들지 않을 때는 찾지도 않는다
 
 
-def test_companyNewsNeedCompanyInTitle():
-    terms = ["네이버", "AIIT"]
-    assert company.aboutCompany(item("네이버 지도, 사우디 1위"), terms)
-    assert company.aboutCompany(item("NAVER와 네이버웹툰"), terms)
-    assert company.aboutCompany(item("AIIT 신규 서비스"), terms)
-    assert not company.aboutCompany({**item("뉴욕증시, 매파 분위기"), "publisher": "네이버페이 머니스토리"}, terms)
+
+def test_parseRssSplitsPublisherAndSkipsBadLinks():
+    xml = ("<?xml version='1.0' encoding='UTF-8'?><rss version='2.0'><channel>"
+           "<item><title>AI 에이전트 공개 - 전자신문</title><link>https://news.example.com/a</link>"
+           "<pubDate>Mon, 16 Nov 2026 01:00:00 GMT</pubDate><source url='https://etnews.com'>전자신문</source></item>"
+           "<item><title>링크가 이상함</title><link>javascript:alert(1)</link></item>"
+           "<item><title>날짜 없음</title><link>https://news.example.com/b</link></item>"
+           "</channel></rss>")
+    items = job_news.parseRss(xml)
+    assert [(i["title"], i["publisher"]) for i in items] == [("AI 에이전트 공개", "전자신문"), ("날짜 없음", "")]
+    assert items[0]["published_at"].year == 2026 and items[1]["published_at"] is None

@@ -244,18 +244,37 @@ class CompanyProfile(Base):
     intro: Mapped[str] = mapped_column(Text, default="")  # 회사 소개
     jobs_intro: Mapped[str] = mapped_column(Text, default="")  # 직무 소개
     ai_ax_role: Mapped[str] = mapped_column(Text, default="")  # AI/AX 가 하는 일
-    news_query: Mapped[str] = mapped_column(String(100), default="네이버")  # 최근 소식 검색어
-    news_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 2026-11-17 추가 (사용자 결정, CONFLICTS C-22): 경영 이념·중점 과제, 인재상, 사내 기술 스택
+    mission: Mapped[str] = mapped_column(Text, default="")
+    talent: Mapped[str] = mapped_column(Text, default="")
+    tech_stack: Mapped[str] = mapped_column(Text, default="")
+    # 회사 기술 블로그 (사용자 결정: 모티프 회사의 기술 블로그를 우리 회사 최신 기술로 씀)
+    tech_feed_url: Mapped[str] = mapped_column(String(500), default="")
+    tech_source_name: Mapped[str] = mapped_column(String(100), default="")  # 글에 나오면 회사 이름으로 바꿀 말
+    tech_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
-class CompanyNews(Base):
-    """회사 최근 소식 (뉴스·게시글 제목과 링크). 관리자가 [제거]하면 hidden_at 을 남겨 다음 새로 찾기에서 다시 들어오지 않게 한다."""
-    __tablename__ = "company_news"
+class CompanyProject(Base):
+    """회사가 진행한 프로젝트 (2026-11-17 사용자 결정, CONFLICTS C-21). 관리자가 적고, 회사 질문·AI 공고 초안이 가까운 것을 골라 쓴다.
+    embedding vector(1024) 칸은 PostgreSQL 에서만 migrate 가 더한다."""
+    __tablename__ = "company_projects"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(100))
+    period: Mapped[str] = mapped_column(String(50), default="")  # 예: 2023~2024
+    summary: Mapped[str] = mapped_column(Text, default="")  # 무엇을 왜 했고 어떤 기술·결과가 있었나
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class CompanyTechPost(Base):
+    """회사 기술 블로그 글 (2026-11-17 사용자 결정, CONFLICTS C-22). 앱을 켤 때와 관리자 [새로 가져오기]로 채운다.
+    관리자가 [제거]하면 hidden_at 을 남겨 다시 들어오지 않게 한다. embedding vector(1024) 칸은 PostgreSQL 에서만 migrate 가 더한다."""
+    __tablename__ = "company_tech_posts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(300))
     url: Mapped[str] = mapped_column(String(1000), unique=True)
-    publisher: Mapped[str] = mapped_column(String(100), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")  # 본문 앞부분 (태그를 뺀 글)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

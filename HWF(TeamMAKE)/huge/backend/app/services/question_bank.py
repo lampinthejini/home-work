@@ -74,7 +74,7 @@ RESERVE_QUESTIONS = {
 
 
 # 다른 회사 이름이 들어간 질문과 면접과 무관한 글 (CONFLICTS F4-2, U1 '한 기업 전용'). 걸리면 예비 질문에 넣지 않는다.
-# 네이버는 AIIT 의 모티프라 최근 소식을 AIIT 이름으로 바꿔 넣는다 — 질문에 남아 있으면 뺀다 (C-20).
+# 네이버는 AIIT 의 모티프라 프로젝트를 옮겨 적을 때 이름이 남을 수 있다 — 질문에 남아 있으면 뺀다 (C-20, C-21).
 # 기술 이름(TensorFlow·AWS·Amazon SageMaker 등)은 회사 제품이어도 기술 지식 질문이라 남긴다.
 OTHER_COMPANY = re.compile(
     r"(?<![A-Za-z])(Stripe|SAP|Coinbase|Chime|SoFi|NVIDIA|Robinhood|Netflix|Goldman Sachs|Glider AI|Morgan Stanley|PayPal|"

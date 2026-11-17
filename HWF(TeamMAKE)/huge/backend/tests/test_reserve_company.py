@@ -2,14 +2,14 @@
 
 - 엑셀 질문 DB 를 지우고 종류마다 기본 질문 10개. AI 질문은 승인 없이 예비 질문에 (0.8 이상 비슷하면 빼고, 종류마다 100개까지)
 - 관리자 예비 질문: 질문분야 · 질문(직접 고침) · 직무 · 해당 직무만 · 삭제(여러 개), 하루 동안 NEW
-- 회사 정보와 최근 소식(앱 시작 때 새로 찾기, 제목·링크·제거), 회사 질문 RAG
+- 회사 정보와 회사 프로젝트(관리자가 적음, 2026-11-17 C-21 — 최근 소식은 지움), 회사 질문·공고 초안 RAG
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.domain import question_text
-from app.models import AuditLog, CompanyNews, InterviewQuestion, JobPosting, Question
+from app.models import AuditLog, CompanyProject, InterviewQuestion, JobPosting, Question
 from app.services import company, question_bank, question_compose, rag
 from app.timeutil import now
 from tests.test_question_rag import composed, makeApplication, world  # noqa: F401 — world 는 pytest fixture
@@ -122,77 +122,47 @@ def test_applicantCannotUseReserveOrCompanyAdmin(client):
     assert client.get("/admin/company").status_code in (401, 403)
 
 
-# ---------- 회사 정보 · 최근 소식 ----------
+# ---------- 회사 정보 · 회사 프로젝트 ----------
 
-RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
-<item><title>네이버, 쇼핑 AI 에이전트 공개 - 전자신문</title><link>https://news.example.com/a</link>
-<pubDate>{recent}</pubDate><source url="https://etnews.com">전자신문</source></item>
-<item><title>네이버, 쇼핑 AI 에이전트 공개 - 한국경제</title><link>https://news.example.com/b</link>
-<pubDate>{recent}</pubDate><source url="https://hankyung.com">한국경제</source></item>
-<item><title>오래된 소식</title><link>https://news.example.com/old</link><pubDate>{old}</pubDate></item>
-<item><title>링크가 이상함</title><link>javascript:alert(1)</link><pubDate>{recent}</pubDate></item>
-</channel></rss>"""
-
-
-def rssText() -> str:
-    fmt = "%a, %d %b %Y %H:%M:%S GMT"
-    return RSS.format(recent=(datetime.utcnow() - timedelta(days=3)).strftime(fmt), old=(datetime.utcnow() - timedelta(days=200)).strftime(fmt))
-
-
-def test_parseRssAndPickRecent():
-    items = company.parseRss(rssText())
-    assert [i["url"] for i in items] == ["https://news.example.com/a", "https://news.example.com/b", "https://news.example.com/old"]
-    assert (items[0]["title"], items[0]["publisher"]) == ("네이버, 쇼핑 AI 에이전트 공개", "전자신문")
-    picked = company.pickSpread([items])
-    assert [i["url"] for i in picked] == ["https://news.example.com/a"]  # 6개월 지난 것·같은 제목은 뺀다
-
-
-def test_pickSpreadTakesEachMonthThenFills():
-    """한 번에 찾으면 그날 기사만 나온다(실측) → 달마다 고르고, 모자란 달은 다른 달 기사로 채운다."""
-    def item(month, i):
-        return {"title": f"{month}월 소식 {i}", "url": f"https://n.example.com/{month}/{i}", "publisher": "",
-                "published_at": now() - timedelta(days=30 * month + i)}
-    groups = [[item(0, i) for i in range(20)], [item(1, i) for i in range(2)]] + [[item(m, i) for i in range(5)] for m in range(2, 6)]
-    picked = company.pickSpread(groups, limit=30)
-    months = [int(p["title"].split("월")[0]) for p in picked]
-    assert len(picked) == 30 and months.count(1) == 2 and all(months.count(m) == 5 for m in range(2, 6)) and months.count(0) == 8
-    windows = company.monthWindows(now().date())
-    assert len(windows) == 6 and windows[0][1] > now().date() and windows[-1][0] <= now().date() - timedelta(days=180)
-
-
-def test_refreshKeepsRemovedNewsOutAndLimit(adminClient, sessionFactory, monkeypatch):
-    monkeypatch.setattr(company, "SessionLocal", sessionFactory)
-
-    async def fakeFetch(query, after, before):
-        assert query == "네이버"
-        return company.parseRss(rssText())
-    monkeypatch.setattr(company, "fetchNews", fakeFetch)
-    body = adminClient.post("/admin/company/news/refresh").json()
-    assert body["refresh"] == {"ok": True, "added": 1, "total": 1}
-    newsId = body["news"][0]["id"]
-    assert body["news"][0]["url"] == "https://news.example.com/a"
-    assert adminClient.post(f"/admin/company/news/{newsId}/hide").json()["news"] == []
-    assert adminClient.post("/admin/company/news/refresh").json()["refresh"]["added"] == 0  # 제거한 소식은 다시 안 들어온다
-    assert adminClient.post(f"/admin/company/news/{newsId}/hide").status_code == 404
-
+def test_adminAddsEditsAndDeletesProjects(adminClient, sessionFactory, monkeypatch):
+    monkeypatch.setattr(company, "PROJECT_LIMIT", 2)
+    body = adminClient.post("/admin/company/projects", json={"title": " 검색 요약 AI ", "period": "2024~2025",
+                                                             "summary": "검색 결과를 AI 가 요약합니다."}).json()
+    assert body["project_limit"] == 2
+    assert [(p["title"], p["period"]) for p in body["projects"]] == [("검색 요약 AI", "2024~2025")]
+    projectId = body["projects"][0]["id"]
+    body = adminClient.patch(f"/admin/company/projects/{projectId}", json={"summary": "바뀐 내용"}).json()
+    assert body["projects"][0]["summary"] == "바뀐 내용" and body["projects"][0]["title"] == "검색 요약 AI"
+    assert adminClient.post("/admin/company/projects", json={"title": "   "}).status_code == 422
+    assert adminClient.patch(f"/admin/company/projects/{projectId}", json={"title": " "}).status_code == 422
+    assert adminClient.post("/admin/company/projects", json={"title": "둘째"}).status_code == 200
+    assert adminClient.post("/admin/company/projects", json={"title": "셋째"}).status_code == 409  # 개수 한도
+    assert adminClient.delete(f"/admin/company/projects/{projectId}").json()["projects"][0]["title"] == "둘째"
+    assert adminClient.delete(f"/admin/company/projects/{projectId}").status_code == 404
+    assert adminClient.patch(f"/admin/company/projects/{projectId}", json={"title": "x"}).status_code == 404
     with sessionFactory() as db:
-        db.add_all([CompanyNews(title=f"소식 {i}", url=f"https://n.example.com/{i}", published_at=now() - timedelta(hours=i))
-                    for i in range(company.NEWS_LIMIT + 5)])
-        db.flush()
-        company.storeNews(db, [])
+        actions = [a.action for a in db.query(AuditLog).filter(AuditLog.action.like("company.project%")).order_by(AuditLog.id)]
+        assert actions == ["company.project_add", "company.project_update", "company.project_add", "company.project_delete"]
+
+
+def test_newsIsGone(adminClient):
+    """회사 최근 소식(뉴스)은 지웠다 (2026-11-17 사용자 결정, C-21)."""
+    body = adminClient.get("/admin/company").json()
+    assert "news" not in body and "news_query" not in body["profile"]
+    assert adminClient.post("/admin/company/news/refresh").status_code in (404, 405)
+    assert not hasattr(company, "refreshNews")
+
+
+def test_postingContextHasCompanyInfoAndProjects(sessionFactory):
+    with sessionFactory() as db:
+        assert "회사가 진행한 프로젝트" not in company.postingContext(db)  # 없으면 칸도 없다
+        db.add_all([CompanyProject(title=f"프로젝트 {i}", period="2025", summary="내용 " * 200) for i in range(7)])
         db.commit()
-        assert company.visibleNews(db).count() == company.NEWS_LIMIT
-        assert company.listNews(db)[0].title == "소식 0"
-
-
-def test_refreshFailureKeepsNews(sessionFactory, monkeypatch):
-    import httpx
-    monkeypatch.setattr(company, "SessionLocal", sessionFactory)
-
-    async def down(query, after, before):
-        raise httpx.ConnectError("offline")
-    monkeypatch.setattr(company, "fetchNews", down)
-    assert asyncio.run(company.refreshNews())["ok"] is False
+        text = company.postingContext(db)
+    assert "직무 소개:" in text and "회사가 진행한 프로젝트:" in text
+    lines = [line for line in text.splitlines() if line.startswith("- 프로젝트")]
+    assert len(lines) == company.POSTING_PROJECT_COUNT
+    assert lines[0].startswith("- 프로젝트 0 (2025): ") and len(lines[0]) < company.PROJECT_TEXT_CHARS + 30
 
 
 def test_adminEditsCompanyAndPostingsFollowName(adminClient, sessionFactory):
@@ -200,7 +170,7 @@ def test_adminEditsCompanyAndPostingsFollowName(adminClient, sessionFactory):
         db.add(JobPosting(status="draft", title="공고", contact_email="r@example.com"))
         db.commit()
     body = adminClient.get("/admin/company").json()
-    assert body["profile"]["name"] == "AIIT" and "업무 혁신(AX)" in body["profile"]["ai_ax_role"] and body["news_limit"] == 30
+    assert body["profile"]["name"] == "AIIT" and "업무 혁신(AX)" in body["profile"]["ai_ax_role"] and body["projects"] == []
     with sessionFactory() as db:
         assert {p.company_name for p in db.query(JobPosting)} == {"AIIT"}  # 회사명이 빈 공고에 채운다
     res = adminClient.put("/admin/company", json={"name": "AIIT 코리아", "intro": "새 소개입니다."})
@@ -216,16 +186,25 @@ def test_newDraftPostingUsesCompanyName(adminClient):
     assert res.status_code == 201 and res.json()["company_name"] == "AIIT"
 
 
-def test_companyQuestionPromptGetsCompanyInfoAndNews(sessionFactory, world):  # noqa: F811
+def test_postingIgnoresCompanyNameFromRequest(adminClient):
+    """회사 이름은 회사 정보 하나에서만 온다 (C-20, API 명세서 v1.5 '보내도 쓰지 않음')."""
+    res = adminClient.post("/admin/postings", json={"title": "AI/AX 엔지니어", "company_name": "다른 회사"})
+    assert res.status_code == 201 and res.json()["company_name"] == "AIIT"
+    postingId = res.json()["posting_id"]
+    res = adminClient.patch(f"/admin/postings/{postingId}", json={"company_name": "다른 회사"})
+    assert res.status_code == 200 and res.json()["company_name"] == "AIIT"
+
+
+def test_companyQuestionPromptGetsCompanyInfoAndProjects(sessionFactory, world):  # noqa: F811
     fake = world()
     with sessionFactory() as db:
-        db.add(CompanyNews(title="네이버, 쇼핑 AI 에이전트 공개", url="https://news.example.com/a", published_at=now()))
+        db.add(CompanyProject(title="쇼핑 AI 에이전트", period="2025", summary="상품을 대신 찾아 주는 에이전트"))
         db.commit()
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     assert len(composed(sessionFactory, appId)) == 10
     companyPrompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 회사"))
-    assert "회사 이름: AIIT" in companyPrompt and "AIIT, 쇼핑 AI 에이전트 공개" in companyPrompt  # 검색어를 회사 이름으로
-    assert "네이버" not in companyPrompt
+    assert "회사 이름: AIIT" in companyPrompt and "- 쇼핑 AI 에이전트 (2025): 상품을 대신 찾아 주는 에이전트" in companyPrompt
+    assert "최근 소식" not in companyPrompt
     jobPrompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 직무"))
     assert "<회사>" not in jobPrompt  # 회사 정보는 회사 질문에만
