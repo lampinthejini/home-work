@@ -293,7 +293,7 @@ flowchart TB
 | 코드 실행 상자 | Docker · python:3.11-slim | 3.11 | `python:3.11-slim` · docker(Python SDK) 7.1.0 | 서버와 같은 파이썬 버전이라 실행 결과가 어긋나지 않는다 | 인터넷 없음(9장). 만드는 쪽은 worker-sandbox뿐 (B4) |
 | 메일 | Mailpit (개발) · Gmail SMTP (운영, 이후 범위) | Mailpit 1.x | `axllent/mailpit:v1.24` | 개발은 밖으로 보내지 않는 시험용 메일 서버를 쓴다. 운영용 팀 Gmail 연결은 아직 없다 | 앱 비밀번호는 `.env`에만 |
 | 실행 | Docker Engine · Docker Compose · NVIDIA Container Toolkit | Compose v2 (`docker compose`) | compose 파일 3개 | compose 파일로 모든 상자와 그래픽카드 연결을 정할 수 있다 | 127.0.0.1에서만 실행(2-3) |
-| 그 밖의 라이브러리 (원본 표에 없음) | 비밀번호 Argon2id · AES-256-GCM 암호화 · 엑셀 읽기 · 뉴스 RSS 읽기 | — | argon2-cffi 25.1.0 · cryptography 46.0.1 · openpyxl 3.1.5 · httpx(요청)·xml.etree(파이썬 기본, RSS 읽기) | 11장·4-2·7-4에서 쓴다. openpyxl 은 엑셀 질문 DB 를 없앤 뒤(C-20) 코드에서 쓰지 않는다(requirements 에만 남음) | — |
+| 그 밖의 라이브러리 (원본 표에 없음) | 비밀번호 Argon2id · AES-256-GCM 암호화 · 뉴스 RSS 읽기 | — | argon2-cffi 25.1.0 · cryptography 46.0.1 · httpx(요청)·xml.etree(파이썬 기본, RSS 읽기) | 11장·4-2·7-4에서 쓴다. 엑셀 읽기(openpyxl)는 엑셀 질문 DB 를 없애며(C-20) 2026-11-16 에 뺐다 | — |
 
 버전 기준은 2026년 10월 기준이다. 정확한 버전은 처음 구현할 때 고정 파일로 묶는다.
 

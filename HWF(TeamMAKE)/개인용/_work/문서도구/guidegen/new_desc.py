@@ -1,0 +1,108 @@
+"""2026-11-10 코드에서 새로 생기거나 하는 일이 바뀐 항목의 '하는 일' (코드 본문을 읽고 썼다)."""
+
+FILE_ROLE = {
+    # 2026-11-16 (C-20)
+    'app/routers/admin_company.py': '관리자 회사 정보 API — 회사 정보 보기·고치기, 회사 최근 소식 새로 찾기·[제거] (CONFLICTS C-20)',
+    'app/services/company.py': '회사 정보와 회사 최근 소식 — 가상 회사 AIIT 정보, Google 뉴스 RSS 로 최근 6개월 소식 찾기·거르기·저장, 회사 질문·AI 공고 초안에 넣을 참고 글 (CONFLICTS C-20)',
+    'app/services/job_news.py': '직무 관련 최근 소식 — 질문 만들기 전에 30초 안에 찾아 직무 질문 자리에 넣는 임시 자료. DB 에 저장하지 않는다 (CONFLICTS C-20)',
+    "app/domain/question_text.py": "AI 질문 글 검사 — 본질문(T2·T3)과 꼬리질문(T4)이 같이 쓰는 규칙. 찌꺼기·답변 방식 지시·두 가지 묻기·질문 아님·어색한 말끝·100자, 예/아니오 질문 판별 (CONFLICTS C-16·C-17)",
+    "app/services/posting_questions.py": "공고 기반 질문 후보 — 게시한 공고로 직무·회사 질문 후보를 만들어 '검토 대기'로 넣고, 인터넷 참고 후보 파일을 불러온다 (CONFLICTS C-17)",
+}
+
+NEW = {
+    # 2026-11-16 (C-20)
+    'app.main:indexMissing.run': 'DB 세션을 열어 임베딩이 빈 예비 질문을 채우고 채운 개수를 돌려준다 (pgvector 가 없으면 0)',
+    'app.manage:resetQuestions': '명령 `reset-questions`: 예비 질문을 기본 40개로 되돌리고 임베딩을 다시 만든다',
+    'app.routers.admin_company:companyView': '화면에 돌려줄 회사 정보 + 보이는 최근 소식 목록 + 소식 최대 개수',
+    'app.routers.admin_company:ProfileIn': '회사 정보 고치기 요청 모양(이름·기본 정보·회사 소개·직무 소개·AI/AX 가 하는 일·소식 검색어, 모두 선택)',
+    'app.routers.admin_questions:jobName': '직무 코드 → 직무 이름 (없으면 코드 그대로, 비면 빈 글)',
+    'app.routers.admin_questions:isNew': '들어온 지 하루가 안 된 질문인가 (화면의 NEW 표시)',
+    'app.routers.admin_questions:reserveQuery': "예비 질문(source='reserve')만 고르는 조회의 시작",
+    'app.routers.admin_questions:QuestionPatch': "예비 질문 고치기 요청 모양(글, '해당 직무만' 켜기·끄기)",
+    'app.routers.admin_questions:reserveOr404': '번호로 예비 질문을 찾는다. 없거나 예비 질문이 아니면 404',
+    'app.routers.admin_questions:DeleteIn': '여러 예비 질문 지우기 요청 모양(번호 목록, 1개 이상·상한까지)',
+    'app.services.company:profileView': '회사 정보를 화면용 dict 로 (칸들 + 소식을 마지막으로 찾은 시각)',
+    'app.services.company:visibleNews': '[제거]하지 않은 최근 소식만 고르는 조회의 시작',
+    'app.services.company:newsView': '최근 소식 하나를 화면용 dict 로 (제목·링크·출처·날짜)',
+    'app.services.company:listNews': '보이는 최근 소식을 최신 날짜 순으로',
+    'app.services.company:hideNews': '최근 소식에 [제거] 표시(hidden_at)를 남기고 감사 기록을 쓴다. 없거나 이미 지웠으면 False',
+    'app.services.company:fetchNews': '검색어와 기간(after·before)으로 Google 뉴스 RSS 를 한 번 읽어 기사 목록으로 바꾼다',
+    'app.services.company:embedNews': '새 소식 제목(검색어를 회사 이름으로 바꾼 글)을 임베딩해 저장한다. 임베딩 서버가 없으면 그냥 넘어감',
+    'app.services.company:profileText': '프롬프트에 넣을 회사 정보 글 (이름·기본 정보·회사 소개·[직무 소개]·AI/AX, 칸마다 글자 수 제한, 빈 칸은 뺌)',
+    'app.services.job_news:JobNews': '직무 소식 하나 (제목과 임베딩 벡터). 메모리에만 둔다',
+    'app.services.job_news:fetchQuery': '직무 검색어 하나로 최근 며칠 Google 뉴스 RSS 를 읽어 기사 목록으로 바꾼다',
+    'app.services.question_bank:newReserve': '예비 질문 행 하나를 만든다 (종류별 평가 항목·90초·같은 글 묶음 키를 채움, 저장은 부르는 쪽)',
+    'app.services.question_bank:reserveCount': '그 종류 예비 질문이 지금 몇 개인가 (종류마다 100개 상한 확인)',
+    'app.services.question_bank:isKnown': '같은 글(띄어쓰기·문장부호 무시)의 질문이 이미 있는가',
+    'app.services.question_compose:isTopicLine': "직무 주제로 쓸 줄인가 — '주요 업무:' 같은 칸 제목 줄과 기술 낱말 없는 태도 줄('협업·소통')은 아니다",
+    # domain/question_text.py
+    "app.domain.question_text:isYesNo": "예/아니오로 답할 수 있는 질문인가 (의문사가 없고 '설명해 주세요' 같은 부탁 꼴도 아님)",
+    "app.domain.question_text:cleanQuestion": "질문 끝에 새어 나온 따옴표·괄호·JSON 조각을 떼고 앞뒤 빈칸을 지운다",
+    "app.domain.question_text:textProblem": "질문 글의 문제 코드를 돌려준다(foreign_script · junk_text · meta_phrase · compound_question · not_question · awkward_ending · too_long). 괜찮으면 None",
+    # interview
+    "app.interview.engine:followupPrompt": "꼬리질문 판단 프롬프트. 본질문이 예/아니오 질문이면 '이유가 없으면 이유를 물어라'를 덧붙인다",
+    "app.interview.engine:yesNoFollowup": "예/아니오 질문에 30자보다 짧게 답했으면 LLM 없이 '그렇게 답하신 이유를 구체적으로 말씀해 주세요.'를 꼬리질문으로 정한다",
+    "app.interview.graph:validateFollowup": "꼬리질문 검사: 길이·한국어·일본어/한자·차별/사적 주제, 그리고 본질문과 같은 글 검사(question_text). 문제 코드, 맞으면 None",
+    # manage
+    "app.manage:loadWebQuestions": "명령 load_web_questions <공고 id>: 인터넷 참고 후보 파일(WEB_QUESTIONS_PATH)을 검토 대기로 넣는다",
+    # routers
+    "app.routers.admin_questions:scopeView": "질문의 적용 범위를 화면용으로: 이 공고만(공고 제목) · 이 직무만(직무 이름) · 공통",
+    "app.routers.admin_questions:view": "질문을 화면용 dict 로 (종류·글·상태·출처 category·적용 범위 scope)",
+    "app.routers.admin:publish": "`POST /admin/postings/{postingId}/publish` — 공고를 게시하고, 커밋 뒤 공고 기반 질문 후보 만들기를 뒤에서 시작한다(posting_questions.schedule)",
+    # services/question_compose.py
+    "app.services.question_compose:scopeFor": "질문 적용 범위: 회사 질문 → 그 공고(posting_id), 직무 질문 → 그 직무(job_code), 인성 → 공통",
+    "app.services.question_compose:candidates": "질문은행 대체 후보: 같은 종류의 사용 중 질문 중 적용 범위가 맞는 것(자기 공고·같은 직무·공통)을 덜 쓴 순으로",
+    "app.services.question_compose:checkGenerated": "만든 질문 확인: 형식·요구하는 일 1개·글 검사, 직무는 경험 질문 금지, 회사는 입사 전 지원자에게 회사 안 경험 묻기 금지, 이력서는 근거·이름 확인. 문제 코드, 맞으면 None",
+    "app.services.question_compose:ragPrompt": "질문 1개를 만드는 프롬프트: 종류 안내·꼴 예·말끝 안내 + 기술 주제(직무)나 초점(회사) + 공고·이력서·예시 질문·이미 낸 질문 + 이전 답의 문제",
+    "app.services.question_compose:savePending": "면접 때 AI 가 만든 인성·회사·직무 질문 중 개인 정보가 없고 질문 DB 와 겹치지 않는 것을 적용 범위를 붙여 '검토 대기'로 넣는다",
+    # services/posting_draft.py (C-15)
+    "app.services.posting_draft:SectionText": "한 칸만 다시 쓴 결과 모양(text)",
+    "app.services.posting_draft:DraftState": "AI 초안 그래프의 상태(체크포인트에 남음). 공고 문장과 관리자 입력만 있고 지원자 개인정보는 없다",
+    "app.services.posting_draft:threadId": "공고별 그래프 기록 이름 'posting-draft:{공고 id}'",
+    "app.services.posting_draft:graphConfig": "LangGraph 실행 설정(thread_id)",
+    "app.services.posting_draft:setState": "화면이 보는 진행 상태(메모리)를 고친다: status · stage · 경고 · 처리 기록 · revision",
+    "app.services.posting_draft:referenceText": "참고 공고 한 건을 프롬프트에 넣을 글로(제목·업무·자격, 길이 제한)",
+    "app.services.posting_draft:findReferences": "① 같은 직무의 게시·마감 공고 최근 2건을 찾는다 (벡터 검색 없이 DB 조회)",
+    "app.services.posting_draft:fenceText": "참고 글 속 지시문을 따르지 않게 글을 울타리로 감싼다",
+    "app.services.posting_draft:withReferences": "초안 프롬프트에 참고 공고를 '용어·문체만 참고, 그대로 옮기지 말 것'으로 붙인다",
+    "app.services.posting_draft:normalized": "띄어쓰기·문장부호를 뺀 글 (베끼기 비교용)",
+    "app.services.posting_draft:copiesReference": "참고 공고 문장을 40자 넘게 그대로 옮겼는가",
+    "app.services.posting_draft:sectionProblems": "③ 한 칸의 고칠 점 목록: 차별로 보일 수 있는 표현, 예전 공고 문장 베끼기",
+    "app.services.posting_draft:tidySection": "다시 쓴 칸을 그 칸 형식에 맞게 다듬고, 안 맞으면 None(앞의 글을 둔다)",
+    "app.services.posting_draft:rewritePrompt": "② 한 칸 다시 쓰기 프롬프트(고칠 점 또는 관리자 요청 + 지금 초안)",
+    "app.services.posting_draft:rewriteLimit": "그 칸을 다시 쓸 수 있는 횟수 (자동 1번, 관리자 요청이면 1번 더)",
+    "app.services.posting_draft:pendingSections": "아직 다시 써야 하는 칸 목록 (고칠 점이 있고 횟수가 남은 칸, 관리자가 고른 칸)",
+    "app.services.posting_draft:buildDraftGraph": "AI 공고 초안 LangGraph: retrieve → draft → check → rewrite ↺ → save(처음) / deliver(한 칸 다시 쓰기) / fail",
+    "app.services.posting_draft:buildDraftGraph.retrieve": "노드 ① 참고 공고 찾기, 이번 흐름 값 비우기",
+    "app.services.posting_draft:buildDraftGraph.draft": "노드 초안 작성(LLM). 못 쓰면 시도 횟수만 올린다",
+    "app.services.posting_draft:buildDraftGraph.check": "노드 ③ 칸별 검사 (한 칸 다시 쓰기면 그 칸만)",
+    "app.services.posting_draft:buildDraftGraph.rewrite": "노드 ② 고칠 칸만 다시 쓰고 처리 기록(notes)을 남긴다. 형식이 틀리면 앞의 글을 둔다",
+    "app.services.posting_draft:buildDraftGraph.save": "노드 처음 초안을 공고에 저장하고 차별 표현 경고를 붙인다 (임시저장 공고만)",
+    "app.services.posting_draft:buildDraftGraph.deliver": "노드 ④ 다시 쓴 칸을 DB 에 쓰지 않고 화면에 준다(revision)",
+    "app.services.posting_draft:buildDraftGraph.fail": "노드 실패로 표시",
+    "app.services.posting_draft:buildDraftGraph.routeStart": "처음 초안이면 retrieve, 한 칸 다시 쓰기면 rewrite 에서 시작",
+    "app.services.posting_draft:buildDraftGraph.afterDraft": "초안이 있으면 check, 없으면 다시(2번까지) 또는 fail",
+    "app.services.posting_draft:buildDraftGraph.afterCheck": "다시 쓸 칸이 남으면 rewrite, 아니면 save / deliver",
+    "app.services.posting_draft:generate": "새 초안: 그래프를 처음부터 돌린다. 예상 못 한 오류도 '실패'로 보여 다시 시도하게 한다",
+    "app.services.posting_draft:hasDraft": "다시 쓰기에 쓸 초안 기록(체크포인트)이 있는가",
+    "app.services.posting_draft:revise": "④ 관리자가 고른 칸만 다시 쓴다. 처음 입력·참고 공고는 체크포인트에서 이어 쓴다",
+    "app.services.posting_draft:runInBackground": "작업을 뒤에서 돌리고 끝날 때까지 참조를 잡아 둔다",
+    "app.services.posting_draft:start": "새 초안 만들기를 뒤에서 시작하고 진행 상태를 '참고 공고 찾기'로 둔다",
+    "app.services.posting_draft:startRevision": "한 칸 다시 쓰기를 뒤에서 시작한다",
+    "app.services.posting_draft:status": "초안 진행 상태(stage·경고·처리 기록·revision). 기록이 없으면(재시작) 내용 유무로 완료/실패",
+    # services/posting_questions.py (C-17)
+    "app.services.posting_questions:schedule": "공고 기반 질문 후보 만들기를 뒤에서 시작한다 (게시 응답을 기다리게 하지 않음)",
+    "app.services.posting_questions:saveCandidate": "후보 1개를 적용 범위·출처를 붙여 '검토 대기'로 저장하고 임베딩을 단다",
+    "app.services.posting_questions:isKnown": "같은 글(띄어쓰기·문장부호 무시)이 질문 DB 에 이미 있는가",
+    "app.services.posting_questions:examplesFor": "그 자리의 예시 질문(RAG)을 찾는다. 임베딩 서버가 없으면 빈 목록",
+    "app.services.posting_questions:makeOne": "질문 1개를 만들어 검사한다(글 검사·다른 회사 이름·중복·질문 DB 와 0.8 이상). 2번까지, 실패하면 (None, None)",
+    "app.services.posting_questions:generateForPosting": "공고 하나로 직무 질문(줄마다 1개, 최대 6) + 회사 질문 3개(초점이 서로 다름)를 만들어 저장하고 감사 기록을 남긴다. 실패해도 오류를 던지지 않는다",
+    "app.services.posting_questions:loadWebCandidates": "인터넷 참고 후보 파일에서 verdict=new 이고 아직 없는 질문을 검토 대기로 넣는다(임베딩 포함)",
+}
+
+NEW_TS = {
+    # 2026-11-16 (C-20)
+    'app/admin/company/page.tsx:CompanyBody': '회사 정보 화면 본문: 칸 고치기·[저장], 최근 소식 목록·[새로 찾기]·[제거]',
+    'app/admin/company/page.tsx:CompanyPage': '/admin/company 화면 — 관리자 틀(AdminShell) 안에 CompanyBody',
+    "components/PostingEditor.tsx:AiRewrite": "AI 초안 공고 1단계의 'AI에게 한 칸 다시 쓰게 하기' 상자: 칸·요청을 골라 보내고 결과를 그 칸에 넣는다(저장은 [임시저장])",
+}
