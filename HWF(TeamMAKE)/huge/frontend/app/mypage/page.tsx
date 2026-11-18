@@ -13,11 +13,13 @@ import { Button, Empty, ErrorBox, Field, Loading, Modal, StatusBadge } from "@/c
 import { api, ApiError } from "@/lib/api";
 import { dateOnly, longDateTime, shortDateTime } from "@/lib/format";
 import type { AttemptStatus } from "@/lib/status";
+import { SCREENING_TIME_NOTE } from "@/components/ScreeningItems";
 
 type Card = {
     application_id: string; posting: { posting_id: string; title: string; close_at: string };
     attempt_status: AttemptStatus; next_action: string | null; resume_until: string | null; release_status: string;
     release_at: string; result_until: string | null; applied_at: string; consented: boolean; connected: boolean;
+    screening_decided?: boolean;
 };
 type Tab = "applications" | "results" | "resume" | "account";
 const TABS: { key: Tab; label: string }[] = [
@@ -38,6 +40,8 @@ const CARD_TEXT: Partial<Record<AttemptStatus, (c: Card) => string>> = {
     ended_closed: () => "마감이 되어 면접을 진행할 수 없습니다. 답변한 문항까지 평가합니다",
     cancelled: () => "화면 이탈 규칙에 따라 응시가 취소되었습니다",
     not_taken_closed: () => "마감이 되어 면접을 진행할 수 없습니다.",
+    screening: () => `AI가 제출한 서류를 평가하고 있습니다. 끝나면 알림으로 알려 드립니다. ${SCREENING_TIME_NOTE}`,
+    screen_rejected: () => "서류 평가 결과 불합격입니다. 항목별 근거를 확인하고 이의 신청을 할 수 있습니다",
 };
 
 function CardAction({ card }: { card: Card }) {
@@ -47,6 +51,7 @@ function CardAction({ card }: { card: Card }) {
         case "precheck": return <Link className="btn btn-primary" href={`/apply/${id}/precheck`}>응시 준비 계속하기</Link>;
         case "resume": return <Link className="btn btn-primary" href={`/exam/${id}/resume`}>면접 이어가기</Link>;
         case "view_result": return <Link className="btn btn-secondary" href={`/mypage/results/${id}`}>결과 보기</Link>;
+        case "view_screening": return <Link className="btn btn-secondary" href={`/mypage/screening/${id}`}>서류 결과 보기</Link>;
         default:
             return card.attempt_status === "interviewing" || card.attempt_status === "coding" || card.attempt_status === "not_taken_closed"
                 ? <button type="button" className="btn" disabled>{card.attempt_status === "not_taken_closed" ? "접수 마감" : "응시 진행 중"}</button> : null;
@@ -65,6 +70,10 @@ function Applications({ cards }: { cards: Card[] }) {
                         <div className="row"><strong>{c.posting.title}</strong><StatusBadge status={c.attempt_status} /></div>
                         <span className="small muted">지원 {dateOnly(c.applied_at)} · 접수 마감 {shortDateTime(c.posting.close_at)}</span>
                         <span className="small">{CARD_TEXT[c.attempt_status]?.(c)}</span>
+                        {/* 서류 합격 뒤에도 항목별 결과를 다시 볼 수 있게 (불합격은 오른쪽 버튼이 같은 화면, CONFLICTS C-25) */}
+                        {c.screening_decided && c.next_action !== "view_screening" && (
+                            <div><Link className="small" href={`/mypage/screening/${c.application_id}`}>서류 평가 결과 보기 →</Link></div>
+                        )}
                     </div>
                     <CardAction card={c} />
                 </div>

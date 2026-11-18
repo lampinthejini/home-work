@@ -7,6 +7,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { AdminShell } from "@/components/AdminShell";
 import { useApp } from "@/components/Providers";
 import { RESUME_SECTIONS } from "@/components/ResumeForm";
+import { APPEAL_STATUS_LABEL, AppealResult, DOC_KIND_LABEL, ScreeningItems, type ScreeningView } from "@/components/ScreeningItems";
 import { Button, Empty, ErrorBox, Loading, Modal, StatusBadge } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
 import type { AdminPosting } from "@/lib/admin";
@@ -356,6 +357,76 @@ function Memos({ applicationId, memos, onChange }: { applicationId: string; memo
 }
 
 /** S-R06 지원자 상세. 판정·점수를 바꾸는 버튼은 두지 않는다 (EVL-05, AC-14) */
+/** 서류 평가 결과 (CONFLICTS C-25): 1차·2차 항목별 결과·점수, 추가 서류, 이의 신청과 AI 재평가 결과. 보기만 한다 (PRD N2) */
+function ScreeningCard({ applicationId }: { applicationId: string }) {
+    type Doc = { kind: string; source: "text" | "pdf"; name: string; text: string };
+    type Career = { company: string; role: string; start: string; end: string | null; description: string };
+    type Data = { attempt_status: string; documents: Doc[]; career: Career[]; screening: ScreeningView };
+    const [v, setV] = useState<Data | null>(null);
+
+    useEffect(() => {
+        // 서류 평가 기록이 없는 지원 건(작성 중)은 404 → 카드를 그리지 않는다
+        api<Data>(`/admin/applications/${applicationId}/screening`).then(setV).catch(() => setV(null));
+    }, [applicationId]);
+
+    if (!v) return null;
+    const s = v.screening;
+    const rounds = s.rounds ?? {};
+    return (
+        <div className="card stack" style={{ gap: 8 }}>
+            <div className="row between">
+                <h3 style={{ margin: 0 }}>서류 평가</h3>
+                <span className="small">
+                    {s.decision ? <strong>{s.decision === "pass" ? "서류 합격" : "서류 불합격"}</strong> : s.stage === "error" ? "AI 장애로 대기 중 (자동으로 다시 시작)" : "평가 중"}
+                    {s.decided_by === "appeal" && " · 이의 신청 재평가로 합격"}
+                </span>
+            </div>
+            <p className="small muted" style={{ margin: 0 }}>
+                1차 {s.first_total?.toFixed(1) ?? "-"}점{s.second_total != null && ` → 2차 ${s.second_total.toFixed(1)}점`}
+                {s.appeal_total != null && ` → 이의 재평가 ${s.appeal_total.toFixed(1)}점`} · 합격선 {s.pass_score}점 (2차 구간 ±{s.band})
+                {s.error_count ? ` · AI 오류 ${s.error_count}회 (${s.last_error ?? ""})` : ""}
+                {s.timings?.first_sec != null && ` · 걸린 시간 1차 ${s.timings.first_sec}초`}{s.timings?.second_sec != null && ` · 2차 ${s.timings.second_sec}초`}
+            </p>
+            {(["first", "second"] as const).map((key) => rounds[key] && (
+                <details key={key} open={key === s.used_round && !s.appeal}>
+                    <summary className="small"><strong>{key === "first" ? "1차 평가 (Qwen3-4B)" : "2차 평가 (Qwen3-8B)"}</strong>{key === s.used_round && " · 판정에 사용"}</summary>
+                    <ScreeningItems items={rounds[key]!} showPoints />
+                </details>
+            ))}
+            {s.appeal && (
+                <details open>
+                    <summary className="small"><strong>이의 신청</strong> · {APPEAL_STATUS_LABEL[s.appeal.status]}{s.appeal.at && ` (${dateOnly(s.appeal.at)})`}</summary>
+                    <ul className="small">
+                        {s.appeal.claims.map((c) => <li key={c.item}><strong>{s.items.find((i) => i.item === c.item)?.label ?? c.item}</strong> — {c.text}</li>)}
+                    </ul>
+                    <AppealResult appeal={s.appeal} />
+                </details>
+            )}
+            {v.career.length > 0 && (
+                <div className="small">
+                    <strong>참고 사항 · 경력</strong> <span className="muted">(점수에 넣지 않음)</span>
+                    <ul style={{ margin: "4px 0 0" }}>
+                        {v.career.map((c, n) => (
+                            <li key={n}>{c.company} · {c.role} ({c.start}~{c.end || "현재"}){c.description && ` — ${c.description}`}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            <details>
+                <summary className="small"><strong>추가 서류</strong> ({v.documents.length}개)</summary>
+                {v.documents.length === 0 && <p className="small muted">낸 추가 서류가 없습니다.</p>}
+                {v.documents.map((d, n) => (
+                    <div key={n} className="small" style={{ marginTop: 8 }}>
+                        <div className="muted">{DOC_KIND_LABEL[d.kind] ?? d.kind}{d.source === "pdf" && ` · 📄 ${d.name} (PDF에서 읽은 글)`}</div>
+                        <div style={{ whiteSpace: "pre-wrap", maxHeight: 320, overflowY: "auto" }}>{d.text}</div>
+                    </div>
+                ))}
+            </details>
+            <p className="tiny muted" style={{ margin: 0 }}>ⓘ 서류 판정은 시스템이 기준표로 정하며 관리자는 바꾸지 않습니다. 불합격자의 이의 신청은 AI가 제출 서류 안에서만 다시 평가합니다.</p>
+        </div>
+    );
+}
+
 function ApplicantDetail() {
     const { applicationId } = useParams<{ applicationId: string }>();
     const { toast } = useApp();
@@ -428,6 +499,7 @@ function ApplicantDetail() {
                 <span className="muted small">{d.applicant.email} · {d.applicant.phone} · 지원 {dateOnly(d.submitted_at)}</span>
                 <StatusBadge status={d.attempt_status} />
             </div>
+            <ScreeningCard applicationId={applicationId} />
             <DecisionCard d={d} onReprocess={() => setConfirmReprocess(true)} onDecide={decide} busy={busy} />
             {confirmReprocess && (() => {
                 const suspected = d.review_reason === "instruction_suspected";

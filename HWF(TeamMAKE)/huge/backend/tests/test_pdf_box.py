@@ -194,3 +194,16 @@ def test_renderFailureBecomesOcrError(monkeypatch, tmp_path):
     fakeBox(monkeypatch, tmp_path, "raise SystemExit(1)\n")
     with pytest.raises(rx.OcrError):
         asyncio.run(rx.ocrPages(b"%PDF-", "application/pdf", [1]))
+
+
+def test_bigImagesAreCountedSmallOnesAreNot():
+    # 그림 속 글자를 OCR 할 쪽을 고르는 값: 큰 그림만 센다 (작은 아이콘·로고 제외)
+    png = Image.new("RGB", (40, 40), "white")
+    buf = io.BytesIO()
+    png.save(buf, "PNG")
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((40, 40), TEXT * 2, fontname="korea", fontsize=8)
+    page.insert_image(fitz.Rect(40, 200, 400, 500), stream=buf.getvalue())  # 큰 그림
+    page.insert_image(fitz.Rect(500, 20, 520, 40), stream=buf.getvalue())   # 작은 아이콘
+    assert pdf_box.readPages(doc.tobytes())[0]["images"] == 1

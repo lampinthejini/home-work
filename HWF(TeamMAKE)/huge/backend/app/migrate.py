@@ -59,6 +59,16 @@ ALIGN_STATEMENTS = [
     "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_feed_url varchar(500) NOT NULL DEFAULT ''",
     "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_source_name varchar(100) NOT NULL DEFAULT ''",
     "ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS tech_refreshed_at timestamptz",
+    # 서류 평가 (CONFLICTS C-25, 2026-11-18 사용자 결정). 모든 공고에 적용 (켜고 끄는 칸 없음)
+    "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS screening_required_skills json NOT NULL DEFAULT '[]'",
+    "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS screening_preferred_skills json NOT NULL DEFAULT '[]'",
+    "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS screening_pass_score integer NOT NULL DEFAULT 60",
+    "ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS screening_band integer NOT NULL DEFAULT 5",
+    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS extra_documents text",
+    # 지원 상태에 서류 평가 중·서류 불합격이 늘었다. 예전 목록의 제약만 지우면 addChecks 가 새 목록으로 다시 만든다
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_applications_attempt_status' "
+    "AND pg_get_constraintdef(oid) NOT LIKE '%screen_rejected%') THEN "
+    "ALTER TABLE applications DROP CONSTRAINT ck_applications_attempt_status; END IF; END $$",
 ]
 # 중복 행이 이미 있으면 만들지 못한다. 그때는 경고만 남기고 서비스는 뜬다 (2026-11-09)
 UNIQUE_STATEMENTS = [

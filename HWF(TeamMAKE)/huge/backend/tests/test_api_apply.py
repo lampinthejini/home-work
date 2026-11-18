@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from conftest import APPLICANT_PASSWORD, login, publishedPosting, signup
+from conftest import APPLICANT_PASSWORD, login, passScreening, publishedPosting, signup, submitApplication
 
 from app.models import Application, InterviewSession, SessionEvent, User
 from app.routers import interview as interviewRouter
@@ -22,6 +22,8 @@ def applyReady(client, postingId):
     assert client.post(f"/applications/{appId}/consent", json=CONSENT).status_code == 201
     res = client.post(f"/applications/{appId}/resume", json=RESUME)
     assert res.status_code == 200, res.text
+    submitApplication(client, appId)
+    passScreening(appId)
     return appId
 
 
@@ -33,9 +35,18 @@ def asApplicant(adminClient):
     return adminClient, postingId
 
 
-def test_applyConsentResumeMakesReady(adminClient):
+def test_resumeSavesDraftThenDocumentsSubmitStartsScreening(adminClient):
+    """이력서 저장 → 추가 서류 → 제출하면 서류 평가 중 (CONFLICTS C-25). 서류 합격 뒤 응시 준비."""
     client, postingId = asApplicant(adminClient)
-    appId = applyReady(client, postingId)
+    appId = client.post("/applications", json={"posting_id": postingId}).json()["application_id"]
+    client.post(f"/applications/{appId}/consent", json=CONSENT)
+    res = client.post(f"/applications/{appId}/resume", json=RESUME)
+    assert res.json() == {"attempt_status": "drafting", "next_step": "documents"}
+    assert client.post(f"/applications/{appId}/resume", json=RESUME).status_code == 200  # 제출 전에는 다시 저장 가능
+    submitApplication(client, appId)
+    assert client.get(f"/applications/{appId}").json()["attempt_status"] == "screening"
+    assert client.post(f"/applications/{appId}/resume", json=RESUME).json()["code"] == "RESUME_LOCKED"
+    passScreening(appId)
     assert client.get(f"/applications/{appId}").json()["attempt_status"] == "ready"
     assert client.get("/me/applications").json()["items"][0]["next_action"] == "precheck"
 

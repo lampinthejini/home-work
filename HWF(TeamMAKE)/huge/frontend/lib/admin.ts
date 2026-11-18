@@ -1,6 +1,11 @@
 // 관리자 화면 공통 형식
 
-export type Criteria = { version: number; locked: boolean; weights: Record<string, number>; coding_enabled: boolean; coding_ratio: number; pass_score: number };
+export type Criteria = {
+    version: number; locked: boolean; weights: Record<string, number>; coding_enabled: boolean; coding_ratio: number; pass_score: number;
+    // 서류 평가 (CONFLICTS C-25, 모든 공고)
+    screening_required_skills?: string[]; screening_preferred_skills?: string[];
+    screening_pass_score?: number; screening_band?: number;
+};
 
 export type AdminPosting = {
     posting_id: string; status: "draft" | "published" | "closed"; source: string; title: string; job_code: string;

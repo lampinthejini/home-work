@@ -8,6 +8,7 @@
 
 import logging
 import math
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -56,6 +57,30 @@ def parseVector(raw) -> list[float]:
     if isinstance(raw, list):
         return [float(x) for x in raw]
     return [float(x) for x in str(raw).strip("[]").split(",") if x]
+
+
+def splitChunks(text: str, size: int = 400) -> list[str]:
+    """문단(빈 줄·줄바꿈) 경계에서 size 자 안쪽으로 나눈다. 아주 긴 문단은 size 자씩 자른다."""
+    chunks: list[str] = []
+    current = ""
+    for para in re.split(r"\n\s*\n|\n", text):
+        para = para.strip()
+        while len(para) > size:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(para[:size])
+            para = para[size:]
+        if not para:
+            continue
+        if current and len(current) + 1 + len(para) > size:
+            chunks.append(current)
+            current = para
+        else:
+            current = f"{current}\n{para}" if current else para
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def cosine(a: list[float], b: list[float]) -> float:

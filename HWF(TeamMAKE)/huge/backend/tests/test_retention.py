@@ -42,7 +42,9 @@ def test_purgeDeletesInterviewDataKeepsConsentAndLogs(sessionFactory, monkeypatc
         assert db.query(User).count() == 3  # 회원 계정은 지우지 않는다 (탈퇴 때 지움)
         logRow = db.query(DeletionLog).one()
         assert (logRow.application_id, logRow.cause, logRow.scope) == (appId, "retention", "interview_data")
-        assert logRow.deleted_items["files"] == 4 and logRow.deleted_items["redis_keys"] == 1
+        # 파일 묶음 5개: 답변 · 질문 음성 · 녹화 · 추가 서류(CONFLICTS C-25) · 이력서 업로드
+        assert logRow.deleted_items["files"] == 5 and logRow.deleted_items["redis_keys"] == 1
+        assert f"documents/{appId}/" in deleted
         assert logRow.deleted_items["db_rows"] == 7  # 지원 1 + 질문 3 + 답변 2 + 업로드 1
     assert f"answers/{appId}/" in deleted and any(p.startswith("resumes/") for p in deleted)
     assert not fake.exists(f"eval:since:{appId}")

@@ -718,3 +718,70 @@ def test_jobSlotsGetDifferentForms():
     assert all(f"이번 질문은 되도록 이 꼴로 쓴다: {form}" in p for form, p in zip(question_compose.JOB_FORMS, prompts, strict=True))
     assert len(set(question_compose.JOB_FORMS)) == len(question_compose.JOB_FORMS) >= 4
     assert not any("기준은 무엇인가요" in form for form in question_compose.JOB_FORMS)
+
+
+# ---------- 긴 자기소개서: 자리마다 가까운 문단 (2026-11-18 사용자 결정) ----------
+
+FILLER = "학교 수업에서 배운 내용을 정리했습니다. " * 12  # 약 270자, 키워드 없음
+TEAM_PARA = "동아리 팀장으로 협업 중 생긴 의견 차이를 회의로 조율해 일정을 지켰습니다."
+LONG_COVER = "\n".join([FILLER, FILLER, FILLER, FILLER, TEAM_PARA])
+
+
+def test_coverIndexPicksClosestParagraphsInOriginalOrder():
+    index = question_compose.CoverIndex(LONG_COVER)
+    assert len(LONG_COVER) > question_compose.COVER_CHARS and len(index.chunks) >= 3
+    index.vectors = [fakeVector(c) for c in index.chunks]
+    picked = index.pick(fakeVector("인성 면접 질문. 협업과 의견 조율"))
+    assert TEAM_PARA in picked and len(picked) <= question_compose.COVER_CHARS + len(index.chunks)
+    assert LONG_COVER[:question_compose.COVER_CHARS] != picked  # 앞 800자만 쓰지 않는다
+
+
+def test_coverIndexShortTextOrNoVectorsKeepsOldBehaviour():
+    assert question_compose.CoverIndex("짧은 자기소개").pick(None) == "짧은 자기소개"
+    index = question_compose.CoverIndex(LONG_COVER)  # 임베딩 전(또는 실패) → 앞 COVER_CHARS 자
+    assert not index.needsPick and index.pick(fakeVector("협업")) == LONG_COVER[:question_compose.COVER_CHARS]
+
+
+def test_multilineCoverStaysOneExperienceLine():
+    # 줄바꿈이 있는 자기소개서도 '자기소개:' 한 줄 — 둘째 줄부터 경험 줄에서 빠지던 것을 막는다
+    text = question_compose.experienceText({"cover_letter": "첫 줄입니다.\n둘째 줄 경험입니다."})
+    assert text == "자기소개: 첫 줄입니다. 둘째 줄 경험입니다."
+
+
+def test_longCoverParagraphReachesPersonalitySlot(sessionFactory, world):
+    fake = world()
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        app.resume_snapshot = {**RESUME, "cover_letter": LONG_COVER}
+        db.commit()
+    asyncio.run(question_compose.compose(appId, budgetSec=120))
+    teamSlots = [p for p in fake.prompts if "[만들 질문] 인성" in p and "협업과 의견 조율" in p]
+    assert teamSlots and all(TEAM_PARA in p for p in teamSlots)  # 뒤쪽 문단인데도 들어간다
+    assert all(LONG_COVER[question_compose.COVER_CHARS:] not in p for p in fake.prompts)  # 전체를 넣지는 않는다
+
+
+def test_resumeEvidenceFromLateCoverParagraphIsGrounded():
+    out = question_compose.RagQuestion(
+        question="동아리에서 의견 차이를 어떻게 조율하셨나요?", evidence="의견 차이를 회의로 조율해 일정을 지켰습니다", task_count=1)
+    ground = question_compose.experienceText({**RESUME, "cover_letter": LONG_COVER}, LONG_COVER)
+    assert question_compose.checkGenerated("resume", out, ground, []) in (None, "resume_not_anchored")
+    assert question_compose.checkGenerated("resume", out, question_compose.experienceText({**RESUME, "cover_letter": LONG_COVER}), []) \
+        == "resume_not_grounded"  # 앞 800자만으로는 근거가 안 보였다
+
+
+def test_coverEmbeddingTimeIsNotTakenFromComposeBudget(sessionFactory, world, monkeypatch):
+    fake = world()
+    slowEmbed = fake.embed
+
+    async def embed(texts, timeoutSec=10):
+        if len(texts) > 2:  # 자기소개서 문단 임베딩만 느리게 (실측 5,000자 약 10초)
+            await asyncio.sleep(1.5)
+        return await slowEmbed(texts, timeoutSec)
+    monkeypatch.setattr(rag, "embed", embed)
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        db.get(Application, appId).resume_snapshot = {**RESUME, "cover_letter": LONG_COVER}
+        db.commit()
+    asyncio.run(question_compose.compose(appId, budgetSec=1.2))
+    assert not any(q.substitute_reason == "budget" for q in composed(sessionFactory, appId))

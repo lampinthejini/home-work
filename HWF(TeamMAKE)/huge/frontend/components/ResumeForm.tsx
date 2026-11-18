@@ -133,12 +133,7 @@ export function ResumeForm({ value, onChange, onEdit, invalid, lowConf, onConfir
                     <button type="button" className="btn btn-secondary btn-sm" onClick={addSkill}>+</button>
                 </div>
             </section>
-            <label className="field">
-                <span>자기소개서 (선택)</span>
-                <textarea className="input" value={value.cover_letter ?? ""} maxLength={5000} style={{ minHeight: 160 }}
-                    onChange={(e) => edit("cover_letter", { ...value, cover_letter: e.target.value })} />
-                <div className="field-hint">{(value.cover_letter ?? "").length} / 5000자</div>
-            </label>
+            {/* 자기소개서는 지원할 때 '추가 서류' 단계에서 공고의 문항별로 받는다 (CONFLICTS C-25) */}
         </div>
     );
 }

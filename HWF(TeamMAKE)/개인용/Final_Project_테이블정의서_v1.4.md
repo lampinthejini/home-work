@@ -951,3 +951,22 @@ UNIQUE (interview_question_id, eval_item)
 사용자 결정(CONFLICTS C-24)과 코드에 맞춰 같은 버전 안에서 고친 내용이다.
 
 - 4-10 recordings.expires_at: 결과 공개 + 3일의 예정 값. 실제 기한은 지금 공개 시각으로 다시 센다(칸은 그대로).
+
+## 2026-11-18 보정 (C-25)
+
+사용자 결정(huge/CONFLICTS.md C-25, 2026-11-18)과 코드에 맞춰 같은 버전 안에서 고친 내용이다. 자세한 결정·실측은 C-25 를 본다.
+
+| 표 | 칼럼 | 형식 | 설명 |
+|---|---|---|---|
+| evaluation_criteria | screening_required_skills | json, 기본 `[]` | 서류 평가 필수 기술(1개 이상) |
+| evaluation_criteria | screening_preferred_skills | json, 기본 `[]` | 우대 기술(필수와 겹치면 뺌) |
+| evaluation_criteria | screening_pass_score | integer, 기본 60 | 서류 합격선(30~90) |
+| evaluation_criteria | screening_band | integer, 기본 5 | 2차 평가 구간(±0~15) |
+| applications | extra_documents | text(암호화 JSON) | 추가 서류 `[{id, kind, source(text·pdf), name, key, text}]`. 자기소개서 글 1개 + PDF 3개까지. PDF 원본은 파일 저장소 `documents/{지원 id}/` |
+| applications | attempt_status | 값 추가 | `screening` · `screen_rejected` (CHECK 다시 만듦) |
+| resume_screenings (새 표) | id, application_id(유일, 지원 삭제 시 함께 삭제), criteria_version, stage(first·second·done·error), rounds(암호화 JSON: first·second 항목 결과, timings), first_total, second_total, final_total, decision(pass·fail), decided_by(ai·appeal), started_at, finished_at, error_count, last_error | | 항목 결과: item, label, axis, weight, level, max_level, level_text, points, evidence, reason, grounded, by(code) |
+| resume_screenings | appeal(암호화 JSON `[{item, text}]`), appeal_status(pending·running·accepted·rejected·error), appeal_result(암호화 JSON: items·rows·total·decision·sec), appeal_at, appeal_started_at, appeal_done_at | | 이의 신청 1번 |
+
+- 경력은 채점 항목이 아니다(점수 칼럼 없음). 관리자 화면은 이력서 사본의 career 를 참고 사항으로 보여 준다.
+- 보관: 서류 평가 중·서류 불합격 건은 결과 공개 + 7일에 지원 건과 함께 지운다(파일 묶음에 `documents/` 추가).
+- **회의 결정(2026-11-18 저녁)**: 추가 서류는 **자기소개서 하나**만 받는다. 포트폴리오·프로젝트 기술서 등 다른 서류를 올려도 자기소개서로 본다(PDF 종류 고르기 없앰, `kind` 는 늘 `cover_letter`). **글자만 평가**한다 — 그림·사진 안의 글자는 OCR 로 읽어 쓰지만(글자가 없는 쪽, 큰 그림이 있는 쪽; 글자층에 이미 있는 줄은 다시 붙이지 않음), 그림·사진·디자인·서식 자체는 평가 대상이 아니다. 화면에 이 점, 자기소개서를 안 내면 회사 적합·적응·성장 점수가 낮아질 수 있다는 점, 예상 시간(보통 1분 안팎, 2차까지 5~7분, 다른 지원자의 서류 평가·면접 채점이 먼저 진행 중이면 더 걸림)을 적는다. 서류 합격 즉시 면접 질문 만들기를 시작한다(이미 그렇게 동작).

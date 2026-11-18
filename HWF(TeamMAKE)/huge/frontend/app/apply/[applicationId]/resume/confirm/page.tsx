@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ApplyFlow, BottomBar, useApplication, type ResumeData } from "@/components/ApplyFlow";
 import { useApp } from "@/components/Providers";
 import { ResumeForm, resumeRequirement } from "@/components/ResumeForm";
-import { Button, Loading, Modal } from "@/components/Ui";
+import { Button, Loading } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
 import { draftKey, type Draft } from "@/lib/resumeDraft";
 
@@ -17,7 +17,6 @@ function Confirm() {
     const [draft, setDraft] = useState<Draft | null>(null);
     const [edited, setEdited] = useState<Set<string>>(new Set());
     const [lowConf, setLowConf] = useState<Set<string>>(new Set());
-    const [confirming, setConfirming] = useState(false);
     const [busy, setBusy] = useState(false);
     const [invalid, setInvalid] = useState<{ name?: boolean; history?: boolean }>({});
 
@@ -58,15 +57,14 @@ function Confirm() {
         setBusy(true);
         try {
             const { name, ...rest } = draft!.resume;
+            // 이력서는 저장만 한다. 지원서 제출은 다음 단계(추가 서류)에서 (CONFLICTS C-25). 자기소개서도 그 단계에서 받는다
             await api(`/applications/${app.application_id}/resume`, {
-                body: { method: draft!.method, upload_id: draft!.upload_id, resume: { name, ...rest, cover_letter: rest.cover_letter || null }, edited_fields: [...edited] },
+                body: { method: draft!.method, upload_id: draft!.upload_id, resume: { name, ...rest, cover_letter: null }, edited_fields: [...edited] },
             });
             sessionStorage.removeItem(draftKey(app.application_id));
-            toast("info", "이력서를 제출했습니다. 환경 점검을 마치면 면접을 시작할 수 있습니다");
-            router.replace(`/apply/${app.application_id}/precheck`);
+            router.push(`/apply/${app.application_id}/documents`);
         } catch (err) {
             const e = err as ApiError;
-            setConfirming(false);
             if (e.code === "RESUME_REQUIRED_MISSING") {
                 setInvalid({ name: !requirement.name, history: !requirement.history });
                 document.getElementById(requirement.name ? "field-education" : "field-name")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -104,18 +102,8 @@ function Confirm() {
             <BottomBar>
                 <button type="button" className="btn btn-secondary" onClick={() => router.push(`/apply/${app.application_id}/resume`)}>이전</button>
                 <span style={{ flex: 1 }} />
-                <Button onClick={() => setConfirming(true)} disabled={!requirement.ok} reason="성명과 학력 또는 경력 1건 이상이 필요합니다">이력서 제출 ▶</Button>
+                <Button busy={busy} onClick={submit} disabled={!requirement.ok} reason="성명과 학력 또는 경력 1건 이상이 필요합니다">이력서 저장 · 다음 ▶</Button>
             </BottomBar>
-            {confirming && (
-                <Modal title="지원서를 제출합니다" onClose={() => setConfirming(false)} actions={(
-                    <>
-                        <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>계속 수정</button>
-                        <Button busy={busy} onClick={submit}>제출하기</Button>
-                    </>
-                )}>
-                    <p>제출한 이력서는 이 공고에서 수정할 수 없습니다.</p>
-                </Modal>
-            )}
         </div>
     );
 }

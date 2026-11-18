@@ -68,6 +68,7 @@ class PageText:
     text: str
     source: str  # pymupdf · pdfplumber · ocr · none
     confidence: float | None = None
+    images: int = 0  # 쪽 위의 큰 그림 수 (pdf_box.IMAGE_MIN_AREA_RATIO 이상)
 
 
 class BoxError(Exception):
@@ -103,7 +104,7 @@ async def runBox(args: list[str], data: bytes) -> bytes:
 
 
 async def readPages(data: bytes) -> list[PageText]:
-    return [PageText(p["no"], p["text"], p["source"]) for p in json.loads(await runBox(["read"], data))]
+    return [PageText(p["no"], p["text"], p["source"], images=p.get("images", 0)) for p in json.loads(await runBox(["read"], data))]
 
 
 async def countPages(data: bytes, contentType: str) -> tuple[int, int, str]:

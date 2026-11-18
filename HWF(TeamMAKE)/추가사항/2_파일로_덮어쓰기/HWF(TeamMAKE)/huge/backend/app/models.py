@@ -1,0 +1,611 @@
+"""DB 테이블 (1단계 범위). 칸 이름은 API 명세서·TRD 4-1 의 이름을 따른다(snake_case, DB 규칙 예외)."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import JSON, BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+
+from .crypto import EncryptedJson, EncryptedText
+from .db import Base
+from .timeutil import now
+
+
+def newId() -> str:
+    return str(uuid.uuid4())
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    role: Mapped[str] = mapped_column(String(16), default="applicant")  # applicant · admin
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    agreements: Mapped[dict] = mapped_column(JSON, default=dict)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 이메일 인증(나중 기능)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class LoginSession(Base):
+    __tablename__ = "login_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LoginBlock(Base):
+    """IP 별 로그인 실패. IP 원문은 두지 않는다. blocked_until 이 미래면 차단 중."""
+    __tablename__ = "login_blocks"
+    ip_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fail_count: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    code: Mapped[str | None] = mapped_column(String(6), nullable=True, index=True)
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class JobCode(Base):
+    __tablename__ = "job_codes"
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(16), default="preparing")  # open · preparing
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class JobPosting(Base):
+    __tablename__ = "job_postings"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    status: Mapped[str] = mapped_column(String(16), default="draft")  # draft · published · closed
+    source: Mapped[str] = mapped_column(String(16), default="manual")
+    title: Mapped[str] = mapped_column(String(200), default="")
+    job_code: Mapped[str] = mapped_column(String(32), default="AI_AX")
+    company_name: Mapped[str] = mapped_column(String(200), default="")
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 불러온 공고의 원래 번호 (공고 불러오기는 아직 없음)
+    company_intro: Mapped[str] = mapped_column(Text, default="")
+    duties: Mapped[str] = mapped_column(Text, default="")
+    requirements: Mapped[str] = mapped_column(Text, default="")
+    preferred: Mapped[str] = mapped_column(Text, default="")
+    employment_type: Mapped[str] = mapped_column(String(32), default="full_time")
+    location: Mapped[str] = mapped_column(String(200), default="")
+    headcount: Mapped[int] = mapped_column(Integer, default=1)
+    open_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    close_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    contact_email: Mapped[str] = mapped_column(String(254), default="")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+    criteria: Mapped[list["EvaluationCriteria"]] = relationship(back_populates="posting", order_by="EvaluationCriteria.version",
+                                                                cascade="all, delete-orphan", passive_deletes=True)
+
+
+class EvaluationCriteria(Base):
+    __tablename__ = "evaluation_criteria"
+    __table_args__ = (UniqueConstraint("posting_id", "version"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    weights: Mapped[dict] = mapped_column(JSON)
+    coding_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    coding_ratio: Mapped[int] = mapped_column(Integer, default=30)
+    pass_score: Mapped[int] = mapped_column(Integer, default=70)
+    # 서류 평가 (CONFLICTS C-24). 끄면 지금처럼 이력서 제출 직후 응시 준비가 된다
+    screening_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    screening_required_skills: Mapped[list] = mapped_column(JSON, default=list)
+    screening_preferred_skills: Mapped[list] = mapped_column(JSON, default=list)
+    screening_pass_score: Mapped[int] = mapped_column(Integer, default=75)
+    screening_band: Mapped[int] = mapped_column(Integer, default=5)  # 1차 점수가 합격선 ± 이 안이면 2차 평가
+
+    posting: Mapped[JobPosting] = relationship(back_populates="criteria")
+
+    @validates("locked")
+    def stampLock(self, _key, value):
+        if value and not self.locked:
+            self.locked_at = now()  # 잠근 시각 (테이블 정의서 4-7 locked_at)
+        return value
+
+
+class PostingRevision(Base):
+    __tablename__ = "posting_revisions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), index=True)
+    revised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    field: Mapped[str] = mapped_column(String(64))
+    before: Mapped[str] = mapped_column(Text, default="")
+    after: Mapped[str] = mapped_column(Text, default="")
+    summary: Mapped[str] = mapped_column(String(300), default="")  # 지원자에게 보여 줄 한 줄
+
+
+class Application(Base):
+    __tablename__ = "applications"
+    # 공고마다 한 사람 1건 (테이블 정의서 4-9). 사용자 잠금이 뚫려도 DB 가 막는다
+    __table_args__ = (UniqueConstraint("posting_id", "user_id", name="uq_applications_posting_user"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id"), index=True)
+    attempt_status: Mapped[str] = mapped_column(String(24), default="drafting")
+    analysis_status: Mapped[str] = mapped_column(String(16), default="pending")
+    release_status: Mapped[str] = mapped_column(String(16), default="scheduled")
+    criteria_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resume_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    resume_snapshot: Mapped[dict | None] = mapped_column(EncryptedJson, nullable=True)
+    resume_name: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    edited_fields: Mapped[list] = mapped_column(JSON, default=list)
+    resume_upload_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # 포트폴리오 PDF (선택, 서류 평가 공고만, CONFLICTS C-24). 글자만 뽑아 서류 평가에 쓴다
+    portfolio_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    portfolio_text: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    questions_status: Mapped[str] = mapped_column(String(16), default="none")  # none · composing · ready · failed
+    precheck_valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    holds_seat: Mapped[bool] = mapped_column(Boolean, default=False)
+    seat_released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempt_consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    phase: Mapped[str] = mapped_column(String(16), default="interview")  # interview · coding
+    current_seq: Mapped[int] = mapped_column(Integer, default=1)
+    followup_count: Mapped[int] = mapped_column(Integer, default=0)
+    away_count: Mapped[int] = mapped_column(Integer, default=0)
+    interrupted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    interruption_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    interruption_judged: Mapped[str | None] = mapped_column(String(16), nullable=True)  # fault · not_fault
+    end_detail: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    coding_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    coding_remaining_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    interview_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)  # 이 건의 결과 공개 시각
+    purge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)  # 공개 + 7일
+    review_reason: Mapped[str | None] = mapped_column(String(24), nullable=True)  # needs_review 사유 (API 명세서 ops-status)
+    needs_review_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+    posting: Mapped[JobPosting] = relationship()
+    user: Mapped[User] = relationship()
+
+    @validates("review_reason")
+    def stampReview(self, _key, value):
+        # 확인 필요가 된 시각 (테이블 정의서 4-8). 사유가 지워지면 같이 지운다
+        if value is None:
+            self.needs_review_since = None
+        elif self.review_reason is None:
+            self.needs_review_since = now()
+        return value
+
+
+class ResumeScreening(Base):
+    """서류 평가 결과 (CONFLICTS C-24). 지원 건마다 1줄. 근거 문장에 이력서 글이 들어가 rounds 는 암호화한다."""
+    __tablename__ = "resume_screenings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), unique=True, index=True)
+    criteria_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage: Mapped[str] = mapped_column(String(16), default="first")  # first · second · done · error
+    first_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    second_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    final_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(8), nullable=True)  # pass · fail
+    decided_by: Mapped[str | None] = mapped_column(String(8), nullable=True)  # ai · admin
+    rounds: Mapped[dict | None] = mapped_column(EncryptedJson, nullable=True)  # {"first": [항목], "second": [항목]}
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    appeal_text: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    appeal_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    override_note: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    override_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Consent(Base):
+    __tablename__ = "consents"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    # 지원 건이 지워져도 동의는 증거로 남긴다 (테이블 정의서 4-9: ON DELETE SET NULL)
+    application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True, index=True)
+    subject_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 이메일 HMAC-SHA256(서버 키) — 지운 뒤에도 동의자 확인
+    consent_version: Mapped[str] = mapped_column(String(16))
+    items: Mapped[dict] = mapped_column(JSON)
+    agreed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ResumeUpload(Base):
+    __tablename__ = "resume_uploads"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), nullable=True)
+    file_key: Mapped[str] = mapped_column(String(255))
+    file_name: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(64))
+    stage: Mapped[str] = mapped_column(String(16), default="uploaded")
+    method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    pages_text: Mapped[int] = mapped_column(Integer, default=0)
+    pages_scanned: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    result: Mapped[dict | None] = mapped_column(EncryptedJson, nullable=True)
+    fail_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SavedResume(Base):
+    __tablename__ = "saved_resumes"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    resume: Mapped[dict] = mapped_column(EncryptedJson)
+    name: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class Question(Base):
+    __tablename__ = "questions"
+    __table_args__ = (UniqueConstraint("sheet", "row_no"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(16))  # excel · generated · reserve
+    kind: Mapped[str] = mapped_column(String(16), index=True)  # personality · company · job · resume
+    category: Mapped[str] = mapped_column(String(64), default="")
+    text: Mapped[str] = mapped_column(Text)
+    sheet: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    row_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duplicate_group: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active · preparing · pending(검토 대기) · rejected · excluded(다른 회사명·무관 글·중복)
+    answer_seconds: Mapped[int] = mapped_column(Integer, default=90)
+    eval_items: Mapped[list] = mapped_column(JSON, default=list)
+    # 적용 범위 (2026-11-10 사용자 결정, CONFLICTS C-17). 둘 다 비면 모든 공고에서 쓴다.
+    # 회사 질문은 그 공고에서만(posting_id), 직무 질문은 같은 직무에서만(job_code)
+    posting_id: Mapped[str | None] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=True, index=True)
+    job_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # 예비 질문 NEW 표시 (하루 동안)
+
+
+class CompanyProfile(Base):
+    """회사 정보 (2026-11-16 사용자 결정, CONFLICTS C-20). 한 기업 전용이라 한 줄(id=1)만 쓴다."""
+    __tablename__ = "company_profile"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    name: Mapped[str] = mapped_column(String(100), default="AIIT")
+    basics: Mapped[str] = mapped_column(Text, default="")  # 기본 정보 (설립·대표·본사·임직원·주요 서비스)
+    intro: Mapped[str] = mapped_column(Text, default="")  # 회사 소개
+    jobs_intro: Mapped[str] = mapped_column(Text, default="")  # 직무 소개
+    ai_ax_role: Mapped[str] = mapped_column(Text, default="")  # AI/AX 가 하는 일
+    # 2026-11-17 추가 (사용자 결정, CONFLICTS C-22): 경영 이념·중점 과제, 인재상, 사내 기술 스택
+    mission: Mapped[str] = mapped_column(Text, default="")
+    talent: Mapped[str] = mapped_column(Text, default="")
+    tech_stack: Mapped[str] = mapped_column(Text, default="")
+    # 회사 기술 블로그 (사용자 결정: 모티프 회사의 기술 블로그를 우리 회사 최신 기술로 씀)
+    tech_feed_url: Mapped[str] = mapped_column(String(500), default="")
+    tech_source_name: Mapped[str] = mapped_column(String(100), default="")  # 글에 나오면 회사 이름으로 바꿀 말
+    tech_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class CompanyProject(Base):
+    """회사가 진행한 프로젝트 (2026-11-17 사용자 결정, CONFLICTS C-21). 관리자가 적고, 회사 질문·AI 공고 초안이 가까운 것을 골라 쓴다.
+    embedding vector(1024) 칸은 PostgreSQL 에서만 migrate 가 더한다."""
+    __tablename__ = "company_projects"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(100))
+    period: Mapped[str] = mapped_column(String(50), default="")  # 예: 2023~2024
+    summary: Mapped[str] = mapped_column(Text, default="")  # 무엇을 왜 했고 어떤 기술·결과가 있었나
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class CompanyTechPost(Base):
+    """회사 기술 블로그 글 (2026-11-17 사용자 결정, CONFLICTS C-22). 앱을 켤 때와 관리자 [새로 가져오기]로 채운다.
+    관리자가 [제거]하면 hidden_at 을 남겨 다시 들어오지 않게 한다. embedding vector(1024) 칸은 PostgreSQL 에서만 migrate 가 더한다."""
+    __tablename__ = "company_tech_posts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(300))
+    url: Mapped[str] = mapped_column(String(1000), unique=True)
+    summary: Mapped[str] = mapped_column(Text, default="")  # 본문 앞부분 (태그를 뺀 글)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class QuestionUsage(Base):
+    __tablename__ = "question_usage"
+    posting_id: Mapped[str] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), primary_key=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), primary_key=True)
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class InterviewQuestion(Base):
+    __tablename__ = "interview_questions"
+    __table_args__ = (UniqueConstraint("application_id", "seq", "kind", "answer_order"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    seq: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16), default="base")  # base · follow_up
+    answer_order: Mapped[int] = mapped_column(Integer, default=1)  # 1 = 기본, 2 = 꼬리질문
+    qtype: Mapped[str] = mapped_column(String(16))  # personality · company · job · resume
+    text: Mapped[str] = mapped_column(Text)
+    source_question_id: Mapped[int | None] = mapped_column(ForeignKey("questions.id"), nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="excel")
+    regen_count: Mapped[int] = mapped_column(Integer, default=0)
+    substituted: Mapped[bool] = mapped_column(Boolean, default=False)
+    substitute_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    answer_sec: Mapped[int] = mapped_column(Integer, default=90)
+    eval_items: Mapped[list] = mapped_column(JSON, default=list)
+    audio_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    audio_sec: Mapped[float | None] = mapped_column(nullable=True)
+    followup_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Answer(Base):
+    __tablename__ = "answers"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    interview_question_id: Mapped[int] = mapped_column(ForeignKey("interview_questions.id", ondelete="CASCADE"), unique=True)
+    transcript: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    words: Mapped[list | None] = mapped_column(EncryptedJson, nullable=True)
+    audio_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    audio_sec: Mapped[float | None] = mapped_column(nullable=True)
+    stt_elapsed_sec: Mapped[float | None] = mapped_column(nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 첫 음성 조각이 온 시각
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)  # done · timeout
+    is_empty: Mapped[bool] = mapped_column(Boolean, default=False)  # 답을 안 함(무음·빈 글자)
+
+
+class InterviewSession(Base):
+    __tablename__ = "interview_sessions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    recording_segment: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Recording(Base):
+    """카메라 녹화 (테이블 정의서 4-10). 접속 구간마다 하나. 평가에는 쓰지 않는다 (부정행위 확인용).
+
+    저장소(S3)는 이어 쓰기가 안 되므로 10초 조각을 file_key 아래 chunk_no 순서 객체로 두고, 재생할 때 순서대로 이어 보낸다.
+    """
+    __tablename__ = "recordings"
+    __table_args__ = (UniqueConstraint("application_id", "segment_no"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    segment_no: Mapped[int] = mapped_column(Integer)
+    file_key: Mapped[str] = mapped_column(String(255))
+    last_chunk_no: Mapped[int] = mapped_column(Integer, default=-1)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    last_chunk_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)  # 예정 기한. 실제는 recording.expiresAt (공개 + 3일)
+
+
+class SessionEvent(Base):
+    __tablename__ = "session_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    type: Mapped[str] = mapped_column(String(32))
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    judged: Mapped[str | None] = mapped_column(String(16), nullable=True)  # fault · not_fault · cheating · info
+    seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CodingSubmission(Base):
+    __tablename__ = "coding_submissions"
+    __table_args__ = (UniqueConstraint("application_id", "problem_no"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    problem_no: Mapped[int] = mapped_column(Integer)
+    problem_key: Mapped[str] = mapped_column(String(32))
+    code: Mapped[str] = mapped_column(Text, default="")
+    saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paste_blocked: Mapped[int] = mapped_column(Integer, default=0)
+    final: Mapped[bool] = mapped_column(Boolean, default=False)
+    passed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    grade_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)  # T8 코드 리뷰. 점수에 반영하지 않음
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON)  # {"v": ...}
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class DeletionLog(Base):
+    """보관 기간·탈퇴·동의 철회로 지운 기록. 지운 내용은 남기지 않는다 (테이블 정의서 4-13)."""
+    __tablename__ = "deletion_logs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    cause: Mapped[str] = mapped_column(String(12))  # retention · withdraw · consent
+    scope: Mapped[str] = mapped_column(String(16))  # recording · interview_data · account
+    deleted_items: Mapped[dict] = mapped_column(JSON, default=dict)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class StatsArchive(Base):
+    """보관 기간이 지나 지운 지원 건의 익명 집계 (PRD 10-2 '통계 숫자 기한 없음', CONFLICTS F1).
+
+    공고·응시 월별 숫자만 더해 둔다. 지원 건·회원을 가리키는 칸은 두지 않는다.
+    """
+    __tablename__ = "stats_archive"
+    __table_args__ = (UniqueConstraint("posting_id", "month"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    posting_id: Mapped[str] = mapped_column(String(36), index=True)  # 공고를 지워도 숫자는 남도록 외래 키를 걸지 않는다
+    posting_title: Mapped[str] = mapped_column(String(200), default="")
+    month: Mapped[str] = mapped_column(String(7), default="")  # 응시 끝난 달(KST) YYYY-MM, 응시하지 않은 건은 ""
+    applications: Mapped[int] = mapped_column(Integer, default=0)
+    taken: Mapped[int] = mapped_column(Integer, default=0)
+    decided: Mapped[int] = mapped_column(Integer, default=0)
+    passed: Mapped[int] = mapped_column(Integer, default=0)
+    total_sum: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    score_bins: Mapped[list] = mapped_column(JSON, default=list)  # 10점 구간 10칸
+    item_sums: Mapped[dict] = mapped_column(JSON, default=dict)  # {항목: [합계 문자열, 개수]}
+    resumed: Mapped[int] = mapped_column(Integer, default=0)
+    cheating_cancelled: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    action: Mapped[str] = mapped_column(String(64))
+    target: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# 채점 점수가 없는 결과: 관리자 수동 결정 · 3일 안에 평가를 못 끝낸 건 (CONFLICTS U8). 점수 칸은 0 이지만 보이지 않고 통계에도 넣지 않는다
+UNSCORED_CHECKS = ("manual", "incomplete")
+
+
+class Result(Base):
+    """지원 1건의 최종 점수와 결정 (테이블 정의서 4-12). 확정 뒤 고치지 않는다.
+
+    합격 여부는 코드가 '총점 ≥ 합격 기준'으로 정하고, AI(T10)는 이유만 쓴다 (AI 아키텍처 v1.4).
+    답변 인용이 들어가는 글은 암호화해 둔다.
+    """
+    __tablename__ = "results"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), unique=True)
+    criteria_id: Mapped[int] = mapped_column(ForeignKey("evaluation_criteria.id"))
+    item_points: Mapped[dict] = mapped_column(JSON, default=dict)
+    interview_score: Mapped[float] = mapped_column(Numeric(5, 2))
+    coding_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    total_score: Mapped[float] = mapped_column(Numeric(5, 2))
+    pass_score: Mapped[float] = mapped_column(Numeric(5, 2))
+    ai_decision: Mapped[str] = mapped_column(String(4))
+    ai_reason: Mapped[str] = mapped_column(EncryptedText)
+    ai_reason_quotes: Mapped[list] = mapped_column(EncryptedJson, default=list)
+    strengths: Mapped[list] = mapped_column(EncryptedJson, default=list)
+    improvements: Mapped[list] = mapped_column(EncryptedJson, default=list)
+    summary: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    decision_check: Mapped[str] = mapped_column(String(12), default="ok")
+    model_version: Mapped[str] = mapped_column(String(80))
+    prompt_version: Mapped[str] = mapped_column(String(80))
+    rubric_version: Mapped[str] = mapped_column(String(80))
+    public_view: Mapped[dict] = mapped_column(EncryptedJson)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    @property
+    def scored(self) -> bool:
+        return self.decision_check not in UNSCORED_CHECKS
+
+
+class ItemScore(Base):
+    """질문 번호마다 AI 가 매긴 항목 점수 (테이블 정의서 4-19). 꼬리질문 답변을 합쳐 채점한다."""
+    __tablename__ = "item_scores"
+    __table_args__ = (UniqueConstraint("interview_question_id", "eval_item"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    interview_question_id: Mapped[int] = mapped_column(ForeignKey("interview_questions.id", ondelete="CASCADE"))
+    eval_item: Mapped[str] = mapped_column(String(12))
+    score: Mapped[int] = mapped_column(Integer)
+    quote: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    quote_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    regenerated: Mapped[bool] = mapped_column(Boolean, default=False)
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Highlight(Base):
+    """관리자가 다시 들어 볼 답변 구간 (테이블 정의서 4-20, TRD 8-4)."""
+    __tablename__ = "highlights"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    interview_question_id: Mapped[int] = mapped_column(ForeignKey("interview_questions.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(8))  # good · deducted
+    eval_item: Mapped[str] = mapped_column(String(12))
+    start_ms: Mapped[int] = mapped_column(Integer)
+    end_ms: Mapped[int] = mapped_column(Integer)
+    quote: Mapped[str] = mapped_column(EncryptedText)
+
+
+class Memo(Base):
+    """지원자에 대한 관리자 내부 메모 (테이블 정의서 4-21). 지원자 응답에는 넣지 않는다 (ADM-05)."""
+    __tablename__ = "memos"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    body: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Notification(Base):
+    """사이트 알림(머리글 🔔)과 같은 내용의 메일 발송 상태 (테이블 정의서 4-22)."""
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=newId)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    link: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 🔔 목록에서 지운 시각. 줄은 남겨 메일 발송 기록(운영 현황)을 지키므로 숨기기만 한다
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_status: Mapped[str] = mapped_column(String(10), default="pending")  # pending · sent · deferred · failed · skipped
+    email_retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    email_fail_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
+# 상태 칸에 들어갈 수 있는 값 (테이블 정의서 1장 규칙 1 · CONFLICTS.md T1). 값은 실제 코드 기준.
+# create_all 이 새 표에 걸고, 이미 있는 Postgres 표에는 migrate.addChecks 가 건다
+EVAL_ITEM_VALUES = ("expertise", "logic", "relevance", "delivery", "culture_fit")
+CHECK_VALUES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("users", "role"): ("applicant", "admin"),
+    ("job_codes", "status"): ("open", "preparing"),
+    ("job_postings", "status"): ("draft", "published", "closed"),
+    ("job_postings", "source"): ("manual", "open_api", "dummy", "ai_draft"),
+    ("applications", "attempt_status"): ("drafting", "ready", "interviewing", "coding", "interrupted", "completed",
+                                         "ended", "ended_closed", "cancelled", "not_taken_closed", "screening", "screen_rejected"),
+    ("applications", "analysis_status"): ("pending", "running", "decided", "needs_review"),
+    ("applications", "release_status"): ("scheduled", "delayed", "released", "purged"),
+    ("applications", "resume_method"): ("upload", "manual", "saved"),
+    ("applications", "phase"): ("interview", "coding"),
+    ("applications", "questions_status"): ("none", "composing", "ready", "failed"),
+    ("resume_uploads", "stage"): ("uploaded", "checking", "ocr", "structuring", "done", "failed", "cancelled"),
+    ("resume_screenings", "stage"): ("first", "second", "done", "error"),
+    ("resume_screenings", "decision"): ("pass", "fail"),
+    ("resume_screenings", "decided_by"): ("ai", "admin"),
+    ("questions", "kind"): ("personality", "company", "job", "resume"),
+    ("questions", "status"): ("active", "preparing", "pending", "rejected", "excluded"),
+    ("interview_questions", "kind"): ("base", "follow_up"),
+    ("answers", "end_reason"): ("done", "timeout"),
+    ("item_scores", "eval_item"): EVAL_ITEM_VALUES,
+    ("highlights", "eval_item"): EVAL_ITEM_VALUES,
+    ("highlights", "kind"): ("good", "deducted"),
+    ("results", "ai_decision"): ("pass", "fail"),
+    ("results", "decision_check"): ("ok", "rejudged", "manual", "incomplete"),
+    ("notifications", "email_status"): ("pending", "sent", "deferred", "failed", "skipped"),
+    ("deletion_logs", "cause"): ("retention", "withdraw", "consent"),
+    ("deletion_logs", "scope"): ("recording", "interview_data", "account"),
+}
+
+
+def checkName(table: str, column: str) -> str:
+    return f"ck_{table}_{column}"
+
+
+def checkSql(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+for (_table, _column), _values in CHECK_VALUES.items():
+    Base.metadata.tables[_table].append_constraint(CheckConstraint(checkSql(_column, _values), name=checkName(_table, _column)))

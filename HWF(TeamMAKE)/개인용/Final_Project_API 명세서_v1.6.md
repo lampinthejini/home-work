@@ -1275,3 +1275,23 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 - 녹화 보관·재생 410 기준: 결과 공개 + 3일.
 - `GET /applications/{id}/consent` 의 `consent_version` 이 v1.9 가 됐다(④ 문구 변경). 예전 버전으로 보내면 409 `CONSENT_VERSION_CHANGED`.
 - 이력서 정리 상태의 `estimated_seconds` 는 글을 읽은 뒤 길이에 맞춰 늘어날 수 있다.
+
+## 2026-11-18 보정 (C-25)
+
+사용자 결정(huge/CONFLICTS.md C-25, 2026-11-18)과 코드에 맞춰 같은 버전 안에서 고친 내용이다. 자세한 결정·실측은 C-25 를 본다.
+
+| 메서드 · 경로 | 누가 | 요청 | 응답 · 오류 |
+|---|---|---|---|
+| `POST /applications/{id}/resume` | 지원자 | (그대로) | 저장만 한다. `{attempt_status: "drafting", next_step: "documents"}` |
+| `GET /applications/{id}/documents` | 지원자 | — | `{cover_text, cover_max: 3000, max_files: 3, file_max_mb: 10, kinds, files: [{id, kind, name, chars}]}` |
+| `PUT /applications/{id}/documents` | 지원자 | `{cover_text}` | 임시 저장. 409 `RESUME_REQUIRED`(이력서 먼저) · `RESUME_LOCKED`(제출 뒤), 400 `COVER_TOO_LONG` |
+| `POST /applications/{id}/documents/files` | 지원자 | multipart `file`(PDF). 종류는 늘 자기소개서(`kind: cover_letter`) | documents 응답. 400 `UNSUPPORTED_FILE` · `DOCUMENT_NO_TEXT`, 409 `DOCUMENT_LIMIT`, 413 `FILE_TOO_LARGE` |
+| `DELETE /applications/{id}/documents/files/{fileId}` | 지원자 | — | documents 응답. 404 |
+| `POST /applications/{id}/submit` | 지원자 | `{cover_text}`(없어도 됨) | 서류 평가 시작 → `attempt_status: "screening"`. 409 `RESUME_REQUIRED` · `POSTING_CLOSED` |
+| `GET /applications/{id}/screening` | 지원자 | — | `{attempt_status, posting_title, can_appeal, appeal_text_max: 500, screening: {stage, decision, decided_by, items: [{item, label, axis, level, max_level, level_text, evidence, reason, appealable}], appeal}}` (점수 없음) |
+| `POST /applications/{id}/screening/appeal` | 지원자 | `{claims: [{item, text(1~500자)}]}` | `{appeal_at, appeal_status: "pending"}`. 409 `NOT_SCREEN_REJECTED` · `APPEAL_DONE` · `POSTING_CLOSED`, 400 `APPEAL_ITEM`(기술스택·없는 항목·같은 항목 두 번) |
+| `GET /admin/applications/{id}/screening` | 관리자 | — | `{attempt_status, documents: [{kind, source, name, text}], career: [{company, role, start, end, description}], screening: {…, pass_score, band, first_total, second_total, final_total, appeal_total, timings, rounds, error_count, last_error}}`. 판정을 바꾸는 API 는 없다 |
+
+- 공고 `criteria`: `screening_required_skills`(1개 이상, 없으면 400 `SCREENING_SKILLS`) · `screening_preferred_skills` · `screening_pass_score`(30~90, 기본 60) · `screening_band`(0~15, 기본 5). `screening_enabled`·`screening_essays` 는 없다(보내면 422). 서류 평가를 받은 지원자가 있으면 이 칸을 바꿀 때 409 `SCREENING_STARTED`.
+- `attempt_status` 값 추가: `screening`(서류 평가 중) · `screen_rejected`(서류 불합격). `GET /applications/{id}` 의 `next_step`: consent · resume · documents.
+- **회의 결정(2026-11-18 저녁)**: 추가 서류는 **자기소개서 하나**만 받는다. 포트폴리오·프로젝트 기술서 등 다른 서류를 올려도 자기소개서로 본다(PDF 종류 고르기 없앰, `kind` 는 늘 `cover_letter`). **글자만 평가**한다 — 그림·사진 안의 글자는 OCR 로 읽어 쓰지만(글자가 없는 쪽, 큰 그림이 있는 쪽; 글자층에 이미 있는 줄은 다시 붙이지 않음), 그림·사진·디자인·서식 자체는 평가 대상이 아니다. 화면에 이 점, 자기소개서를 안 내면 회사 적합·적응·성장 점수가 낮아질 수 있다는 점, 예상 시간(보통 1분 안팎, 2차까지 5~7분, 다른 지원자의 서류 평가·면접 채점이 먼저 진행 중이면 더 걸림)을 적는다. 서류 합격 즉시 면접 질문 만들기를 시작한다(이미 그렇게 동작).

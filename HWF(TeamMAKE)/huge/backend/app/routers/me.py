@@ -10,7 +10,7 @@ from ..deps import activeUser, ownedApplication, requireApplicant
 from ..domain import status as st
 from ..errors import notFound
 from ..interview import registry
-from ..models import Application, Consent, InterviewSession, Notification, Result, User
+from ..models import Application, Consent, InterviewSession, Notification, Result, ResumeScreening, User
 from ..timeutil import asKst, iso, now
 
 router = APIRouter()
@@ -53,6 +53,9 @@ def myApplications(page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=50
             "release_at": iso(releaseAt(a)),
             "result_until": iso(a.purge_at or releaseAt(a) + timedelta(days=RESULT_VIEW_DAYS)) if released else None,
             "applied_at": iso(a.submitted_at or a.created_at),
+            # 서류 평가 판정이 났는가. 합격자도 카드에서 서류 결과를 볼 수 있게 한다 (점수는 넣지 않음, CONFLICTS C-25)
+            "screening_decided": db.query(ResumeScreening).filter(ResumeScreening.application_id == a.id,
+                                                                  ResumeScreening.decision.isnot(None)).count() > 0,
             "consented": db.query(Consent).filter_by(application_id=a.id, withdrawn_at=None).count() > 0,  # 계정 탭 [동의 철회]
         })
     return {"items": items, "total": total, "page": page, "size": size}

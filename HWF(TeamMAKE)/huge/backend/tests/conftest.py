@@ -24,9 +24,9 @@ from app import worker  # noqa: E402
 from app.db import Base, getDb  # noqa: E402
 from app.errors import ApiError, apiErrorHandler, validationErrorHandler  # noqa: E402
 from app.models import User  # noqa: E402
-from app.routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings  # noqa: E402
+from app.routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings, screening  # noqa: E402
 from app.security import hashPassword  # noqa: E402
-from app.services import admission, posting_questions, question_compose  # noqa: E402
+from app.services import admission, posting_questions, question_compose, resume_screening  # noqa: E402
 from app.services.postings import seedJobCodes  # noqa: E402
 from app.timeutil import now  # noqa: E402
 
@@ -74,6 +74,8 @@ def sessionFactory(monkeypatch):
     monkeypatch.setattr(dbModule, "SessionLocal", factory)
     monkeypatch.setattr(admission, "_redis", fakeredis.FakeRedis())
     monkeypatch.setattr(question_compose, "scheduleCompose", lambda applicationId: None)
+    monkeypatch.setattr(resume_screening, "scheduleScreening", lambda applicationId: None)  # 서류 평가 LLM 을 부르지 않게
+    monkeypatch.setattr(resume_screening, "scheduleAppeal", lambda applicationId: None)  # 이의 재평가도
     monkeypatch.setattr(posting_questions, "schedule", lambda postingId: None)  # 공고 게시 때 LLM 을 부르지 않게
     monkeypatch.setattr(worker, "enqueueEvaluation", lambda applicationId, attempt=1, countdown=0: None)
     monkeypatch.setattr(worker, "queueMail", lambda notificationId, countdown=0: None)
@@ -89,7 +91,7 @@ def client(sessionFactory):
     app = FastAPI()
     app.add_exception_handler(ApiError, apiErrorHandler)
     app.add_exception_handler(RequestValidationError, validationErrorHandler)
-    for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin):
+    for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin, screening):
         app.include_router(module.router)
 
     def overrideDb():
@@ -129,7 +131,8 @@ def postingBody(**overrides):
         "headcount": 2, "open_at": (now() - timedelta(days=1)).isoformat(), "close_at": (now() + timedelta(days=7)).isoformat(),
         "contact_email": "recruit@example.com",
         "criteria": {"weights": {"expertise": 30, "logic": 25, "relevance": 20, "delivery": 10, "culture_fit": 15},
-                     "coding_enabled": True, "coding_ratio": 30, "pass_score": 70},
+                     "coding_enabled": True, "coding_ratio": 30, "pass_score": 70,
+                     "screening_required_skills": ["Python"]},  # 서류 평가는 모든 공고에 (CONFLICTS C-25)
     }
     body.update(overrides)
     return body
@@ -142,3 +145,24 @@ def publishedPosting(adminClient, **overrides) -> str:
     res = adminClient.post(f"/admin/postings/{postingId}/publish")
     assert res.status_code == 200, res.text
     return postingId
+
+
+COVER_LETTER = "사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다. 응답 시간이 30% 줄었습니다."
+
+
+def submitApplication(client, appId: str) -> None:
+    """추가 서류(자기소개서 글)를 내고 지원서를 제출한다 → 서류 평가 중."""
+    res = client.post(f"/applications/{appId}/submit", json={"cover_text": COVER_LETTER})
+    assert res.status_code == 200, res.text
+
+
+def passScreening(appId: str) -> None:
+    """서류 평가를 거치지 않고 서류 합격으로 둔다 (면접 쪽 테스트용. 서류 평가 자체는 test_resume_screening)."""
+    from app import db as dbModule
+    from app.domain import status as st
+    from app.models import Application
+
+    with dbModule.SessionLocal() as db:
+        app = db.get(Application, appId)
+        app.attempt_status = st.transition(app.attempt_status, st.READY)
+        db.commit()

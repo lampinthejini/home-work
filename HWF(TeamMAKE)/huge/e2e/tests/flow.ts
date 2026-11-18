@@ -3,6 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { loginByUi, readState } from "../helpers";
 
+// 추가 서류의 자기소개서 답변 (문항마다 같은 글, 50~800자). 상황 · 본인이 한 일 · 결과가 있어 서류 평가 근거가 된다
+const COVER_LETTER = "학교 도서관 좌석 예약이 불편하다는 학생 다섯 명의 이야기를 듣고 Python 으로 예약 알림 챗봇을 만들었습니다. 처음 써 보는 FastAPI 를 공식 문서로 배워 적용했고, 사용 기록을 숫자로 모아 보니 빈 좌석 대기 시간이 40% 줄었습니다. 모르는 부분은 동료에게 묻고 코드 리뷰를 받아 고쳤습니다.";
+
 /** 환경 점검 5개 통과. 카메라·마이크는 가짜 장치, 스피커는 '들립니다'를 누른다 (처음 점검·이어가기 재점검 공통) */
 export async function passPrecheck(page: Page): Promise<void> {
     await page.getByRole("button", { name: "▶ 테스트음 재생" }).click();
@@ -52,8 +55,19 @@ export async function applyAndStartInterview(page: Page, email: string, password
         await page.locator("#field-education").getByRole("button", { name: "+ 추가" }).click();
         await page.locator("#field-education").getByLabel("학교").fill("한국대학교");
         await page.locator("#field-education").getByLabel("전공").fill("컴퓨터공학");
-        await page.getByRole("button", { name: "이력서 제출 ▶" }).click();
+        await page.getByRole("button", { name: "이력서 저장 · 다음 ▶" }).click();
+        await expect(page).toHaveURL(/\/documents$/);
+    });
+
+    await test.step("추가 서류(자기소개서 글) → 지원서 제출 → AI 서류 평가 합격", async () => {
+        await page.locator("#cover-text").fill(COVER_LETTER);
+        await page.getByRole("button", { name: "지원서 제출 ▶" }).click();
         await page.getByRole("dialog").getByRole("button", { name: "제출하기" }).click();
+        await expect(page).toHaveURL(/\/mypage/);
+        // 실제 AI(Qwen3-4B)가 서류를 평가한다. E2E 공고는 합격선 30점·2차 없음
+        await expect.poll(async () => (await (await page.request.get(`/api/applications/${applicationId}`)).json()).attempt_status,
+            { timeout: 180_000, intervals: [3_000] }).toBe("ready");
+        await page.goto(`/apply/${applicationId}/precheck`);
         await expect(page).toHaveURL(/\/precheck/);
     });
 

@@ -24,7 +24,7 @@ export type ResumeData = {
 export type ApplicationState = {
     application_id: string;
     attempt_status: AttemptStatus;
-    next_step: "consent" | "resume";
+    next_step: "consent" | "resume" | "documents";
     posting: { posting_id: string; title: string; close_at: string; release_at: string; has_coding_test: boolean };
     resume: Omit<ResumeData, "name"> | null;
     resume_name: string | null;
@@ -33,9 +33,10 @@ export type ApplicationState = {
     consent_version: string;
 };
 
-export type Step = "consent" | "resume" | "precheck" | "rules";
+export type Step = "consent" | "resume" | "documents" | "precheck" | "rules";
 const STEPS: { key: Step; label: string }[] = [
-    { key: "consent", label: "동의" }, { key: "resume", label: "이력서" }, { key: "precheck", label: "환경 점검" }, { key: "rules", label: "시작 안내" },
+    { key: "consent", label: "동의" }, { key: "resume", label: "이력서" }, { key: "documents", label: "추가 서류" },
+    { key: "precheck", label: "환경 점검" }, { key: "rules", label: "시작 안내" },
 ];
 
 const Ctx = createContext<{ app: ApplicationState; reload: () => Promise<void> } | null>(null);
@@ -57,7 +58,9 @@ function redirectFor(app: ApplicationState, step: Step): { to: string; toast?: s
         case "drafting":
             if (step === "precheck" || step === "rules") return { to: `/apply/${id}/${app.next_step}`, toast: "지원서 작성을 이어서 진행합니다" };
             if (step === "resume" && app.next_step === "consent") return { to: `/apply/${id}/consent` };
-            if (step === "consent" && app.next_step === "resume") return { to: `/apply/${id}/resume` };
+            if (step === "consent" && app.next_step !== "consent") return { to: `/apply/${id}/${app.next_step}` };
+            // 추가 서류는 이력서를 저장한 뒤에만 (CONFLICTS C-25). 이력서로 돌아가 고치는 것은 된다
+            if (step === "documents" && app.next_step !== "documents") return { to: `/apply/${id}/${app.next_step}` };
             return null;
         case "ready":
             return step === "precheck" || step === "rules" ? null : { to: `/apply/${id}/precheck` };
@@ -70,6 +73,10 @@ function redirectFor(app: ApplicationState, step: Step): { to: string; toast?: s
             return { to: "/mypage", toast: `응시가 완료되었습니다. 결과는 ${longDateTime(app.posting.release_at)}에 공개됩니다` };
         case "not_taken_closed":
             return { to: "/mypage", toast: "마감이 되어 면접을 진행할 수 없습니다." };
+        case "screening":
+            return { to: "/mypage", toast: "AI가 서류를 평가하고 있습니다. 끝나면 알림으로 알려 드립니다" };
+        case "screen_rejected":
+            return { to: `/mypage/screening/${id}` };
         default:
             return { to: "/mypage", toast: `${ATTEMPT_LABEL[app.attempt_status]} 상태입니다` };
     }
@@ -126,7 +133,8 @@ export function ApplyFlow({ step, children }: { step: Step; children: ReactNode 
         }
     }, [app, step, router, toast]);
 
-    const done: Step[] = app ? (app.attempt_status === "drafting" ? (app.next_step === "resume" ? ["consent"] : []) : ["consent", "resume"]) : [];
+    const DRAFT_DONE: Record<ApplicationState["next_step"], Step[]> = { consent: [], resume: ["consent"], documents: ["consent", "resume"] };
+    const done: Step[] = app ? (app.attempt_status === "drafting" ? DRAFT_DONE[app.next_step] : ["consent", "resume", "documents"]) : [];
 
     return (
         <>

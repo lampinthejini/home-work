@@ -16,6 +16,8 @@ type Form = {
     title: string; job_code: string; company_intro: string; duties: string; requirements: string; preferred: string;
     employment_type: string; location: string; headcount: number; open_at: string; close_at: string; contact_email: string;
     weights: Record<string, number>; coding_enabled: boolean; coding_ratio: number; pass_score: number;
+    // 서류 평가 (CONFLICTS C-25, 모든 공고). 기술은 쉼표로 나눠 적는다
+    screening_required: string; screening_preferred: string; screening_pass_score: number; screening_band: number;
 };
 type FieldKey = keyof Form;
 
@@ -42,6 +44,20 @@ function toForm(p: AdminPosting | null): Form {
         location: p?.location ?? "", headcount: p?.headcount || 1, open_at: toLocalInput(p?.open_at), close_at: toLocalInput(p?.close_at),
         contact_email: p?.contact_email ?? "", weights: { ...(c?.weights ?? DEFAULT_WEIGHTS) }, coding_enabled: c?.coding_enabled ?? false,
         coding_ratio: c?.coding_ratio ?? 30, pass_score: c?.pass_score ?? 70,
+        screening_required: (c?.screening_required_skills ?? []).join(", "),
+        screening_preferred: (c?.screening_preferred_skills ?? []).join(", "), screening_pass_score: c?.screening_pass_score ?? 60,
+        screening_band: c?.screening_band ?? 5,
+    };
+}
+
+function skillList(text: string): string[] {
+    return text.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+}
+
+function screeningFields(f: Form) {
+    return {
+        screening_required_skills: skillList(f.screening_required), screening_preferred_skills: skillList(f.screening_preferred),
+        screening_pass_score: f.screening_pass_score, screening_band: f.screening_band,
     };
 }
 
@@ -68,7 +84,13 @@ function weightError(w: Record<string, number>): string | null {
 
 /** 2단계(평가 기준)에서 다음·저장을 막는 사유. 합격 기준 칸을 비우면 0점이 아니라 입력 요청 */
 function criteriaError(f: Form): string | null {
-    return weightError(f.weights) ?? (Number.isNaN(f.pass_score) ? "합격 기준 점수를 입력해 주세요" : null);
+    return weightError(f.weights) ?? (Number.isNaN(f.pass_score) ? "합격 기준 점수를 입력해 주세요" : null) ?? screeningError(f);
+}
+
+function screeningError(f: Form): string | null {
+    if (skillList(f.screening_required).length === 0) return "서류 평가의 필수 기술을 1개 이상 넣어 주세요";
+    if (Number.isNaN(f.screening_pass_score) || f.screening_pass_score < 30 || f.screening_pass_score > 90) return "서류 합격선은 30~90점입니다";
+    return null;
 }
 
 const AI_SECTIONS: { key: FieldKey; label: string }[] = [{ key: "title", label: "제목" }, ...LONG_FIELDS.map(({ key, label }) => ({ key, label }))];
@@ -185,10 +207,11 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
             headcount: form.headcount, contact_email: form.contact_email,
         };
         if (!published) Object.assign(body, { job_code: form.job_code, open_at: fromLocalInput(form.open_at), close_at: fromLocalInput(form.close_at) });
-        const criteriaChanged = JSON.stringify([form.weights, form.coding_enabled, form.coding_ratio, form.pass_score])
-            !== JSON.stringify([saved.weights, saved.coding_enabled, saved.coding_ratio, saved.pass_score]);
+        const criteriaChanged = JSON.stringify([form.weights, form.coding_enabled, form.coding_ratio, form.pass_score, screeningFields(form)])
+            !== JSON.stringify([saved.weights, saved.coding_enabled, saved.coding_ratio, saved.pass_score, screeningFields(saved)]);
         if (!criteriaLocked && (criteriaChanged || !posting?.criteria) && !criteriaError(form)) {
-            body.criteria = { weights: form.weights, coding_enabled: form.coding_enabled, coding_ratio: form.coding_ratio, pass_score: form.pass_score };
+            body.criteria = { weights: form.weights, coding_enabled: form.coding_enabled, coding_ratio: form.coding_ratio, pass_score: form.pass_score,
+                ...screeningFields(form) };
         }
         return body;
     }
@@ -372,6 +395,42 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                     {Number.isNaN(form.pass_score) && <p className="small" style={{ color: "var(--color-danger)" }}>합격 기준 점수를 입력해 주세요</p>}
                     <p className="tiny muted">ⓘ 종합 총점이 이 점수 이상이면 1차 합격으로 판정합니다.</p>
                     <p className="tiny muted">ⓘ 면접 질문은 시스템이 자동으로 구성합니다 (인성 2 · 이력서 기반 2 · 기업 관련 2 · 직무 4 = 10문항)</p>
+
+                    <h3>④ 서류 평가</h3>
+                    <p className="tiny muted" style={{ marginTop: 0 }}>ⓘ 모든 공고에 적용됩니다. AI가 서류를 먼저 평가하고, 서류 합격자만 AI 면접을 봅니다.</p>
+                    <div className="stack" style={{ gap: 8 }}>
+                        <Field label="필수 기술" required hint="쉼표로 나눠 적습니다. 예: Python, SQL, PyTorch">
+                            <input id="f-screening_required" className="input" value={form.screening_required} disabled={criteriaLocked}
+                                onChange={(e) => set("screening_required", e.target.value)} />
+                        </Field>
+                        <Field label="우대 기술" hint="쉼표로 나눠 적습니다. 예: LangChain, Docker">
+                            <input id="f-screening_preferred" className="input" value={form.screening_preferred} disabled={criteriaLocked}
+                                onChange={(e) => set("screening_preferred", e.target.value)} />
+                        </Field>
+                        <div className="row" style={{ gap: 16, flexWrap: "wrap" }}>
+                            <label className="row" style={{ gap: 8 }}>
+                                <span className="small">서류 합격선</span>
+                                <input id="f-screening_pass_score" className="input" style={{ width: 90 }} type="number" min={30} max={90} disabled={criteriaLocked}
+                                    value={Number.isNaN(form.screening_pass_score) ? "" : form.screening_pass_score}
+                                    onChange={(e) => set("screening_pass_score", e.target.value === "" ? NaN : Number(e.target.value))} /> 점 (30~90)
+                            </label>
+                            <label className="row" style={{ gap: 8 }}>
+                                <span className="small">2차 평가 구간 ±</span>
+                                <input id="f-screening_band" className="input" style={{ width: 80 }} type="number" min={0} max={15} disabled={criteriaLocked}
+                                    value={form.screening_band} onChange={(e) => set("screening_band", Math.max(0, Math.min(15, Number(e.target.value) || 0)))} /> 점
+                            </label>
+                        </div>
+                        {screeningError(form) && <p className="small" style={{ color: "var(--color-danger)" }}>{screeningError(form)}</p>}
+                        <p className="tiny muted">
+                            ⓘ 100점 = 직무 적합 50 (프로젝트 24 · 기술스택 16 · 교육·대회·수상 4 · 자격증 4 · 학력 2) · 회사 적합 30 (인재상 4개 × 7.5)
+                            · 적응·성장 20 (새 기술 학습 10 · 실패 뒤 회복 10). 경력(연차·회사)은 점수에 넣지 않고 참고 사항으로만 보여 줍니다.
+                            지원자는 이력서와 함께 자기소개서 · 포트폴리오 · 프로젝트 계획서 등을 자유롭게 낼 수 있습니다(모두 선택).
+                            AI가 항목마다 단계와 근거 문장을 고르고 점수는 시스템이 계산합니다.
+                            1차 점수가 {form.screening_pass_score + form.screening_band}점 이상이면 합격, {form.screening_pass_score - form.screening_band}점 미만이면 불합격,
+                            그 사이면 더 큰 AI 모델이 다시 평가해 합격선 {form.screening_pass_score}점으로 판정합니다. 구간을 0으로 하면 다시 평가하지 않습니다.
+                        </p>
+                        <p className="tiny muted">ⓘ 서류 평가를 받은 지원자가 생기면 서류 평가 기준은 바꿀 수 없습니다. 관리자는 서류 판정을 바꾸지 않으며, 불합격자의 이의 신청은 AI가 다시 평가합니다.</p>
+                    </div>
                 </div>
             )}
 

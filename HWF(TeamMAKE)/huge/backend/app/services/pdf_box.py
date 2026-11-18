@@ -1,6 +1,6 @@
 """PDF 를 읽는 별도 프로세스. 믿을 수 없는 파일이라 api 프로세스 안에서 열지 않는다 (논의사항 P5).
 
-사용: python pdf_box.py read      표준입력 PDF → 표준출력 JSON [{no, text, source}]
+사용: python pdf_box.py read      표준입력 PDF → 표준출력 JSON [{no, text, source, images}]
       python pdf_box.py render N  표준입력 PDF → 표준출력 N쪽 PNG
 
 이 파일은 단독으로 실행되므로 앱 모듈을 가져오지 않는다. fitz·pdfplumber 는 함수 안에서 가져와 api 프로세스에 올리지 않는다.
@@ -12,6 +12,8 @@ import re
 import sys
 
 SCANNED_PAGE_CHARS = 50
+# 쪽 넓이의 이만큼 이상을 차지하는 그림만 센다 (작은 아이콘·로고는 OCR 하지 않음). images 는 그림 속 글자를 OCR 할 쪽을 고르는 데 쓴다
+IMAGE_MIN_AREA_RATIO = 0.03
 MAX_PAGES = 10
 MAX_PAGE_CHARS = 6000  # 글자가 비정상으로 많은 PDF 가 api 메모리로 넘어오지 않게 한다
 RENDER_DPI = 200
@@ -41,6 +43,16 @@ class Encrypted(Exception):
     pass
 
 
+def imageCount(page) -> int:
+    """쪽 위에 그려진 그림 가운데 넓이가 쪽의 IMAGE_MIN_AREA_RATIO 이상인 것의 수."""
+    pageArea = abs(page.rect.width * page.rect.height) or 1
+    try:
+        boxes = [info["bbox"] for info in page.get_image_info()]
+    except Exception:  # 그림 정보를 못 읽어도 글자 읽기는 계속한다
+        return 0
+    return sum(1 for x0, y0, x1, y1 in boxes if abs((x1 - x0) * (y1 - y0)) / pageArea >= IMAGE_MIN_AREA_RATIO)
+
+
 def readPages(data: bytes) -> list[dict]:
     import fitz  # PyMuPDF
     import pdfplumber
@@ -55,17 +67,18 @@ def readPages(data: bytes) -> list[dict]:
                 if index >= MAX_PAGES:
                     break
                 text = page.get_text("text", sort=True).strip()[:MAX_PAGE_CHARS]
+                images = imageCount(page)
                 if isReadable(text):
-                    pages.append({"no": index + 1, "text": text, "source": "pymupdf"})
+                    pages.append({"no": index + 1, "text": text, "source": "pymupdf", "images": images})
                     continue
                 # 두 번째 리더: 표·특수 글꼴은 pdfplumber 가 더 잘 읽을 때가 있다
                 if plumber is None:
                     plumber = pdfplumber.open(io.BytesIO(data))
                 second = (plumber.pages[index].extract_text() or "").strip()[:MAX_PAGE_CHARS]
                 if isReadable(second):
-                    pages.append({"no": index + 1, "text": second, "source": "pdfplumber"})
+                    pages.append({"no": index + 1, "text": second, "source": "pdfplumber", "images": images})
                 else:
-                    pages.append({"no": index + 1, "text": "", "source": "none"})
+                    pages.append({"no": index + 1, "text": "", "source": "none", "images": images})
         finally:
             if plumber is not None:
                 plumber.close()

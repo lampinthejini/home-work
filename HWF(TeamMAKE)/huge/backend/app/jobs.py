@@ -13,7 +13,7 @@ from .db import SessionLocal
 from .domain import status as st
 from .interview import lifecycle, registry
 from .models import Application, CodingSubmission, InterviewSession, JobPosting
-from .services import admission, coding
+from .services import admission, coding, resume_screening
 from .services.postings import closePosting
 from .settings_store import getSetting
 from .timeutil import asKst, now
@@ -76,6 +76,7 @@ async def runForever() -> None:
             await closeExpiredPostings(db)
             admission.reconcile(db)
             regradePending()
+            resume_screening.resumePending(db)  # AI 장애로 멈춘 서류 평가 다시 시작 (CONFLICTS C-25)
         except Exception:
             log.exception("periodic job failed")
             db.rollback()

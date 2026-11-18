@@ -68,6 +68,11 @@ class CriteriaIn(Strict):
     coding_enabled: bool
     coding_ratio: int = 30
     pass_score: int = Field(default=70, ge=0, le=100)
+    # 서류 평가 (CONFLICTS C-25). 모든 공고에 적용. 필수 기술은 1개 이상 (services/postings.applyScreening 이 확인)
+    screening_required_skills: list[str] = Field(default_factory=list, max_length=20)
+    screening_preferred_skills: list[str] = Field(default_factory=list, max_length=20)
+    screening_pass_score: int = Field(default=60, ge=30, le=90)
+    screening_band: int = Field(default=5, ge=0, le=15)
 
 
 class PostingIn(Strict):

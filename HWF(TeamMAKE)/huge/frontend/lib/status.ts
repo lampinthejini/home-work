@@ -2,7 +2,8 @@
 
 export type AttemptStatus =
     | "drafting" | "ready" | "interviewing" | "coding" | "interrupted"
-    | "completed" | "ended" | "ended_closed" | "cancelled" | "not_taken_closed";
+    | "completed" | "ended" | "ended_closed" | "cancelled" | "not_taken_closed"
+    | "screening" | "screen_rejected"; // 서류 평가 (CONFLICTS C-25)
 
 export const ATTEMPT_LABEL: Record<AttemptStatus, string> = {
     drafting: "작성 중",
@@ -15,6 +16,8 @@ export const ATTEMPT_LABEL: Record<AttemptStatus, string> = {
     ended_closed: "응시 종료(마감)",
     cancelled: "응시 취소",
     not_taken_closed: "미응시(마감)",
+    screening: "서류 평가 중",
+    screen_rejected: "서류 불합격",
 };
 
 export const ATTEMPT_BADGE: Record<AttemptStatus, string> = {
@@ -28,6 +31,8 @@ export const ATTEMPT_BADGE: Record<AttemptStatus, string> = {
     ended_closed: "badge-gray",
     cancelled: "badge-red",
     not_taken_closed: "badge-gray",
+    screening: "badge-blue",
+    screen_rejected: "badge-red",
 };
 
 /** 공고 상세(S-A02)의 버튼·안내 (§3.4). 응시로 들어가는 버튼은 마이페이지에만 둔다 */
@@ -42,6 +47,8 @@ export const POSTING_BUTTON: Record<AttemptStatus, { label: string; active: bool
     ended_closed: { label: "접수 마감", active: false, hint: "마감이 되어 면접을 진행할 수 없습니다. 답변한 문항까지 평가합니다" },
     cancelled: { label: "응시 취소", active: false, hint: "화면 이탈 규칙에 따라 응시가 취소되었습니다" },
     not_taken_closed: { label: "접수 마감", active: false, hint: "마감이 되어 면접을 진행할 수 없습니다." },
+    screening: { label: "서류 평가 중", active: false, hint: "AI가 제출한 서류를 평가하고 있습니다. 끝나면 알림으로 알려 드립니다" },
+    screen_rejected: { label: "마이페이지에서 확인", active: true, hint: "서류 평가 결과를 마이페이지에서 확인할 수 있습니다" },
 };
 
 export const EMPLOYMENT_LABEL: Record<string, string> = { full_time: "정규직", contract: "계약직", intern: "인턴" };

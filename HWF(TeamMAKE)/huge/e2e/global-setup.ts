@@ -3,13 +3,14 @@ import { writeFileSync } from "node:fs";
 
 import { request } from "@playwright/test";
 
-import { BASE_URL, E2E_ADMIN_EMAIL, publishPosting, questionWatermark, randomPassword, setE2eAdminPassword, STATE_FILE, type E2eState } from "./helpers";
+import { BASE_URL, E2E_ADMIN_EMAIL, publishPosting, questionCount, questionWatermark, randomPassword, setE2eAdminPassword, STATE_FILE, type E2eState } from "./helpers";
 
 export default async function globalSetup() {
     const health = await fetch(`${BASE_URL}/api/auth/me`).catch(() => null);
     if (!health) throw new Error(`${BASE_URL} 에 연결하지 못했습니다. 먼저 sh scripts/up.sh 로 띄워 주세요.`);
 
     const watermark = questionWatermark(); // 공고를 게시하기 전에 (게시하면 질문 후보가 생긴다)
+    const startCount = questionCount();
     const adminPassword = randomPassword();
     setE2eAdminPassword(adminPassword);
 
@@ -24,6 +25,6 @@ export default async function globalSetup() {
     const codingPostingId = await publishPosting(ctx, codingPostingTitle, true);
     await ctx.dispose();
 
-    const state: E2eState = { adminEmail: E2E_ADMIN_EMAIL, adminPassword, postingId, postingTitle, codingPostingId, codingPostingTitle, questionWatermark: watermark };
+    const state: E2eState = { adminEmail: E2E_ADMIN_EMAIL, adminPassword, postingId, postingTitle, codingPostingId, codingPostingTitle, questionWatermark: watermark, questionCount: startCount };
     writeFileSync(STATE_FILE, JSON.stringify(state), "utf-8");
 }

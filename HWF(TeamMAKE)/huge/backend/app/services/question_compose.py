@@ -162,8 +162,56 @@ def stableOrder(applicationId: str, questionId: int) -> str:
     return hashlib.sha256(f"{applicationId}:{questionId}".encode()).hexdigest()
 
 
-def resumeText(resume: dict) -> str:
-    """LLM 입력용 이력서 요약. 이름·연락처는 넣지 않는다 (TRD 8-2 ①, 기술 아키텍처 10장)."""
+COVER_CHARS = 800  # 질문 한 자리에 넣는 자기소개서 글자 수. 더 길면 자리 주제와 가까운 문단을 고른다 (CoverIndex)
+# 문단 임베딩 기다리는 시간. 실측(CPU BGE-M3): 8문단 약 4.8초 → 5,000자(13문단)는 약 8초라 기본 10초로는 빠듯하다
+COVER_EMBED_TIMEOUT_SEC = 30
+# 문단 크기. 400자(서류 평가와 같음)로는 800자에 2개만 들어가 자리마다 같은 문단이 골라졌다(실측) → 문단 하나 정도
+COVER_CHUNK_CHARS = 200
+
+
+class CoverIndex:
+    """자기소개서(글 + PDF 글, 이력서 사본 cover_letter)를 문단으로 나눠 한 번 임베딩해 두고,
+    질문 자리마다 주제와 가까운 문단을 COVER_CHARS 까지 원래 순서대로 고른다 (2026-11-18 사용자 결정 — 앞 800자만 쓰던 것을 바꿈)."""
+
+    def __init__(self, text: str):
+        self.text = (text or "").strip()
+        self.chunks = rag.splitChunks(self.text, COVER_CHUNK_CHARS) if len(self.text) > COVER_CHARS else []
+        self.vectors: list[list[float]] = []
+
+    @property
+    def needsPick(self) -> bool:
+        return bool(self.vectors)
+
+    async def load(self, timeoutSec: float) -> None:
+        if not self.chunks or timeoutSec <= 0:
+            return
+        try:
+            self.vectors = await rag.embed(self.chunks, timeoutSec=timeoutSec)
+        except rag.EmbedUnavailable as exc:  # 임베딩이 안 되면 앞 COVER_CHARS 자를 쓴다
+            log.warning("cover index unavailable: %s", exc)
+
+    def pick(self, queryVector: list[float] | None) -> str:
+        if len(self.text) <= COVER_CHARS:
+            return self.text
+        if not self.vectors or queryVector is None:
+            return self.text[:COVER_CHARS]
+        order = sorted(range(len(self.chunks)), key=lambda i: -rag.cosine(queryVector, self.vectors[i]))
+        picked, used = [], 0
+        for i in order:
+            if used + len(self.chunks[i]) <= COVER_CHARS:
+                picked.append(i)
+                used += len(self.chunks[i])
+        return "\n".join(self.chunks[i] for i in sorted(picked))
+
+
+def coverQueryText(kind: str, base: str, topic: str | None) -> str:
+    """자기소개서 문단을 고를 글. 인성·회사 자리는 자리 초점(협업·지원 동기 등)으로, 이력서 자리는 예시 찾기와 같은 글로."""
+    return f"{KIND_LABEL[kind]} 면접 질문. {topic}" if topic and kind in ("company", "personality") else base
+
+
+def resumeText(resume: dict, cover: str | None = None) -> str:
+    """LLM 입력용 이력서 요약. 이름·연락처는 넣지 않는다 (TRD 8-2 ①, 기술 아키텍처 10장).
+    cover: 넣을 자기소개서 글 (없으면 앞 COVER_CHARS 자). 근거 검사에는 전체를 넘긴다."""
     lines = []
     for edu in resume.get("education", []):
         lines.append(f"학력: {edu.get('school', '')} {edu.get('major', '')} {edu.get('degree', '')}".strip())
@@ -178,15 +226,17 @@ def resumeText(resume: dict) -> str:
         lines.append("기술: " + ", ".join(resume["skills"]))
     for cert in resume.get("certificates", []):
         lines.append(f"자격: {cert.get('name', '')}")
-    if resume.get("cover_letter"):
-        lines.append("자기소개: " + resume["cover_letter"][:800])
+    cover = (resume.get("cover_letter") or "")[:COVER_CHARS] if cover is None else cover
+    if cover.strip():
+        # 줄바꿈을 띄어쓰기로 — 한 줄이어야 experienceText 가 '자기소개:' 줄로 고른다
+        lines.append("자기소개: " + " ".join(cover.split()))
     return "\n".join(lines)
 
 
-def experienceText(resume: dict) -> str:
+def experienceText(resume: dict, cover: str | None = None) -> str:
     """이력서 질문의 재료이자 근거 검사 범위: 경력·프로젝트·자기소개 줄만. 학력·기술·자격은 '경험'이 아니다
     (실측: 기술 이름 'Python, pandas' 를 근거로 신입에게 없는 'pandas 데이터 분석 프로젝트'를 물었다)."""
-    return "\n".join(line for line in resumeText(resume).splitlines() if line.startswith(EXPERIENCE_PREFIXES))
+    return "\n".join(line for line in resumeText(resume, cover).splitlines() if line.startswith(EXPERIENCE_PREFIXES))
 
 
 def experienceAnchors(resume: dict) -> list[str]:
@@ -441,6 +491,8 @@ class SlotState(TypedDict, total=False):
     jobNews: str            # 직무 질문에 넣는 직무 관련 최근 소식 (임시 자료)
     techPosts: str          # 직무 질문에 넣는 회사 기술 글 (회사 질문은 companyInfo 안에 있음)
     jobForm: str | None     # 직무 자리마다 정한 질문 꼴 (JOB_FORMS)
+    resume: str             # 이 자리에 넣는 이력서 요약 (자기소개서는 자리 주제와 가까운 문단, CoverIndex)
+    experience: str         # 이력서 자리에 넣는 경험 줄 (위와 같음)
     attempt: int
     problem: str | None       # 다시 만들 때 프롬프트에 넣는 문장
     llmError: str | None
@@ -502,8 +554,12 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             record["substitute_reason"] = "budget"
             return {"topic": topic, "examples": [], "jobForm": jobForm}
         try:
-            queryVector = (await rag.embed([queryText(kind, app.posting, app.resume_snapshot or {}, topic)],
-                                           timeoutSec=min(rag.EMBED_TIMEOUT_SEC, remaining())))[0]
+            base = queryText(kind, app.posting, app.resume_snapshot or {}, topic)
+            coverQuery = coverQueryText(kind, base, topic)
+            usesCover = ctx["cover"].needsPick and kind != "job"  # 직무 자리는 기술 목록만 넣는다
+            vectors = await rag.embed([base, coverQuery] if usesCover and coverQuery != base else [base],
+                                      timeoutSec=min(rag.EMBED_TIMEOUT_SEC, remaining()))
+            queryVector = vectors[0]
             jobCode = app.posting.job_code
             found = rag.closeExamples(
                 rag.similar(db, kind, queryVector, settings["rag_example_count"], ctx["exampleIds"] | ctx["usedIds"], jobCode))
@@ -521,7 +577,12 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         techPosts = fence(company.techLines(db, queryVector, ctx["techPostIds"])) if kind == "job" else ""
         newsLines = job_news.forSlot(ctx["jobNews"], queryVector, ctx["jobIndex"]) if kind == "job" else []
         jobNews = fence("\n".join(f"- {t}" for t in newsLines))
-        return {"topic": topic, "examples": found, "companyInfo": companyInfo, "jobNews": jobNews, "techPosts": techPosts, "jobForm": jobForm}
+        slot = {"topic": topic, "examples": found, "companyInfo": companyInfo, "jobNews": jobNews, "techPosts": techPosts, "jobForm": jobForm}
+        if usesCover:
+            cover = ctx["cover"].pick(vectors[-1])
+            slot.update(resume=fence(resumeText(app.resume_snapshot or {}, cover)),
+                        experience=fence(experienceText(app.resume_snapshot or {}, cover)))
+        return slot
 
     async def generate(state: SlotState) -> dict:
         """② 만들기: 예시 + 이력서 요약 + 회사 상황으로 LLM 이 질문 1개."""
@@ -540,7 +601,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             if left <= 1:
                 state["record"]["substitute_reason"] = "budget"
                 return {"candidate": None, "llmError": "budget"}
-            resume = {"job": ctx["skills"], "resume": ctx["experience"]}.get(kind, ctx["resume"])
+            resume = {"job": ctx["skills"], "resume": state.get("experience") or ctx["experience"]}.get(kind, state.get("resume") or ctx["resume"])
             posting = {"job": ctx["companyBrief"], "resume": ""}.get(kind, ctx["company"])  # 이력서 질문엔 공고 글을 넣지 않는다
             try:
                 out = await unlessHurried(app.id, llm.structured(
@@ -565,7 +626,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         examples = state["examples"]
         if problem is None:
             out = state["candidate"]
-            problem = checkGenerated(kind, out, ctx["experience"], ctx["anchors"],
+            # 근거는 자기소개서 전체에서 찾는다 (자리에 넣은 문단만이 아니라 지원자가 낸 글 어디든 근거다)
+            problem = checkGenerated(kind, out, ctx["experienceGround"], ctx["anchors"],
                                      [c["text"] for c in state["chosen"] if c.get("qtype") == kind])
             text = question_text.cleanQuestion(out.question)
             if problem is None:
@@ -704,12 +766,21 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
                "resume": fence(resumeText(app.resume_snapshot or {})),
                "skills": fence(skillsText(app.resume_snapshot or {})),
                "experience": fence(experienceText(app.resume_snapshot or {})), "anchors": experienceAnchors(app.resume_snapshot or {}),
+               "experienceGround": fence(experienceText(app.resume_snapshot or {}, (app.resume_snapshot or {}).get("cover_letter") or "")),
+               "cover": CoverIndex((app.resume_snapshot or {}).get("cover_letter") or ""),
                "jobTopics": jobTopics(app.posting, app.resume_snapshot or {}), "jobIndex": 0, "jobSlot": 0,
                # 회사 자리 2개라 지원자마다 시작 초점을 달리해 세 초점이 고루 나오게 한다 (지원 id 로 정해 다시 만들어도 같다)
                "companySlot": int(app.id.replace("-", "")[:8], 16) % len(COMPANY_ANGLES) if app.id else 0,
                "personalitySlot": int(app.id.replace("-", "")[8:16], 16) % len(PERSONALITY_ANGLES) if app.id else 0,
                "techPostIds": set()}  # 이 면접에서 이미 쓴 기술 글 (질문마다 다른 글)
         # 직무 관련 최근 소식: 30초(남은 예산이 적으면 그만큼) 안에 찾은 것만 쓰고, 다 만들면 지운다 (DB 에 남기지 않는다)
+        if ragOn and ctx["cover"].chunks:  # 긴 자기소개서는 문단 임베딩을 한 번만 한다 (자리마다 고르기만)
+            coverStarted = time.monotonic()
+            await ctx["cover"].load(COVER_EMBED_TIMEOUT_SEC)
+            coverSec = time.monotonic() - coverStarted
+            # 질문 만들기 예산(기본 60초)에서 빼지 않는다 — 실측 5,000자 약 10초. 보통은 서류 합격 직후라 기다리는 사람이 없다
+            deadline += coverSec
+            log.info("cover index %d chunks %.1fs app=%s", len(ctx["cover"].chunks), coverSec, app.id)
         newsSec = min(job_news.JOB_NEWS_TIMEOUT_SEC, deadline - time.monotonic() - 1)
         ctx["jobNews"] = await job_news.collect(app.posting.job_code, newsSec) if ragOn else []
         try:
@@ -787,7 +858,7 @@ def isPersonal(text: str, terms: set[str], app: Application) -> bool:
     norm = question_bank.normalizeText(text)
     if any(term in norm for term in terms):
         return True
-    resume = question_bank.normalizeText(resumeText(app.resume_snapshot or {}))
+    resume = question_bank.normalizeText(resumeText(app.resume_snapshot or {}, (app.resume_snapshot or {}).get("cover_letter") or ""))
     return any(norm[i:i + PHRASE_WINDOW] in resume for i in range(len(norm) - PHRASE_WINDOW + 1))
 
 

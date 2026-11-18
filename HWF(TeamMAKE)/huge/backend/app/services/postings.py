@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..domain import status as st
 from ..domain.scoring import DEFAULT_WEIGHTS, validateCodingRatio, validateWeights
 from ..errors import ApiError
-from ..models import Application, EvaluationCriteria, JobCode, JobPosting, PostingRevision
+from ..models import Application, EvaluationCriteria, JobCode, JobPosting, PostingRevision, ResumeScreening
 from ..timeutil import asKst, iso, now, releaseAtFor
 from . import admission, company
 
@@ -47,7 +47,10 @@ def criteriaView(c: EvaluationCriteria | None) -> dict | None:
     if c is None:
         return None
     return {"version": c.version, "locked": c.locked, "weights": c.weights, "coding_enabled": c.coding_enabled,
-            "coding_ratio": c.coding_ratio, "pass_score": c.pass_score}
+            "coding_ratio": c.coding_ratio, "pass_score": c.pass_score,
+            "screening_required_skills": list(c.screening_required_skills or []),
+            "screening_preferred_skills": list(c.screening_preferred_skills or []),
+            "screening_pass_score": c.screening_pass_score, "screening_band": c.screening_band}
 
 
 def postingView(p: JobPosting, withCriteria: bool = False) -> dict:
@@ -109,8 +112,10 @@ def applyCriteria(db: Session, posting: JobPosting, body, locked: bool) -> list[
     c = currentCriteria(posting)
     changes = []
     if c is None:
-        posting.criteria.append(EvaluationCriteria(version=1, weights=body.weights, coding_enabled=body.coding_enabled,
-                                                   coding_ratio=body.coding_ratio, pass_score=body.pass_score))
+        c = EvaluationCriteria(version=1, weights=body.weights, coding_enabled=body.coding_enabled,
+                               coding_ratio=body.coding_ratio, pass_score=body.pass_score)
+        applyScreening(c, body)
+        posting.criteria.append(c)
         return changes
     if posting.status == "published" and c.coding_enabled != body.coding_enabled:
         changes.append(("coding_enabled", displayValue("coding_enabled", c.coding_enabled), displayValue("coding_enabled", body.coding_enabled)))
@@ -118,7 +123,49 @@ def applyCriteria(db: Session, posting: JobPosting, body, locked: bool) -> list[
     c.coding_enabled = body.coding_enabled
     c.coding_ratio = body.coding_ratio
     c.pass_score = body.pass_score
+    if screeningChanged(c, body) and screeningStarted(db, posting):
+        raise ApiError(409, "SCREENING_STARTED", "서류 평가를 받은 지원자가 있어 서류 평가 기준을 바꿀 수 없습니다.")
+    applyScreening(c, body)
     return changes
+
+
+def screeningChanged(c: EvaluationCriteria, body) -> bool:
+    required = cleanSkills(body.screening_required_skills)
+    return ([list(c.screening_required_skills or []), list(c.screening_preferred_skills or []),
+             c.screening_pass_score, c.screening_band]
+            != [required, preferredSkills(body, required), body.screening_pass_score, body.screening_band])
+
+
+def preferredSkills(body, required: list[str]) -> list[str]:
+    return [s for s in cleanSkills(body.screening_preferred_skills) if s.lower() not in {r.lower() for r in required}]
+
+
+def screeningStarted(db: Session, posting: JobPosting) -> bool:
+    """이미 서류 평가를 받은 지원자가 있으면 기준을 바꾸지 않는다 (지원자마다 다른 기준이 되지 않게, CONFLICTS C-25)."""
+    return (db.query(ResumeScreening.id).join(Application, Application.id == ResumeScreening.application_id)
+            .filter(Application.posting_id == posting.id).first() is not None)
+
+
+def cleanSkills(skills: list[str]) -> list[str]:
+    """빈 칸·중복(대소문자 무시)을 빼고 앞뒤 공백을 지운다. 한 개는 50자까지."""
+    seen, out = set(), []
+    for skill in skills:
+        name = skill.strip()[:50]
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            out.append(name)
+    return out
+
+
+def applyScreening(c: EvaluationCriteria, body) -> None:
+    """서류 평가 설정 (CONFLICTS C-25). 필수 기술이 1개 이상이어야 한다 (기술스택 항목의 기준이 된다)."""
+    required = cleanSkills(body.screening_required_skills)
+    if not required:
+        raise ApiError(400, "SCREENING_SKILLS", "서류 평가의 필수 기술을 1개 이상 넣어 주세요.")
+    c.screening_required_skills = required
+    c.screening_preferred_skills = preferredSkills(body, required)
+    c.screening_pass_score = body.screening_pass_score
+    c.screening_band = body.screening_band
 
 
 def updatePosting(db: Session, posting: JobPosting, body) -> JobPosting:

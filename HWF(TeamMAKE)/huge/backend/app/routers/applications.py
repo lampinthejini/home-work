@@ -12,7 +12,7 @@ from ..domain import status as st
 from ..errors import ApiError, notFound
 from ..models import Application, Consent, JobPosting, ResumeUpload, SavedResume, User
 from ..schemas import ApplicationCreate, ConsentRequest, ResumeIn, ResumeSubmit
-from ..services import question_compose, resume_extract, storage, withdrawal
+from ..services import resume_extract, resume_screening, storage, withdrawal
 from ..services.postings import currentCriteria, isAcceptingApplications
 from ..settings_store import getSetting
 from ..timeutil import iso, now
@@ -31,7 +31,10 @@ def spawn(coro) -> None:
 
 
 def nextStep(db: Session, app: Application) -> str:
-    return "resume" if db.query(Consent).filter_by(application_id=app.id, withdrawn_at=None).count() else "consent"
+    """작성 중 지원서의 다음 단계: 동의 → 이력서 → 추가 서류 (CONFLICTS C-25: 이력서를 저장하면 추가 서류)."""
+    if not db.query(Consent).filter_by(application_id=app.id, withdrawn_at=None).count():
+        return "consent"
+    return "documents" if app.resume_snapshot else "resume"
 
 
 def requireDrafting(app: Application, code: str = "RESUME_LOCKED") -> None:
@@ -219,12 +222,19 @@ async def submitResume(applicationId: str, body: ResumeSubmit, db: Session = Dep
     app.resume_snapshot = resume
     app.resume_method = body.method
     app.edited_fields = body.edited_fields[:200]
-    app.attempt_status = st.transition(app.attempt_status, st.READY)
-    app.submitted_at = now()
+    # 이력서는 저장만 한다. 지원서 제출(응시 상태 바뀜)은 추가 서류 단계의 [제출]에서 한다 (CONFLICTS C-25)
+    db.commit()
+    return {"attempt_status": app.attempt_status, "next_step": nextStep(db, app)}
+
+
+def submitApplication(db: Session, app: Application) -> dict:
+    """지원서 제출: 서류 평가 중으로 바꾸고 평가를 시작한다. 질문 만들기는 서류 합격 뒤 (QST-03 → CONFLICTS C-25)."""
     criteria = currentCriteria(app.posting)
+    app.attempt_status = st.transition(app.attempt_status, st.SCREENING)
+    app.submitted_at = now()
     app.criteria_version = criteria.version if criteria else None
     db.commit()
-    question_compose.scheduleCompose(app.id)  # 이력서 확정 직후 질문 구성 시작 (QST-03)
+    resume_screening.scheduleScreening(app.id)
     return {"attempt_status": app.attempt_status, "close_at": iso(app.posting.close_at), "release_at": iso(app.posting.release_at)}
 
 

@@ -100,6 +100,11 @@ class EvaluationCriteria(Base):
     coding_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     coding_ratio: Mapped[int] = mapped_column(Integer, default=30)
     pass_score: Mapped[int] = mapped_column(Integer, default=70)
+    # 서류 평가 (CONFLICTS C-25). 모든 공고에 적용한다 (켜고 끄는 설정 없음)
+    screening_required_skills: Mapped[list] = mapped_column(JSON, default=list)
+    screening_preferred_skills: Mapped[list] = mapped_column(JSON, default=list)
+    screening_pass_score: Mapped[int] = mapped_column(Integer, default=60)
+    screening_band: Mapped[int] = mapped_column(Integer, default=5)  # 1차 점수가 합격선 ± 이 안이면 2차 평가
 
     posting: Mapped[JobPosting] = relationship(back_populates="criteria")
 
@@ -137,6 +142,9 @@ class Application(Base):
     resume_name: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
     edited_fields: Mapped[list] = mapped_column(JSON, default=list)
     resume_upload_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # 추가 서류 (CONFLICTS C-25, 모두 선택): [{id, kind, source(text·pdf), name, key, text}]. 자기소개서 글 1개 + PDF 3개까지.
+    # PDF 는 글자만 뽑아 서류 평가에 쓴다 (원본은 파일 저장소 documents/{지원 id}/)
+    extra_documents: Mapped[list | None] = mapped_column(EncryptedJson, nullable=True)
     questions_status: Mapped[str] = mapped_column(String(16), default="none")  # none · composing · ready · failed
     precheck_valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     holds_seat: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -173,6 +181,32 @@ class Application(Base):
         elif self.review_reason is None:
             self.needs_review_since = now()
         return value
+
+
+class ResumeScreening(Base):
+    """서류 평가 결과 (CONFLICTS C-25). 지원 건마다 1줄. 근거 문장에 이력서 글이 들어가 rounds·이의 내용은 암호화한다."""
+    __tablename__ = "resume_screenings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), unique=True, index=True)
+    criteria_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage: Mapped[str] = mapped_column(String(16), default="first")  # first · second · done · error
+    first_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    second_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    final_total: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(8), nullable=True)  # pass · fail
+    decided_by: Mapped[str | None] = mapped_column(String(8), nullable=True)  # ai · appeal (관리자는 판정을 바꾸지 않음)
+    rounds: Mapped[dict | None] = mapped_column(EncryptedJson, nullable=True)  # {"first": [항목], "second": [항목]}
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 이의 신청 1회: [{item, text}] → 8B 가 그 항목만 다시 평가 (제출 서류에 근거가 있어야 받아들임)
+    appeal: Mapped[list | None] = mapped_column(EncryptedJson, nullable=True)
+    appeal_status: Mapped[str | None] = mapped_column(String(10), nullable=True)  # pending · running · accepted · rejected · error
+    appeal_result: Mapped[dict | None] = mapped_column(EncryptedJson, nullable=True)
+    appeal_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    appeal_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    appeal_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Consent(Base):
@@ -540,13 +574,17 @@ CHECK_VALUES: dict[tuple[str, str], tuple[str, ...]] = {
     ("job_postings", "status"): ("draft", "published", "closed"),
     ("job_postings", "source"): ("manual", "open_api", "dummy", "ai_draft"),
     ("applications", "attempt_status"): ("drafting", "ready", "interviewing", "coding", "interrupted", "completed",
-                                         "ended", "ended_closed", "cancelled", "not_taken_closed"),
+                                         "ended", "ended_closed", "cancelled", "not_taken_closed", "screening", "screen_rejected"),
     ("applications", "analysis_status"): ("pending", "running", "decided", "needs_review"),
     ("applications", "release_status"): ("scheduled", "delayed", "released", "purged"),
     ("applications", "resume_method"): ("upload", "manual", "saved"),
     ("applications", "phase"): ("interview", "coding"),
     ("applications", "questions_status"): ("none", "composing", "ready", "failed"),
     ("resume_uploads", "stage"): ("uploaded", "checking", "ocr", "structuring", "done", "failed", "cancelled"),
+    ("resume_screenings", "stage"): ("first", "second", "done", "error"),
+    ("resume_screenings", "decision"): ("pass", "fail"),
+    ("resume_screenings", "decided_by"): ("ai", "appeal"),
+    ("resume_screenings", "appeal_status"): ("pending", "running", "accepted", "rejected", "error"),
     ("questions", "kind"): ("personality", "company", "job", "resume"),
     ("questions", "status"): ("active", "preparing", "pending", "rejected", "excluded"),
     ("interview_questions", "kind"): ("base", "follow_up"),

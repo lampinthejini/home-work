@@ -18,6 +18,7 @@ export type E2eState = {
     postingId: string; postingTitle: string; // 코딩테스트 끔
     codingPostingId: string; codingPostingTitle: string; // 코딩테스트 켬
     questionWatermark: number; // 시작할 때 가장 큰 질문 번호 (이보다 뒤에 생긴 AI 질문 후보는 테스트가 만든 것)
+    questionCount?: number; // 시작할 때 질문 DB 개수 (뒷정리 뒤 같아야 한다)
 };
 
 export function readState(): E2eState {
@@ -108,6 +109,33 @@ export function questionWatermark(): number {
  * E2E 공고로 만들어져 질문 관리에 쌓이지 않게 한다 (회사 질문은 공고를 지우면 함께 지워지지만 직무·인성 질문은 남는다).
  * 관리자가 이미 [추가]·[제외]한 질문이나 엑셀·예비 질문은 건드리지 않는다.
  */
+function apiPython(lines: string[], env: Record<string, string> = {}): string {
+    const flags = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
+    const out = execFileSync("docker", ["exec", ...flags, API_CONTAINER, "python", "-c", lines.join("\n")], {
+        env: { ...process.env, MSYS_NO_PATHCONV: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+    });
+    return out.toString().trim().split("\n").pop() ?? "";
+}
+
+/** 질문 DB 전체 개수. 뒷정리 뒤 시작할 때와 같은지 본다 (2026-11-18: 뒷정리가 이틀 동안 0개만 지운 것을 몰랐다) */
+export function questionCount(): number {
+    return Number(apiPython(["from app.db import SessionLocal", "from app.models import Question",
+                             "print(SessionLocal().query(Question).count())"]));
+}
+
+/** 게시 뒤 질문 후보 만들기를 끝낸 공고 수. 끝나면 감사 기록 question.posting_candidates 를 남긴다 */
+export function finishedCandidatePostings(postingIds: string[]): number {
+    return Number(apiPython([
+        "import os",
+        "from app.db import SessionLocal",
+        "from app.models import AuditLog",
+        "ids = os.environ['E2E_POSTINGS'].split(',')",
+        "q = SessionLocal().query(AuditLog.target).filter(AuditLog.action == 'question.posting_candidates', AuditLog.target.in_(ids))",
+        "print(len({t for (t,) in q}))",
+    ], { E2E_POSTINGS: postingIds.join(",") }));
+}
+
 export function purgeE2eQuestions(after: number): number {
     const script = [
         "import os",
@@ -236,7 +264,9 @@ export async function publishPosting(ctx: APIRequestContext, title: string, codi
             title, job_code: "AI_AX", company_intro: "E2E 자동 테스트용 공고입니다.",
             duties: "LLM 기반 서비스 개발", requirements: "Python 개발 경험", preferred: "", employment_type: "full_time",
             location: "서울", headcount: 1, open_at: openAt.toISOString(), close_at: closeAt.toISOString(), contact_email: E2E_ADMIN_EMAIL,
-            criteria: { weights: DEFAULT_WEIGHTS, coding_enabled: codingEnabled, coding_ratio: 30, pass_score: 70 },
+            // 서류 평가는 모든 공고에 (CONFLICTS C-25). E2E 는 면접 흐름을 보려는 것이라 합격선을 가장 낮게, 2차 평가 없이
+            criteria: { weights: DEFAULT_WEIGHTS, coding_enabled: codingEnabled, coding_ratio: 30, pass_score: 70,
+                screening_required_skills: ["Python"], screening_pass_score: 30, screening_band: 0 },
         },
     });
     if (created.status() !== 201) throw new Error(`E2E 공고 만들기 실패: ${created.status()} ${await created.text()}`);

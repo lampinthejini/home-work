@@ -30,6 +30,7 @@ from ..models import (
     Notification,
     Recording,
     Result,
+    ResumeScreening,
     ResumeUpload,
     SessionEvent,
     StatsArchive,
@@ -41,14 +42,14 @@ log = logging.getLogger("huge.retention")
 
 # 지원 건 아래에서 함께 지워지는 행 (ON DELETE CASCADE). 지운 행 수를 세는 데만 쓴다
 CHILD_TABLES = (InterviewQuestion, Answer, InterviewSession, SessionEvent, CodingSubmission, Result, ItemScore, Highlight,
-                Notification, ResumeUpload, Memo, Recording)
+                Notification, ResumeUpload, Memo, Recording, ResumeScreening)
 RETENTION_DAYS = 7
 REDIS_KEYS = ("eval:lock:{id}", "eval:since:{id}", "eval:queued:{id}", "grade:queued:{id}", "grade:lock:{id}")
 NOTICE_DAYS = 2
 
 
 def filePrefixes(db: Session, app: Application) -> list[str]:
-    prefixes = [f"answers/{app.id}/", f"questions/{app.id}/", f"recordings/{app.id}/"]
+    prefixes = [f"answers/{app.id}/", f"questions/{app.id}/", f"recordings/{app.id}/", f"documents/{app.id}/"]
     prefixes += [row.file_key for row in db.query(ResumeUpload).filter_by(application_id=app.id)]
     return prefixes
 
@@ -135,7 +136,8 @@ def purgeRecordings(db: Session, at=None) -> int:
 
 
 # 채점을 거치지 않아 purge_at 이 없는 상태: 작성 중 · 준비 중 · 미응시 마감. 공고의 1차 결과 공개일 + 7일에 함께 지운다 (PRD 10-2)
-UNSCORED_STATUSES = (st.DRAFTING, st.READY, st.NOT_TAKEN_CLOSED)
+# 서류 평가 중·서류 불합격도 면접 채점을 거치지 않으므로 같은 날 지운다 (CONFLICTS C-25)
+UNSCORED_STATUSES = (st.DRAFTING, st.READY, st.NOT_TAKEN_CLOSED, st.SCREENING, st.SCREEN_REJECTED)
 
 
 def purgeDue(db: Session, redisClient=None, at=None) -> list[str]:

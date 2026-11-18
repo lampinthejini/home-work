@@ -15,8 +15,8 @@ from .domain import status as st
 from .errors import ApiError, apiErrorHandler, unexpectedErrorHandler, validationErrorHandler
 from .interview import checkpoint, lifecycle
 from .models import Application, InterviewSession
-from .routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings
-from .services import admission, company, llm, question_bank, question_compose, rag, resume_extract, storage, tech_blog
+from .routers import admin, admin_company, admin_ops, admin_questions, applications, auth, interview, me, postings, screening
+from .services import admission, company, llm, question_bank, question_compose, rag, resume_extract, resume_screening, storage, tech_blog
 from .services.postings import seedJobCodes
 from .settings_store import getSetting
 from .timeutil import now
@@ -49,6 +49,7 @@ def recoverAfterRestart() -> None:
             app.questions_status = "none"
             db.commit()
             question_compose.scheduleCompose(app.id)
+        resume_screening.resumePending(db)  # 재시작 전 서류 평가 중이던 건 (CONFLICTS C-25)
         # 재시작으로 끊긴 면접: 이 프로세스에 붙은 세션이 하나도 없으므로 모두 원인 미상 장애로 돌린다 (TRD 7-2)
         for app in db.query(Application).filter(Application.attempt_status.in_(st.IN_PROGRESS)).all():
             lifecycle.markInterrupted(db, app, "unknown")
@@ -117,7 +118,7 @@ async def lifespan(_app: FastAPI):
     await checkpoint.closeSaver()
 
 
-UPLOAD_PATH = re.compile(r"/applications/[^/]+/resume/upload")
+UPLOAD_PATH = re.compile(r"/applications/[^/]+/(resume/upload|documents/files)")  # 추가 서류 PDF (CONFLICTS C-25)
 MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 
@@ -150,7 +151,7 @@ app.add_middleware(UploadSizeGuard)
 app.add_exception_handler(ApiError, apiErrorHandler)
 app.add_exception_handler(RequestValidationError, validationErrorHandler)
 app.add_exception_handler(Exception, unexpectedErrorHandler)
-for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin):
+for module in (auth, postings, applications, interview, me, admin_ops, admin_questions, admin_company, admin, screening):
     app.include_router(module.router)
 
 
