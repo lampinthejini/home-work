@@ -112,17 +112,17 @@ export function purgeE2eQuestions(after: number): number {
     const script = [
         "import os",
         "from app.db import SessionLocal",
-        "from app.models import AuditLog, InterviewQuestion, Question",
+        "from app.models import AuditLog, Question",
+        "from app.services.question_bank import deleteQuestions",
         "db = SessionLocal()",
-        "used = db.query(InterviewQuestion.source_question_id).filter(InterviewQuestion.source_question_id.isnot(None))",
-        "rows = db.query(Question).filter(Question.id > int(os.environ['E2E_AFTER']), Question.source == 'generated',",
-        "                                 Question.status == 'pending', Question.id.notin_(used)).all()",
-        "for q in rows:",
-        "    db.delete(q)",
-        "if rows:",
-        "    db.add(AuditLog(action='question.e2e_cleanup', target='questions', detail={'deleted': [q.id for q in rows]}))",
+        // 2026-11-16(C-20) 부터 게시·면접 때 만든 질문은 검토 없이 예비 질문(source='reserve')으로 바로 들어간다.
+        // 예전 조건(source='generated' · status='pending')으로는 하나도 못 지워 E2E 질문이 예비 질문에 남았다(2026-11-18 실측 29개)
+        "ids = [i for (i,) in db.query(Question.id).filter(Question.id > int(os.environ['E2E_AFTER']))]",
+        "deleted = deleteQuestions(db, ids)",
+        "if ids:",
+        "    db.add(AuditLog(action='question.e2e_cleanup', target='questions', detail={'deleted': ids}))",
         "db.commit()",
-        "print(len(rows))",
+        "print(deleted)",
     ].join("\n");
     const out = execFileSync("docker", ["exec", "-e", `E2E_AFTER=${after}`, API_CONTAINER, "python", "-c", script], {
         env: { ...process.env, MSYS_NO_PATHCONV: "1" },

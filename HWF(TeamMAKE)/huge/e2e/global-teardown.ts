@@ -24,7 +24,7 @@ export default async function globalTeardown() {
                     await ctx.delete(`/api/admin/postings/${posting.posting_id}`);
                 }
             }
-            // 게시·면접 때 생긴 AI 질문 후보(검토 대기)를 지운다. 게시 뒤 후보 만들기는 뒤에서 돌아 늦게 끝날 수 있다
+            // 게시·면접 때 생긴 질문(예비 질문으로 바로 들어감, C-20)을 지운다. 게시 뒤 후보 만들기는 뒤에서 돌아 늦게 끝날 수 있다
             if (typeof state.questionWatermark === "number") {
                 await new Promise((resolve) => setTimeout(resolve, 5_000));
                 const removed = purgeE2eQuestions(state.questionWatermark);
