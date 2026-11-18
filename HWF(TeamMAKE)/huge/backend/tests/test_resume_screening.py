@@ -30,6 +30,11 @@ CRITERIA = {"weights": {"expertise": 30, "logic": 25, "relevance": 20, "delivery
 COVER_EVIDENCE = "불편한 점을 숫자로 모아 검색 화면을 고쳤습니다"
 EVIDENCE = {"프로젝트": "검색 모듈 담당, LangChain으로 구현", "학력": "컴퓨터공학 학사"}
 COMPANY_GROWTH = [item.label for item in rs.ITEMS if item.axis in ("company", "growth")]
+# 같은 축 안에서 서로 겹치지 않는 자기소개서 문장 (같은 문장을 여러 항목 근거로 쓰면 막힌다, 2026-11-18)
+STORY_EVIDENCE = dict(zip(COMPANY_GROWTH, ["사용자 다섯 명에게 시제품을 보여 주고", "불편한 점을 숫자로 모아",
+                                           "시제품을 보여 주고 불편한 점을", "검색 화면을 고쳤습니다",
+                                           "숫자로 모아 검색 화면을", "응답 시간이 30% 줄었습니다"], strict=True))
+EVIDENCE |= STORY_EVIDENCE
 # 자격증 없음 · 기술스택은 코드가 2단계(필수 3개 중 Python·SQL) = 10.7점
 HIGH = {"프로젝트": 3, "교육·대회·수상": 3, "학력": 2} | {label: 3 for label in COMPANY_GROWTH}  # 10.7+24+4+2+50 = 90.7
 # 10.7 + 16 + 2.7 + 2 + 회사 20 + 성장 6.7 = 58.0 → 합격선 60 ± 5 안이라 2차
@@ -126,11 +131,10 @@ def test_careerTextIsEvidenceButNotScored():
 
 def test_everyItemSeesSameMaterialButEvidenceComesFromItsOwnParts():
     # AI 에 보여 주는 글은 모든 항목이 같다 (llama.cpp 프롬프트 캐시). 근거로 인정하는 범위만 항목마다 다르다
-    shown = {key: source(key, CAREER_RESUME, [COVER_DOC])[0] for key in ("education", "certificate", "project", "measure")}
+    shown = {key: source(key, CAREER_RESUME, [COVER_DOC])[0] for key in ("education", "project", "measure")}
     assert len(set(shown.values())) == 1
     _, ground = source("education", CAREER_RESUME, [COVER_DOC])
     assert "컴퓨터공학" in ground and COVER_LETTER not in ground and "검색 모듈" not in ground
-    assert COVER_LETTER in source("certificate", docs=[COVER_DOC])[1]  # 자격증은 추가 서류에 적은 것도 본다
 
 
 def test_itemWithNothingToReadIsEmpty():
@@ -248,7 +252,15 @@ def test_skillsKoreanSpellingCountsAsSameSkill():
 
 
 def test_skillsCanComeFromDocuments():
-    assert skills({"skills": [], "projects": []}, ["PyTorch"], docs="PyTorch 로 이미지 분류 모델을 학습")["level"] == 3
+    assert skills({"skills": [], "projects": []}, ["PyTorch"], docs="PyTorch 로 이미지 분류 모델을 학습했습니다.")["level"] == 3
+
+
+def test_skillNamesOnlyListedInDocumentsAreNotUsage():
+    # 자기소개서에 이름만 나열하면 '가진 기술' 이지만 '쓴 근거' 는 아니다 → 3단계가 아니라 2단계 (2026-11-18 사용자 결정 ④)
+    docs = "저는 PyTorch, SQL 을 다룰 수 있습니다. 앞으로 더 공부하고 싶습니다."
+    assert skills({"skills": [], "projects": []}, ["PyTorch", "SQL"], docs=docs)["level"] == 2
+    docs += "\nSQL 로 주문 데이터를 정리했습니다. PyTorch 로 분류 모델을 학습시켰습니다."
+    assert skills({"skills": [], "projects": []}, ["PyTorch", "SQL"], docs=docs)["level"] == 3
 
 
 # ---------- 항목 하나 평가 ----------
@@ -439,7 +451,7 @@ def test_borderlineGoesToSecondRoundAndSecondScoreDecides(adminClient, sessionFa
         assert (float(row.first_total), float(row.second_total), float(row.final_total)) == (58.0, 64.7, 64.7)
         assert row.decision == "pass" and db.get(Application, appId).attempt_status == st.READY
     # 기술스택(코드)만 LLM 을 부르지 않는다
-    assert [lane for _, lane in model.calls].count("eval") == len(rs.ITEMS) - 1
+    assert [lane for _, lane in model.calls].count("eval") == len(rs.ITEMS) - len(rs.NOT_APPEALABLE)  # 기술스택·자격증은 코드
 
 
 def test_secondRoundCanReject(adminClient, sessionFactory, monkeypatch):
@@ -718,3 +730,105 @@ def test_pdfMustHaveText(adminClient, fakeFiles):
     assert upload(client, appId, "a.png", data=b"\x89PNG\r\n\x1a\nxxxx", contentType="image/png").json()["code"] == "UNSUPPORTED_FILE"
     pages["text"] = ""  # 글자 없는 쪽뿐이고 OCR 도 안 됨
     assert upload(client, appId, "scan.pdf").json()["code"] == "DOCUMENT_NO_TEXT"
+
+
+# ---------- 평가 기준 1~6 (2026-11-18 사용자 결정) ----------
+
+class JobPost:
+    duties = "사내 LLM·RAG 서비스 개발과 운영"
+    requirements = "Python 으로 서비스를 만들어 본 경험"
+    preferred = "벡터 DB 경험"
+
+
+def test_jobRelatedIsJudgedWithPostingDutiesAndRequirements():
+    # ① '직무 관련' 판단에 공고의 주요 업무·자격 요건·우대 사항을 넣는다 (모든 항목 같은 글, 앞부분)
+    jobText = rs.jobContext(JobPost())
+    assert jobText.startswith("주요 업무: 사내 LLM") and "자격 요건: Python" in jobText and "우대 사항: 벡터 DB" in jobText
+    first = rs.itemPrompt(rs.ITEM_BY_KEY["project"], "서류", "AI/AX", ["Python"], [], jobText=jobText)
+    second = rs.itemPrompt(rs.ITEM_BY_KEY["measure"], "서류", "AI/AX", ["Python"], [], jobText=jobText)
+    shared = first[:first.index("[평가 항목]")]
+    assert jobText in shared and second.startswith(shared)
+    assert "'직무 관련' 은 공고의 직무 이름·주요 업무" in rs.SYSTEM
+
+
+def test_resultAndOutputAreDefinedInLevelTexts():
+    # ③ '결과'·'결과물' 을 단계 기준에 정의한다
+    assert "수치로 나타낸 변화·배포·실제 사용자" in rs.ITEM_BY_KEY["project"].levels[3]
+    assert "배포한 서비스·공개한 코드·논문·발표" in rs.ITEM_BY_KEY["experience"].levels[3]
+    assert "확인된 변화" in rs.STORY_LEVELS[3] and "그 뒤 바꾼 행동" in rs.STORY_LEVELS[3]
+
+
+@pytest.mark.parametrize(("names", "level"), [
+    ([], 0),
+    (["컴퓨터활용능력 1급"], 1),                       # 표에 없음
+    (["SQLD"], 2),                                    # 직무 관련
+    (["정보처리기사"], 2),                             # 상위 1개는 2단계
+    (["정보처리기사", "SQLP"], 3),                     # 상위 2개 이상
+    (["정보처리 산업기사", "AWS Certified Solutions Architect – Associate"], 2),
+    (["AWS Certified Machine Learning – Specialty", "CKA"], 3),
+    (["리눅스마스터 2급", "리눅스마스터 1급"], 2),
+])
+def test_certificatesAreRatedByTierTable(names, level):
+    # ② 자격증은 코드가 표로 본다. '상위' 는 CERTIFICATE_TIERS 의 upper
+    row = rs.rateCertificates({"certificates": [{"name": n} for n in names]})
+    assert row["level"] == level and row["by"] == "code"
+
+
+def test_certificateTierDoesNotMatchLookalikes():
+    assert rs.certTier("정보처리산업기사") == "related"  # '정보처리기사' 에 걸리지 않는다
+    assert rs.certTier("ADsP") == "related" and rs.certTier("ADP") == "upper"
+    assert rs.certTier("건축기사") is None and rs.certTier("CKAD") == "upper"
+
+
+def test_sameSentenceCannotBeEvidenceForTwoItemsOfOneAxis(monkeypatch):
+    # ⑤ 같은 축에서 앞 항목이 쓴 문장을 다시 근거로 내면 1번 다시 묻고, 그래도 같으면 0단계
+    calls = []
+
+    async def same(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        calls.append(prompt)
+        return schema(level=3, evidence=[COVER_EVIDENCE], reason="같은 문장")
+    monkeypatch.setattr(llm, "structured", same)
+    taken = [("측정하고 판단", COVER_EVIDENCE)]
+    row = asyncio.run(rs.rateItem(rs.ITEM_BY_KEY["together"], COVER_LETTER, COVER_LETTER, "AI/AX", [], [], "rt", "", taken))
+    assert row["level"] == 0 and "측정하고 판단" in row["reason"] and len(calls) == 2
+    assert "이미 '측정하고 판단' 항목의 근거" in calls[1]
+    # 다른 축(직무)의 근거와는 겹쳐도 된다
+    row = asyncio.run(rs.rateItem(rs.ITEM_BY_KEY["together"], COVER_LETTER, COVER_LETTER, "AI/AX", [], [], "rt", "", []))
+    assert row["level"] == 3
+
+
+def test_axisTakenIsKeptAcrossItemsInOneRound(monkeypatch):
+    async def same(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        return schema(level=3, evidence=[COVER_EVIDENCE], reason="같은 문장")
+    monkeypatch.setattr(llm, "structured", same)
+    index = rs.DocIndex([COVER_DOC])
+    rows = asyncio.run(rs.rateAll(RESUME["resume"], index, "AI/AX", ["Python"], [], "rt"))
+    company = [r for r in rows if r["axis"] == "company"]
+    assert [r["level"] for r in company] == [3, 0, 0, 0]  # 첫 항목만 그 문장을 쓴다
+    level = {r["item"]: r["level"] for r in rows}
+    assert (level["project"], level["experience"]) == (3, 0)  # 직무 축도 같은 규칙: 앞의 프로젝트가 먼저 씀
+    assert level["learning"] == 3  # 축이 다르면(적응·성장) 같은 문장도 근거가 된다
+
+
+def test_twoEvidenceSentencesAreAllowedAndBothMustBeInDocuments(monkeypatch):
+    # ⑥ 근거 2문장까지. 역할과 결과가 다른 문장에 있어도 되고, 두 문장 모두 서류에 있어야 한다
+    answers = iter([["사용자 다섯 명에게 시제품을 보여 주고", "없는 문장입니다"],
+                    ["사용자 다섯 명에게 시제품을 보여 주고", "응답 시간이 30% 줄었습니다"]])
+
+    async def two(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        return schema(level=3, evidence=next(answers), reason="역할과 결과")
+    monkeypatch.setattr(llm, "structured", two)
+    row = asyncio.run(rs.rateItem(rs.ITEM_BY_KEY["user_problem"], COVER_LETTER, COVER_LETTER, "AI/AX", [], [], "rt"))
+    assert row["level"] == 3 and row["quotes"] == ["사용자 다섯 명에게 시제품을 보여 주고", "응답 시간이 30% 줄었습니다"]
+    assert row["evidence"] == "사용자 다섯 명에게 시제품을 보여 주고 / 응답 시간이 30% 줄었습니다"
+    assert rs.ScreenItemOut(evidence="한 문장", level=1).evidence == ["한 문장"]  # 글 하나로 줘도 받는다
+
+
+def test_multiSentenceQuoteIsSplitAndLimitedToTwo():
+    out = rs.ScreenItemOut(evidence=["사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다. 응답 시간이 30% 줄었습니다."],
+                           reason="", level=3)
+    quotes, problem, _ = rs.checkQuotes(out, COVER_LETTER, [])
+    assert problem is None and len(quotes) == 2 and quotes[1] == "응답 시간이 30% 줄었습니다."
+    # 같은 축에서 이미 쓴 문장은 빼고 새 문장만 남긴다
+    quotes, problem, _ = rs.checkQuotes(out, COVER_LETTER, [("측정하고 판단", "응답 시간이 30% 줄었습니다")])
+    assert problem is None and quotes == ["사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다."]

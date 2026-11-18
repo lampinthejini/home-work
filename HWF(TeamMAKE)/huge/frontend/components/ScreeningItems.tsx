@@ -67,7 +67,7 @@ export function ScreeningItems({ items, showPoints = false }: { items: Screening
                                         <td className="small">{r.evidence || <span className="muted">없음</span>}</td>
                                         <td className="small">
                                             {r.reason}
-                                            {r.by === "code" && <span className="tiny muted"> (공고 기술과 이름을 맞춰 시스템이 계산)</span>}
+                                            {r.by === "code" && <span className="tiny muted"> ({r.item === "certificate" ? "직무 관련 자격증 표와 맞춰" : "공고 기술과 이름을 맞춰"} 시스템이 계산)</span>}
                                         </td>
                                     </tr>
                                 ))}

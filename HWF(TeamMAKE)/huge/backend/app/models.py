@@ -338,6 +338,7 @@ class InterviewQuestion(Base):
     substitute_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     answer_sec: Mapped[int] = mapped_column(Integer, default=90)
     eval_items: Mapped[list] = mapped_column(JSON, default=list)
+    key_points: Mapped[list | None] = mapped_column(JSON, nullable=True)  # 직무 질문의 핵심 요소 2~3개 (채점 기준, M3 2026-11-18)
     audio_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     audio_sec: Mapped[float | None] = mapped_column(nullable=True)
     followup_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -519,6 +520,7 @@ class ItemScore(Base):
     quote: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
     quote_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     regenerated: Mapped[bool] = mapped_column(Boolean, default=False)
+    first_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 근거 다시 보기로 내리기 전 점수 (M5, 2026-11-18)
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

@@ -699,6 +699,40 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
     return g.compile()
 
 
+# ---------- 직무 질문의 핵심 요소 (채점 기준, M3 2026-11-18 사용자 결정) ----------
+
+KEY_POINT_TIMEOUT_SEC = 20
+KEY_POINT_CHARS = 60
+
+
+class KeyPointsOut(BaseModel):
+    points: list[str] = Field(min_length=1, max_length=3, description="좋은 답이 담아야 할 핵심 요소 2~3개, 각각 짧은 명사구")
+
+
+KEY_POINT_SYSTEM = (
+    "너는 면접 채점 기준을 만드는 도구다. 직무 질문 하나에 대해, 좋은 답이 담아야 할 핵심 요소 2~3개를 짧은 명사구(60자 이내)로 쓴다. "
+    "모범 답안 문장이 아니라 채점자가 확인할 개념·근거다. 질문이 묻지 않은 것은 넣지 않는다. JSON 으로만 답한다."
+)
+
+
+async def keyPointsFor(question: str, posting) -> list[str]:
+    """실패하면 빈 목록 — 핵심 요소 없이도 채점은 된다 (항목 기준·기본 요구로)."""
+    prompt = f"직무: {fence(posting.title or '')}\n주요 업무: {fence((posting.duties or '')[:300])}\n\n질문: {fence(question)}"
+    try:
+        out = await llm.structured(KeyPointsOut, KEY_POINT_SYSTEM, prompt, KEY_POINT_TIMEOUT_SEC, maxTokens=200, temperature=0)
+    except llm.LlmError as exc:
+        log.warning("key points failed: %s", exc)
+        return []
+    return [p.strip()[:KEY_POINT_CHARS] for p in out.points if p.strip()][:3]
+
+
+async def addKeyPoints(app: Application, chosen: list[dict]) -> None:
+    """직무 질문(만든 것·예비 질문 모두)에 핵심 요소를 붙인다. 면접 시작이 재촉하면 남은 것은 건너뛴다."""
+    for item in chosen:
+        if item["qtype"] == "job" and not isHurried(app.id):
+            item["key_points"] = await keyPointsFor(item["text"], app.posting)
+
+
 async def composeAll(db: Session, app: Application, ctx: dict, deadline: float, settings: dict) -> list[dict]:
     compiled = buildComposeGraph(db, app, ctx, deadline, settings)
     result = await compiled.ainvoke({"chosen": []}, {"recursion_limit": COMPOSE_RECURSION_LIMIT})
@@ -787,6 +821,7 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
             chosen = await composeAll(db, app, ctx, deadline, settings)
         finally:
             ctx["jobNews"].clear()
+        await addKeyPoints(app, chosen)
 
         db.query(InterviewQuestion).filter_by(application_id=app.id).delete()
         for seq, item in enumerate(chosen, start=1):
@@ -795,6 +830,7 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
                 source_question_id=item["source_question_id"], source=item["source"], regen_count=item["regen_count"],
                 substituted=item["substituted"], substitute_reason=item["substitute_reason"],
                 answer_sec=settings["base_answer_sec"], eval_items=EVAL_ITEMS_BY_KIND[item["qtype"]],
+                key_points=item.get("key_points") or None,
             ))
         db.commit()
         countUsage(db, app.posting_id, [item["source_question_id"] for item in chosen if item["source_question_id"]])

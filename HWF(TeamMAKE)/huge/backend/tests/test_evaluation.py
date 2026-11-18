@@ -59,6 +59,8 @@ class FakeModel:
         self.reason = reason
         self.calls = {"rt": 0, "eval": 0}
         self.t5Calls = 0
+        self.checkCalls = 0
+        self.checkScore = None  # 다시 보기에서 내릴 점수
 
     async def structured(self, schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
         self.calls[lane] += 1
@@ -68,6 +70,11 @@ class FakeModel:
             items = [line.split("(")[0][2:] for line in user.split("평가 항목:\n")[1].split("\n\n")[0].splitlines()]
             quote = "지어낸 문장입니다" if self.t5Calls <= self.badQuoteTimes else answer.split(".")[0]
             return ev.T5Out(items=[ev.T5Item(item=i, score=self.t5Score, quote=quote) for i in items])
+        if schema is ev.T5CheckOut:  # 근거 다시 보기 (M5): 기본은 점수 그대로
+            self.checkCalls += 1
+            scored = [line[2:].split("(")[0] for line in user.split("매긴 점수:\n")[1].split("\n\n")[0].splitlines()]
+            return ev.T5CheckOut(items=[ev.T5CheckItem(item=i, supported=self.checkScore is None,
+                                                       score=self.checkScore or self.t5Score) for i in scored])
         if schema is ev.T10Raw:
             text = self.reason(user) if self.reason else ("총점이 기준에 미치지 못했습니다. 근거가 일부 부족했습니다."
                                                           if "불합격" in user else "총점이 합격 기준을 넘었습니다. 답변이 구체적이었습니다.")
@@ -97,7 +104,8 @@ def fake(monkeypatch):
 def test_prdExampleScoresAndDecisionByCode():
     """PRD 5-7 계산 예시: 74.5 · 코딩 60 · 70:30 → 70.15 ≥ 70 → 합격."""
     items = {"expertise": Decimal(80), "logic": Decimal(70), "relevance": Decimal(75), "delivery": Decimal(60), "culture_fit": Decimal(80)}
-    interview = ev.scoring.interviewScore(items, ev.scoring.DEFAULT_WEIGHTS)
+    prdWeights = {"expertise": 30, "logic": 25, "relevance": 20, "delivery": 10, "culture_fit": 15}  # PRD 예시의 비율
+    interview = ev.scoring.interviewScore(items, prdWeights)
     total = ev.scoring.totalScore(interview, Decimal(60), True, 30)
     assert (interview, total) == (Decimal("74.50"), Decimal("70.15"))
 
@@ -471,3 +479,94 @@ def test_t5ScoresWithTemperatureZero(sessionFactory, fake, monkeypatch):
     monkeypatch.setattr(ev.llm, "structured", spy)
     asyncio.run(ev.evaluate(makeApplication(sessionFactory)))
     assert seen and set(seen) == {0}
+
+
+# ---------- 면접 채점 기준 M1~M7 (2026-11-18 사용자 결정) ----------
+
+def jobQuestion(**kw) -> "ev.QuestionInput":
+    base = dict(seq=2, questionId=2, qtype="job", text="RAG 검색 품질을 어떻게 재나요?", items=["expertise", "logic", "relevance", "delivery"],
+                answer="", words=[], keyPoints=["평가 질문 세트", "재현율·정밀도 같은 지표"])
+    base.update(kw)
+    return ev.QuestionInput(**base)
+
+
+def evalData() -> "ev.EvalInput":
+    return ev.EvalInput("a", st.COMPLETED, 1, {}, False, 30, 70, None, [], [], jobText="직무: AI/AX 엔지니어\n주요 업무: 사내 RAG 서비스 개발",
+                        companyInfo="회사 소개: AIIT 는 AI 서비스 회사", talents="- 사용자의 문제에서 시작: 불편을 직접 확인한 경험")
+
+
+def test_t5PromptHasItemLevelsBasicRequirementAndKeyPoints():
+    # M1 항목별 1·3·5점 기준, M2 질문 종류별 기본 요구(3점), M3 핵심 요소 + 없는 내용도 타당하면 인정
+    prompt = ev.t5Prompt(jobQuestion(), "답변", data=evalData())
+    assert "- expertise(직무 전문성): " in prompt and "3점 = 묻는 개념·기술을 맞게 설명함" in prompt
+    assert "- delivery(전달력): " in prompt and "띄어쓰기·문장부호·말 끊김·군말은 보지 않는다" in prompt  # M7
+    assert "이 질문의 기본 요구(3점): " + ev.BASIC_REQUIREMENT["job"] in prompt
+    assert "- 평가 질문 세트" in prompt and "핵심 요소에 없어도 질문에 맞고 타당한 내용이면 인정" in prompt
+    assert all(len(ev.ITEM_LEVELS[k]) == 3 for k in ev.scoring.EVAL_ITEMS) and set(ev.BASIC_REQUIREMENT) == set(ev.QTYPE_LABEL)
+
+
+def test_t5PromptPutsPostingForJobAndCompanyInfoForCompany():
+    # M6: 직무·이력서 질문은 공고 글, 회사 질문은 회사 정보, 조직 적합성은 인재상(M4)
+    data = evalData()
+    job = ev.t5Prompt(jobQuestion(), "답변", data=data)
+    assert job.startswith("[공고]\n직무: AI/AX 엔지니어\n주요 업무: 사내 RAG") and "[회사 정보]" not in job and "[회사 인재상" not in job
+    company = ev.t5Prompt(jobQuestion(qtype="company", items=["logic", "relevance", "delivery", "culture_fit"], keyPoints=[]),
+                          "답변", data=data)
+    assert "[회사 정보]\n회사 소개: AIIT" in company and "[공고]" not in company
+    assert "[회사 인재상 (조직 적합성 5점 참고)]\n- 사용자의 문제에서 시작" in company
+    assert "조직 생활 적합성" in ev.ITEM_WHAT["culture_fit"] and "핵심 요소 (" not in company
+
+
+def test_loadInputCarriesPostingCompanyTalentsAndKeyPoints(sessionFactory):
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        app.posting.duties = "사내 RAG 서비스 개발"
+        q = db.query(InterviewQuestion).filter_by(application_id=appId, seq=2).one()
+        q.key_points = ["평가 질문 세트"]
+        db.commit()
+        data = ev.loadInput(db, app)
+    assert data.jobText == "직무: AI/AX 엔지니어\n주요 업무: 사내 RAG 서비스 개발"
+    assert "인재상" in data.companyInfo and data.talents.count("\n") == 3  # 인재상 4개
+    assert next(q for q in data.questions if q.seq == 2).keyPoints == ["평가 질문 세트"]
+
+
+def test_defaultWeightsLowerDelivery():
+    # M7: 전달력 10 → 5, 관련성·구체성 20 → 25 (새 공고 기본값)
+    assert ev.scoring.DEFAULT_WEIGHTS == {"expertise": 30, "logic": 25, "relevance": 25, "delivery": 5, "culture_fit": 15}
+    assert ev.scoring.validateWeights(ev.scoring.DEFAULT_WEIGHTS) is None
+
+
+def test_recheckOnlyLowersAndKeepsFirstScore(sessionFactory, fake):
+    # M5: 근거 다시 보기는 점수를 내리기만 하고 처음 점수를 남긴다
+    fake.checkScore = 2
+    appId = makeApplication(sessionFactory)
+    asyncio.run(ev.evaluate(appId))
+    with sessionFactory() as db:
+        scores = db.query(ItemScore).filter_by(application_id=appId).all()
+    verified = [s for s in scores if s.quote_verified]
+    assert verified and all((s.score, s.first_score) == (2, 4) for s in verified)
+    assert all(s.first_score is None for s in scores if not s.quote_verified)  # 답 없는 질문은 다시 보지 않음
+    assert fake.checkCalls == 2  # 답한 질문 2개만
+
+
+def test_recheckCannotRaiseAndFailureKeepsScore(sessionFactory, fake, monkeypatch):
+    fake.t5Score, fake.checkScore = 3, 5
+    q = jobQuestion(answer="평가 질문 세트를 만들어 재현율을 쟀습니다.")
+    rows = asyncio.run(ev.scoreQuestion(q, evalData()))
+    assert {(r["score"], r["first_score"]) for r in rows} == {(3, None)}
+
+    async def broken(schema, *args, **kwargs):
+        if schema is ev.T5CheckOut:
+            raise llm.LlmError("timeout")
+        return await fake.structured(schema, *args, **kwargs)
+    monkeypatch.setattr(llm, "structured", broken)
+    fake.checkScore = 1
+    rows = asyncio.run(ev.scoreQuestion(q, evalData()))
+    assert {r["score"] for r in rows} == {3}
+
+
+def test_recheckSkipsOnePointItems(sessionFactory, fake):
+    fake.t5Score = 1
+    rows = asyncio.run(ev.scoreQuestion(jobQuestion(answer="평가 질문 세트를 만들어 재현율을 쟀습니다."), evalData()))
+    assert fake.checkCalls == 0 and {r["score"] for r in rows} == {1}

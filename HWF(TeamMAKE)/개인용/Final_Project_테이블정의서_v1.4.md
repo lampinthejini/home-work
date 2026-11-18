@@ -671,6 +671,7 @@ INDEX HNSW (embedding vector_cosine_ops): 비슷한 질문 찾기·RAG
 | substitute_reason | varchar(64) | | Y | | 대신 쓴 이유 (원본 replace_reason: timeout · invalid_json · check_failed · budget_over) |
 | answer_sec | integer | | N | 90 | 답변 시간 (원본 answer_seconds) |
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목 |
+| key_points | json | | Y | | 직무 질문의 핵심 요소 2~3개(채점 기준, 질문 만들 때 생성, 다른 종류는 비어 있음, C-26) |
 | audio_key | varchar(255) | | Y | | 질문 음성 저장 위치(지원 건 기준 경로, B8). 못 만들면 비움 (원본 tts_key) |
 | audio_sec | float | | Y | | 질문 음성 길이(초) |
 | followup_reason | varchar(64) | | Y | | 꼬리질문을 낸 이유 |
@@ -714,6 +715,7 @@ UNIQUE (application_id, seq, kind, answer_order)
 | quote | text | | Y | | 근거 문장 (암호화) |
 | quote_verified | boolean | | N | false | 근거가 답변 원문에 있음 |
 | regenerated | boolean | | N | false | 근거가 틀려 다시 받았음 |
+| first_score | integer | | Y | | 근거 다시 보기로 내리기 전 점수(내리지 않았으면 비어 있음, C-26) |
 | scored_at | timestamptz | | N | now | |
 
 UNIQUE (interview_question_id, eval_item)

@@ -15,7 +15,8 @@ from app.domain.scoring import (
 def test_prdWorkedExample():
     # PRD 5-7 계산 예시: 74.5점, 코딩 60점, 70:30 → 70.15
     items = {"expertise": Decimal(80), "logic": Decimal(70), "relevance": Decimal(75), "delivery": Decimal(60), "culture_fit": Decimal(80)}
-    interview = interviewScore(items, DEFAULT_WEIGHTS)
+    prdWeights = {"expertise": 30, "logic": 25, "relevance": 20, "delivery": 10, "culture_fit": 15}  # PRD 예시의 비율 (기본값은 M7 로 바뀜)
+    interview = interviewScore(items, prdWeights)
     assert interview == Decimal("74.50")
     assert totalScore(interview, Decimal(60), True, 30) == Decimal("70.15")
 

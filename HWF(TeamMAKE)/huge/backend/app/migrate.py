@@ -10,6 +10,8 @@ from sqlalchemy import text
 log = logging.getLogger("huge.migrate")
 
 STATEMENTS = [
+    "ALTER TABLE interview_questions ADD COLUMN IF NOT EXISTS key_points json",  # M3 (2026-11-18)
+    "ALTER TABLE item_scores ADD COLUMN IF NOT EXISTS first_score integer",  # M5 (2026-11-18)
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS release_at timestamptz",
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS purge_at timestamptz",
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_reason varchar(24)",

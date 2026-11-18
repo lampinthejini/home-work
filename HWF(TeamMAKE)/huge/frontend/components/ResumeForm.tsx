@@ -133,6 +133,10 @@ export function ResumeForm({ value, onChange, onEdit, invalid, lowConf, onConfir
                     <button type="button" className="btn btn-secondary btn-sm" onClick={addSkill}>+</button>
                 </div>
             </section>
+            <p className="notice notice-info small">
+                ⓘ 교육 과정 · 부트캠프, 대회 · 해커톤, 수상, 대외활동, 어학처럼 이력서에 칸이 없는 내용은 지원할 때 추가 서류 단계의 <strong>자기소개서</strong>에 적어 주세요.
+                서류 평가와 면접 질문에 그대로 쓰입니다.
+            </p>
             {/* 자기소개서는 지원할 때 '추가 서류' 단계에서 공고의 문항별로 받는다 (CONFLICTS C-25) */}
         </div>
     );

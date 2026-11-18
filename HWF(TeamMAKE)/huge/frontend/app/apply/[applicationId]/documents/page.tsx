@@ -13,6 +13,14 @@ type DocFile = { id: string; kind: string; name: string; chars: number };
 type Documents = { cover_text: string; cover_max: number; max_files: number; file_max_mb: number; files: DocFile[] };
 const AUTOSAVE_MS = 1500;
 
+/** 이력서에 칸이 없는 항목을 어디에 쓰는지 보여 주는 안내 (내용에 넣지 않고 빈 칸에만 보임, 2026-11-18 사용자 결정) */
+const COVER_PLACEHOLDER = `형식 · 문항 자유입니다. 경험마다 상황 · 본인이 한 일 · 결과(또는 배운 점)를 적어 주세요.
+
+이력서에 칸이 없는 내용도 여기에 적어 주세요. 예)
+[교육 · 부트캠프] 과정 이름, 기간, 배운 것과 만든 것
+[대회 · 해커톤 · 수상] 이름, 결과, 본인이 맡은 일
+[대외활동 · 어학 · 기타] 활동과 그 안에서 한 일`;
+
 /** 자기소개서 PDF (선택, 3개까지). 포트폴리오·프로젝트 기술서 등도 자기소개서로 본다. 글자만 읽어 서류 평가에 쓴다 */
 function FilesBox({ applicationId, docs, onChange }: { applicationId: string; docs: Documents; onChange: (d: Documents) => void }) {
     const { toast } = useApp();
@@ -135,12 +143,17 @@ function DocumentsStep() {
                     ⓘ <strong>글자만 평가합니다.</strong> 그림 · 사진 · 캡처 안의 글자도 읽어(OCR) 평가에 쓰지만, 그림 · 사진 · 디자인 · 서식
                     그 자체는 평가 대상이 아닙니다. 그림 속 글자는 잘못 읽힐 수 있으니, 중요한 내용은 글로도 써 주세요.
                 </span>
+                <span>
+                    ⓘ <strong>이력서에 칸이 없는 내용</strong>(교육 과정 · 부트캠프, 대회 · 해커톤, 수상, 대외활동, 어학 등)은 자기소개서에 적어 주세요.
+                    서류 평가와 면접 질문에 그대로 쓰입니다.
+                </span>
                 <span>ⓘ 자기소개서는 내지 않아도 되지만, 내지 않으면 회사 적합 · 적응·성장을 이력서 내용만으로 평가해 점수가 낮아질 수 있습니다.</span>
                 <span>ⓘ {SCREENING_TIME_NOTE}</span>
             </div>
             <div className="card stack" style={{ gap: 8 }}>
                 <label htmlFor="cover-text"><strong>자기소개서</strong> <span className="small muted">(형식 · 문항 자유)</span></label>
-                <textarea id="cover-text" className="input" rows={12} maxLength={docs.cover_max} value={cover} onChange={(e) => change(e.target.value)} />
+                <textarea id="cover-text" className="input" rows={12} maxLength={docs.cover_max} value={cover} placeholder={COVER_PLACEHOLDER}
+                    onChange={(e) => change(e.target.value)} />
                 <div className="field-hint">{cover.trim().length.toLocaleString()} / {docs.cover_max.toLocaleString()}자</div>
             </div>
             <FilesBox applicationId={app.application_id} docs={docs} onChange={setDocs} />

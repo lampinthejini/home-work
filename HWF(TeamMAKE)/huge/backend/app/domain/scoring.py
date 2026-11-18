@@ -8,7 +8,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from difflib import SequenceMatcher
 
 EVAL_ITEMS = ("expertise", "logic", "relevance", "delivery", "culture_fit")
-DEFAULT_WEIGHTS = {"expertise": 30, "logic": 25, "relevance": 20, "delivery": 10, "culture_fit": 15}
+# 전달력은 받아 적은 글로 보므로 낮게 (M7, 2026-11-18 사용자 결정: 10 → 5, 남는 5 는 관련성·구체성으로). 이미 만든 공고는 그대로
+DEFAULT_WEIGHTS = {"expertise": 30, "logic": 25, "relevance": 25, "delivery": 5, "culture_fit": 15}
 
 # 질문 종류별로 보는 평가 항목 (PRD 5-7 '어떤 질문에서 보나')
 EVAL_ITEMS_BY_KIND = {

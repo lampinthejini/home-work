@@ -21,7 +21,7 @@ export type DraftStatus = {
     notes: string[]; revision: { section: string; text: string } | null; error: string | null;
 };
 
-export const DEFAULT_WEIGHTS: Record<string, number> = { expertise: 30, logic: 25, relevance: 20, delivery: 10, culture_fit: 15 };
+export const DEFAULT_WEIGHTS: Record<string, number> = { expertise: 30, logic: 25, relevance: 25, delivery: 5, culture_fit: 15 };
 
 const WEIGHT_STEP = 5;
 const WEIGHT_UNITS = 100 / WEIGHT_STEP;

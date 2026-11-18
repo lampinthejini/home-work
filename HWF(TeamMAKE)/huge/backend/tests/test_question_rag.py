@@ -38,6 +38,7 @@ class FakeWorld:
         self.exampleSimilarity = exampleSimilarity
         self.copyExamples, self.ungrounded, self.embedDown = copyExamples, ungrounded, embedDown
         self.prompts: list[str] = []
+        self.keyPointPrompts: list[str] = []
         self.counter = 0
 
     async def embed(self, texts, timeoutSec=10):
@@ -63,6 +64,9 @@ class FakeWorld:
         pass
 
     async def structured(self, schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
+        if schema is question_compose.KeyPointsOut:  # 직무 질문 핵심 요소 (M3) — 질문 만들기 호출 수에 넣지 않는다
+            self.keyPointPrompts.append(user)
+            return schema(points=["핵심 요소 하나", "핵심 요소 둘"])
         assert schema is question_compose.RagQuestion
         self.prompts.append(user)
         self.counter += 1
@@ -748,7 +752,9 @@ def test_multilineCoverStaysOneExperienceLine():
     assert text == "자기소개: 첫 줄입니다. 둘째 줄 경험입니다."
 
 
-def test_longCoverParagraphReachesPersonalitySlot(sessionFactory, world):
+def test_longCoverParagraphReachesPersonalitySlot(sessionFactory, world, monkeypatch):
+    # 인성 자리 초점은 지원 id 로 정해져(무작위) 협업 초점이 빠질 수 있다 → 협업 초점으로 고정
+    monkeypatch.setattr(question_compose, "PERSONALITY_ANGLES", ("협업과 의견 조율",))
     fake = world()
     appId = makeApplication(sessionFactory)
     with sessionFactory() as db:
@@ -776,12 +782,33 @@ def test_coverEmbeddingTimeIsNotTakenFromComposeBudget(sessionFactory, world, mo
 
     async def embed(texts, timeoutSec=10):
         if len(texts) > 2:  # 자기소개서 문단 임베딩만 느리게 (실측 5,000자 약 10초)
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(4)  # 예산(3초)보다 길다 — 예산에서 뺐다면 모든 자리가 'budget' 이 된다
         return await slowEmbed(texts, timeoutSec)
     monkeypatch.setattr(rag, "embed", embed)
     appId = makeApplication(sessionFactory)
     with sessionFactory() as db:
         db.get(Application, appId).resume_snapshot = {**RESUME, "cover_letter": LONG_COVER}
         db.commit()
-    asyncio.run(question_compose.compose(appId, budgetSec=1.2))
+    asyncio.run(question_compose.compose(appId, budgetSec=3))  # 전체 시험 실행 중 느려도 남는 여유 (1.2초는 가끔 모자랐음)
     assert not any(q.substitute_reason == "budget" for q in composed(sessionFactory, appId))
+
+
+def test_jobQuestionsGetKeyPointsForScoring(sessionFactory, world):
+    # M3: 직무 질문(만든 것·예비 질문 모두)에 핵심 요소 2~3개를 붙여 저장한다. 다른 종류는 없음
+    fake = world()
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId, budgetSec=120))
+    rows = composed(sessionFactory, appId)
+    assert [r.key_points for r in rows if r.qtype == "job"] == [["핵심 요소 하나", "핵심 요소 둘"]] * 4
+    assert all(r.key_points is None for r in rows if r.qtype != "job")
+    assert len(fake.keyPointPrompts) == 4 and all("질문: " in p for p in fake.keyPointPrompts)
+
+
+def test_keyPointFailureLeavesEmpty(monkeypatch):
+    async def broken(*args, **kwargs):
+        raise question_compose.llm.LlmError("timeout")
+    monkeypatch.setattr(question_compose.llm, "structured", broken)
+
+    class Post:
+        title, duties = "AI/AX 엔지니어", "RAG 개발"
+    assert asyncio.run(question_compose.keyPointsFor("질문", Post())) == []
