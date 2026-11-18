@@ -25,8 +25,7 @@ log = logging.getLogger("huge.posting_questions")
 CATEGORY = "공고 기반"
 WEB_CATEGORY = "인터넷 참고"
 JOB_TOPIC_LIMIT = 6  # 직무 질문 후보 수 상한 (공고 줄 수가 많아도)
-# 회사 질문 자리마다 다른 초점 (실측 2026-11-10: 같은 프롬프트 3번이면 '문화에 매력' 질문으로 쏠림)
-COMPANY_ANGLES = ("지원 동기", "우리 회사가 하는 일과 이 직무에 대한 이해", "조직 문화와 본인이 일하는 방식")
+COMPANY_ANGLES = qc.COMPANY_ANGLES  # 회사 질문 자리마다 다른 초점 (면접 질문 만들기와 같은 것)
 COMPANY_COUNT = len(COMPANY_ANGLES)
 ATTEMPTS = 2  # 한 자리를 만들어 보는 횟수 (처음 + 고쳐 다시 1번)
 TIMEOUT_SEC = 60  # 뒤에서 도는 일이라 면접 때(question_attempt_timeout_sec)보다 넉넉하게
@@ -56,7 +55,7 @@ async def examplesFor(db: Session, posting: JobPosting, kind: str, topic: str | 
 
 
 async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None, made: list[tuple[str, list[float] | None, str]],
-                  usedPosts: set[int] | None = None, jobForm: str | None = None, companyTerms: list[str] | tuple = ()):
+                  usedPosts: set[int] | None = None, jobForm: str | None = None):
     """질문 1개를 만들어 검사한다. (글, 벡터) 또는 (None, None)."""
     vectorsOn = rag.supported(db)
     examples, queryVector = await examplesFor(db, posting, kind, topic) if vectorsOn else ([], None)
@@ -72,7 +71,7 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
         except llm.LlmError:
             return None, None
         text = question_text.cleanQuestion(out.question)
-        code = qc.checkGenerated(kind, out, "", companyTerms=companyTerms, sameKind=[t for t, _, k in made if k == kind])
+        code = qc.checkGenerated(kind, out, "", sameKind=[t for t, _, k in made if k == kind])
         if code is None and question_bank.excludedReason(text):
             code = "other_company"
         if code is None and (question_bank.isKnown(db, text) or qc.isRepeat(text, [{"text": t} for t, _, _ in made])):
@@ -101,7 +100,6 @@ async def generateForPosting(postingId: str) -> dict:
                 return {"saved": 0, "skipped": 0}
             slots = [("job", t) for t in qc.jobTopics(posting, {})[:JOB_TOPIC_LIMIT]] + [("company", angle) for angle in COMPANY_ANGLES]
             made: list[tuple[str, list[float] | None, str]] = []
-            terms = company.properTerms(db)
             jobSlot = 0  # 직무 자리마다 다른 꼴 (qc.JOB_FORMS)
             usedPosts: set[int] = set()  # 후보마다 다른 기술 글
             for kind, topic in slots:
@@ -110,7 +108,7 @@ async def generateForPosting(postingId: str) -> dict:
                     continue
                 jobForm = qc.jobFormFor(jobSlot) if kind == "job" else None
                 jobSlot += kind == "job"
-                text, vector = await makeOne(db, posting, kind, topic, made, usedPosts, jobForm, terms)
+                text, vector = await makeOne(db, posting, kind, topic, made, usedPosts, jobForm)
                 if text is None or not saveCandidate(db, posting, kind, text, vector, CATEGORY):
                     skipped += 1
                     continue

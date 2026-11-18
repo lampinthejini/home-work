@@ -106,7 +106,6 @@ KIND_GUIDE = {
     "job": ("직무 질문 — 이 직무에 필요한 기술 지식 하나를 묻는다. 개념·원리·고르는 기준·방법·장단점을 묻고, "
             "지원자가 겪은 일('~한 경험이 있나요', '~했나요')은 묻지 않는다 (경험이 없는 신입도 답할 수 있게). "
             "기술 주제는 아래 기존 질문들에서 고르고 회사의 업무 상황에 맞춘다. "
-            "회사 이름이나 회사가 붙인 모델·서비스·시설 이름(지원자는 모르는 이름)은 넣지 않고 '초거대 언어 모델'처럼 일반 기술 용어로 쓴다. "
             "지원자 기술은 수준을 가늠하는 데만 참고하고, 이력서 프로젝트를 다시 묻지 않는다 (이력서 질문은 따로 있다). "
             "이미 낸 질문과 다른 기술 주제여야 한다."),
 }
@@ -135,6 +134,24 @@ JOB_FORMS = (
 
 def jobFormFor(index: int) -> str:
     return JOB_FORMS[index % len(JOB_FORMS)]
+
+
+# 회사 질문 자리마다 다른 초점 (실측 2026-11-10: 같은 프롬프트면 '문화에 매력'으로, 2026-11-18: 면접 2자리가 모두 '사용자 중심'으로 쏠림)
+COMPANY_ANGLES = ("지원 동기", "우리 회사가 하는 일과 이 직무에 대한 이해", "조직 문화와 본인이 일하는 방식")
+
+
+def companyAngleFor(index: int) -> str:
+    return COMPANY_ANGLES[index % len(COMPANY_ANGLES)]
+
+
+# 인성 질문 자리마다 다른 초점 (실측 2026-11-18: 면접의 인성 2자리가 모두 '협업 중 의견이 다를 때'로 쏠림)
+PERSONALITY_ANGLES = ("협업과 의견 조율", "책임감과 맡은 일을 끝까지 해낸 방식", "실패나 어려움에서 배우고 성장한 점")
+
+
+def personalityAngleFor(index: int) -> str:
+    return PERSONALITY_ANGLES[index % len(PERSONALITY_ANGLES)]
+# 면접의 회사 질문 2개가 이만큼 비슷하면 다시 만든다 (실측 2026-11-18 bge-m3: '사용자 중심' 되풀이 0.75~0.89, 다른 질문 0.59~0.72)
+SAME_COMPANY_SIMILARITY = 0.75
 RESUME_EVIDENCE_MIN = 6  # 근거 구절 앞부분이 이력서와 이만큼 이상 같아야 한다 (띄어쓰기·문장부호 뺀 글자 수)
 ANCHOR_MIN = 4  # 질문이 짚어야 하는 프로젝트·회사 이름 조각 (예: '사내 문서 RAG 챗봇' → 'RAG 챗봇')
 EXPERIENCE_PREFIXES = ("경력:", "프로젝트:", "자기소개:")
@@ -216,6 +233,15 @@ HEADING_LINE = re.compile(r"^[\[■【(]*\s*(주요\s*업무|담당\s*업무|자
 # 태도 줄: 협업·소통 같은 태도는 인성·회사 질문이 본다. 영어 기술 이름이 함께 있으면('Git으로 협업') 기술 줄로 남긴다
 ATTITUDE_LINE = re.compile(r"협업|소통|커뮤니케이션|태도|책임감|성실|열정|적극|팀워크|리더십|문제\s*해결\s*능력|학습\s*능력|자기\s*주도|주인\s*의식|배려")
 TECH_WORD = re.compile(r"[A-Za-z]{2,}")
+# 자격 요건 꼬리: 'AI 기술에 대한 기본 이해를 가진 분' → 'AI 기술' (실측 2026-11-18: 꼬리째 주제로 주니 "…가진 분께서, …"로 물음)
+QUALIFIER_TAIL = re.compile(r"\s*(에\s*대한|에\s*관한)?\s*(기본적인|기본|기초|실무|풍부한)?\s*"
+                            r"(이해|경험|지식|역량|능력|이해도)(가|이|을|를)?\s*(가진|갖춘|있는|보유한|지닌|가지신|갖추신)\s*(분|자|사람)\.?$")
+
+
+def topicCore(line: str) -> str:
+    """주제 줄에서 자격 요건 꼬리를 떼고 기술 내용만 남긴다. 다 떼면 빈 글이 되는 줄은 그대로 둔다."""
+    core = QUALIFIER_TAIL.sub("", line).strip()
+    return core or line
 
 
 def isTopicLine(line: str) -> bool:
@@ -229,7 +255,7 @@ def jobTopics(posting, resume: dict) -> list[str]:
     공고의 주요 업무·자격 요건·우대 사항 줄을 번갈아 고르고, 모자라면 지원자 기술을 붙인다. 제목 줄·태도 줄은 뺀다."""
     groups = [[line.strip(" -•·\t") for line in (text or "").splitlines() if line.strip(" -•·\t")]
               for text in (posting.duties, posting.requirements, posting.preferred)]
-    groups = [[line for line in g if isTopicLine(line)] for g in groups]
+    groups = [[topicCore(line) for line in g if isTopicLine(line)] for g in groups]
     topics: list[str] = []
     for i in range(max((len(g) for g in groups), default=0)):
         topics += [g[i] for g in groups if i < len(g)]
@@ -283,10 +309,11 @@ def ragPrompt(kind: str, company: str, resume: str, examples: list[rag.Example],
     avoidLines = "\n".join(f"- {t}" for t in avoid)
     return (
         f"[만들 질문] {KIND_GUIDE[kind]}\n"
-        + (f"이번 질문의 초점: {topic} — 이 초점만 묻는다.\n" if topic and kind == "company"
+        + (f"이번 질문의 초점: {topic} — 이 초점만 묻는다.\n" if topic and kind in ("company", "personality")
            else f"이번 질문의 기술 주제: {topic} — 이 주제만 묻고, 다른 기술 주제로 넘어가지 마라.\n" if topic else "")
         + f"질문은 물음표로 끝나는 질문 하나로, {question_text.QUESTION_MAX_CHARS}자 안쪽으로 쓰고, 요구하는 일은 {MAX_TASKS_PER_ANSWER}개 이하로 한다 — "
-        + (f"이번 질문은 이 꼴로 쓴다: {jobForm} — 꼴의 말은 주제에 맞게 바꿔 쓴다. " if jobForm and kind == "job"
+        + (f"이번 질문은 되도록 이 꼴로 쓴다: {jobForm} — 꼴의 말은 주제에 맞게 바꿔 쓰고, 주제와 맞지 않아 뜻이 약해지면 "
+           "꼴을 버리고 주제에 맞는 다른 물음으로 쓴다(앞 질문과 말끝은 겹치지 않게). " if jobForm and kind == "job"
            else f"{KIND_FORMS[kind]} 이런 꼴을 참고하되, 꼴의 말을 그대로 옮기지 말고 상황에 맞게 바꿔 쓴다. ")
         + "답변의 길이·시간·문장 수를 정하는 말은 넣지 않는다. 이모지·괄호 기호·영어 조각을 붙이지 않는다. "
         "말끝은 '~인가요?', '~하시나요?', '~생각하시나요?', '~싶으신가요?'처럼 자연스러운 존댓말로 쓰고 "
@@ -321,9 +348,9 @@ def endingOf(text: str) -> str:
 
 
 def checkGenerated(kind: str, out: RagQuestion, experience: str, anchors: list[str] | tuple = (),
-                   companyTerms: list[str] | tuple = (), sameKind: list[str] | tuple = ()) -> str | None:
+                   sameKind: list[str] | tuple = ()) -> str | None:
     """형식·범위·근거 확인 (TRD 7-4 ④). 문제 코드, 맞으면 None. experience·anchors 는 이력서 질문에만,
-    companyTerms(회사 이름·회사 고유 이름)·sameKind(같은 종류 앞 질문, 말끝 비교)는 직무 질문에만 쓴다."""
+    sameKind(같은 종류 앞 질문, 말끝 비교)는 직무·이력서 질문에만 쓴다. 회사 이름은 막지 않는다 (2026-11-18 사용자 결정, 내부용)."""
     text = question_text.cleanQuestion(out.question)
     if not looksLikeQuestion(text):
         return "invalid_question"
@@ -334,9 +361,7 @@ def checkGenerated(kind: str, out: RagQuestion, experience: str, anchors: list[s
         return problem
     if kind == "job" and JOB_EXPERIENCE.search(text):
         return "job_asks_experience"
-    if kind == "job" and any(term and term in text for term in companyTerms):
-        return "job_company_term"
-    if kind == "job" and endingOf(text) in {endingOf(t) for t in sameKind}:
+    if kind in ("job", "resume") and endingOf(text) in {endingOf(t) for t in sameKind}:
         return "same_ending"
     if kind == "company" and COMPANY_INSIDE.search(text):
         return "company_asks_inside"
@@ -359,8 +384,8 @@ PROBLEM_TEXT = {
     "job_asks_experience": "직무 질문이 지원자가 겪은 일을 물음 — 개념·기준·방법 같은 지식을 물을 것",
     "resume_not_anchored": "질문에 이력서의 프로젝트 이름이나 회사 이름이 없음",
     "awkward_ending": "말끝이 어색함('~는가요'·'~싶은가요') — '~하시나요?', '~느끼셨나요?', '~생각하시나요?'처럼 쓸 것",
-    "job_company_term": "직무 질문에 회사 이름이나 회사가 붙인 모델·서비스 이름이 들어감 — 지원자는 모르는 이름이니 일반 기술 용어로 쓸 것",
-    "same_ending": "앞 직무 질문과 말끝이 같음 — 안내한 꼴로 다른 말끝을 쓸 것",
+    "same_ending": "앞의 같은 종류 질문과 말끝이 같음 — 다른 물음(역할·어려움·결과·배운 점 등)과 다른 말끝으로 쓸 것",
+    "similar_company": "앞 회사 질문과 내용이 비슷함 — 앞 질문의 핵심 낱말(예: '사용자 중심')을 되풀이하지 말고 이번 초점만 물을 것",
     "company_asks_inside": "입사 전 지원자에게 우리 회사 안에서 겪은 일을 물음 — 공고에서 읽은 내용에 대한 생각·지원 이유·하고 싶은 일을 물을 것",
 }
 
@@ -464,6 +489,12 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         if kind == "job" and ctx["jobTopics"]:
             topic = ctx["jobTopics"][ctx["jobIndex"] % len(ctx["jobTopics"])]
             ctx["jobIndex"] += 1
+        if kind == "company":  # 면접의 회사 자리 2개가 지원 동기 → 회사 이해 → 조직 문화를 번갈아 맡는다
+            topic = companyAngleFor(ctx["companySlot"])
+            ctx["companySlot"] += 1
+        if kind == "personality":  # 인성 자리 2개도 협업 → 책임감 → 성장을 번갈아 맡는다
+            topic = personalityAngleFor(ctx["personalitySlot"])
+            ctx["personalitySlot"] += 1
         jobForm = jobFormFor(ctx["jobSlot"]) if kind == "job" else None
         if kind == "job":
             ctx["jobSlot"] += 1
@@ -534,7 +565,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         examples = state["examples"]
         if problem is None:
             out = state["candidate"]
-            problem = checkGenerated(kind, out, ctx["experience"], ctx["anchors"], ctx["companyTerms"],
+            problem = checkGenerated(kind, out, ctx["experience"], ctx["anchors"],
                                      [c["text"] for c in state["chosen"] if c.get("qtype") == kind])
             text = question_text.cleanQuestion(out.question)
             if problem is None:
@@ -551,6 +582,9 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                         examples = examples[:copied] + examples[copied + 1:]
                     elif isRepeat(text, state["chosen"]) or rag.maxSimilarity(vector, chosenVectors(state["chosen"])) >= rag.DUPLICATE_SIMILARITY:
                         problem = "duplicate"
+                    elif kind == "company" and rag.maxSimilarity(
+                            vector, chosenVectors([c for c in state["chosen"] if c.get("qtype") == kind])) >= SAME_COMPANY_SIMILARITY:
+                        problem = "similar_company"  # 말끝이 같은 것은 괜찮고, 내용이 비슷한 것만 막는다 (2026-11-18 사용자 결정)
                     else:
                         record["vector"] = vector
                         log.info("slot %s generated with examples %s app=%s", kind, [e.id for e in state["examples"]], app.id)
@@ -671,7 +705,9 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
                "skills": fence(skillsText(app.resume_snapshot or {})),
                "experience": fence(experienceText(app.resume_snapshot or {})), "anchors": experienceAnchors(app.resume_snapshot or {}),
                "jobTopics": jobTopics(app.posting, app.resume_snapshot or {}), "jobIndex": 0, "jobSlot": 0,
-               "companyTerms": company.properTerms(db),
+               # 회사 자리 2개라 지원자마다 시작 초점을 달리해 세 초점이 고루 나오게 한다 (지원 id 로 정해 다시 만들어도 같다)
+               "companySlot": int(app.id.replace("-", "")[:8], 16) % len(COMPANY_ANGLES) if app.id else 0,
+               "personalitySlot": int(app.id.replace("-", "")[8:16], 16) % len(PERSONALITY_ANGLES) if app.id else 0,
                "techPostIds": set()}  # 이 면접에서 이미 쓴 기술 글 (질문마다 다른 글)
         # 직무 관련 최근 소식: 30초(남은 예산이 적으면 그만큼) 안에 찾은 것만 쓰고, 다 만들면 지운다 (DB 에 남기지 않는다)
         newsSec = min(job_news.JOB_NEWS_TIMEOUT_SEC, deadline - time.monotonic() - 1)

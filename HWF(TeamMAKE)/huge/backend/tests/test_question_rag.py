@@ -289,8 +289,8 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
 
 
 @pytest.mark.parametrize(("similarity", "lastText", "regenCount"), [
-    (0.95, "회사 질문 셋째은 무엇인가요?", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
-    (0.85, "회사 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (예비 질문에만 넣지 않는다)
+    (0.95, "인성 질문 셋째은 무엇인가요?", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
+    (0.85, "인성 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (예비 질문에만 넣지 않는다)
 ])
 def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, monkeypatch, similarity, lastText, regenCount):
     fake = world()
@@ -298,16 +298,16 @@ def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, mo
     base[900] = 1.0
     near = [0.0] * rag.EMBED_DIM
     near[900], near[901] = similarity, math.sqrt(1 - similarity ** 2)
-    vectors = {"회사 질문 첫째은 무엇인가요?": base, "회사 질문 둘째은 무엇인가요?": near}
+    vectors = {"인성 질문 첫째은 무엇인가요?": base, "인성 질문 둘째은 무엇인가요?": near}
     realEmbed, realStructured = fake.embed, fake.structured
-    companyTexts = iter(["회사 질문 첫째은 무엇인가요?", "회사 질문 둘째은 무엇인가요?", "회사 질문 셋째은 무엇인가요?"])
+    personalityTexts = iter(["인성 질문 첫째은 무엇인가요?", "인성 질문 둘째은 무엇인가요?", "인성 질문 셋째은 무엇인가요?"])
 
     async def embed(texts, timeoutSec=10):
         return [vectors.get(t) or (await realEmbed([t]))[0] for t in texts]
 
     async def structured(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
-        if user.startswith("[만들 질문] 회사"):
-            return schema(question=next(companyTexts), task_count=1)
+        if user.startswith("[만들 질문] 인성"):
+            return schema(question=next(personalityTexts), task_count=1)
         return await realStructured(schema, system, user, timeoutSec, maxTokens, temperature, lane)
 
     monkeypatch.setattr(rag, "embed", embed)
@@ -316,7 +316,8 @@ def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, mo
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)
     assert len(rows) == 10
-    assert (rows[-1].text, rows[-1].source, rows[-1].regen_count) == (lastText, "generated", regenCount)
+    # 인성 2번째 자리(9번). 회사 질문끼리는 더 엄격한 SAME_COMPANY_SIMILARITY(0.75)를 쓰므로 인성으로 일반 기준을 본다
+    assert (rows[-2].text, rows[-2].source, rows[-2].regen_count) == (lastText, "generated", regenCount)
 
 
 def test_answerFormatWordsInQuestionAreRejected():
@@ -627,20 +628,78 @@ def test_jobTopicsSkipHeadingAndAttitudeLines():
                      "- 협업과 소통을 통해 팀과 함께 일할 수 있는 분\n- Git으로 협업한 경험이 있는 분",
         preferred="우대 사항\n- 벡터 DB 운영 경험이 있는 분")
     assert question_compose.jobTopics(posting, {"skills": ["PyTorch", "커뮤니케이션"]}) == [
-        "LLM 기반 서비스를 설계하고 개발합니다.", "Python을 활용한 개발 경험을 갖춘 분", "벡터 DB 운영 경험이 있는 분",
-        "RAG 기반 검색 시스템을 구현합니다.", "Git으로 협업한 경험이 있는 분", "PyTorch"]
+        "LLM 기반 서비스를 설계하고 개발합니다.", "Python을 활용한 개발", "벡터 DB 운영",
+        "RAG 기반 검색 시스템을 구현합니다.", "Git으로 협업한", "PyTorch"]
 
 
 
-def test_jobQuestionWithCompanyOwnNameIsRejected():
-    """실측 2026-11-18: 직무 질문에 회사 모델 이름 'AIIT-X'가 들어감 — 지원자는 모를 이름이라 다시 만든다."""
-    terms = ("AIIT", "마루 1")
+def test_qualificationTailIsDroppedFromJobTopic():
+    """실측 2026-11-18: 'AI 기술에 대한 기본 이해를 가진 분'을 그대로 주제로 주니 "…가진 분께서, …"로 물음 → 기술 내용만 남긴다."""
+    assert question_compose.topicCore("AI 기술에 대한 기본 이해를 가진 분") == "AI 기술"
+    assert question_compose.topicCore("Python으로 개발 경험을 가진 분") == "Python으로 개발"
+    assert question_compose.topicCore("RAG 파이프라인을 구축합니다.") == "RAG 파이프라인을 구축합니다."
+    assert question_compose.topicCore("경험을 가진 분") == "경험을 가진 분"  # 다 떼면 빈 글이라 그대로
+
+
+def test_jobQuestionMayUseCompanyName():
+    """2026-11-18 사용자 결정: 내부용이라 직무 질문에 회사 이름·회사 모델 이름이 들어가도 막지 않는다."""
     out = question_compose.RagQuestion(question="AIIT-X 기반 서비스에서 응답 일관성을 지키는 원리는 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("job", out, "", companyTerms=terms) == "job_company_term"
-    ok = question_compose.RagQuestion(question="초거대 언어 모델 응답의 일관성을 지키는 원리는 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("job", ok, "", companyTerms=terms) is None
-    company = question_compose.RagQuestion(question="AIIT가 서비스에 AI를 넣는 방식에서 가장 끌리는 점은 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("company", company, "", companyTerms=terms) is None  # 회사 질문은 회사 이름을 쓴다
+    assert question_compose.checkGenerated("job", out, "") is None
+
+
+def test_companySlotsTakeDifferentAngles(sessionFactory, world):
+    """실측 2026-11-18: 면접의 회사 질문 2개가 모두 '사용자 중심'으로 쏠림 → 자리마다 지원 동기·회사 이해·조직 문화 중 다른 초점."""
+    fake = world()
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    prompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
+    angles = [a for p in prompts for a in question_compose.COMPANY_ANGLES if f"초점: {a} —" in p]
+    assert len(prompts) == 2 and len(angles) == 2 and angles[0] != angles[1]
+
+
+def test_personalitySlotsTakeDifferentAngles(sessionFactory, world):
+    """실측 2026-11-18: 면접의 인성 질문 2개가 모두 '협업 중 의견이 다를 때'로 쏠림 → 자리마다 협업·책임감·성장 중 다른 초점."""
+    fake = world()
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    prompts = [p for p in fake.prompts if p.startswith("[만들 질문] 인성")]
+    angles = [a for p in prompts for a in question_compose.PERSONALITY_ANGLES if f"초점: {a} —" in p]
+    assert len(prompts) == 2 and len(angles) == 2 and angles[0] != angles[1]
+
+
+def test_similarCompanyQuestionIsRemade(sessionFactory, world):
+    """실측 2026-11-18: 회사 질문 2개가 모두 '사용자 중심 … 하고 싶은 이유는'(유사도 0.75). 말끝은 같아도 되지만 내용이 비슷하면 다시 만든다."""
+    fake = world()
+    texts = iter(["우리 회사의 문화와 협업, 데이터 활용 방식에서 가장 끌리는 점은 무엇인가요?",
+                  "우리 회사의 문화와 협업 방식에서 가장 끌리는 점은 무엇인가요?",  # 앞 질문과 0.79
+                  "입사하면 가장 먼저 해 보고 싶은 일은 무엇인가요?"])
+    base = fake.structured
+
+    async def structured(schema, system, user, timeoutSec, **kwargs):
+        if user.startswith("[만들 질문] 회사"):
+            fake.prompts.append(user)
+            return schema(question=next(texts), task_count=1)
+        return await base(schema, system, user, timeoutSec, **kwargs)
+    llm.structured = structured
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    company = [q for q in composed(sessionFactory, appId) if q.qtype == "company"]
+    assert [q.text for q in company] == ["우리 회사의 문화와 협업, 데이터 활용 방식에서 가장 끌리는 점은 무엇인가요?",
+                                         "입사하면 가장 먼저 해 보고 싶은 일은 무엇인가요?"]
+    assert company[1].regen_count == 1 and not company[1].substituted
+    assert any("앞 회사 질문과 내용이 비슷함" in p for p in fake.prompts)
+
+
+def test_resumeQuestionWithSameEndingAsEarlierIsRejected():
+    """실측 2026-11-18: 이력서 질문 2개가 '…Airflow를 활용한 이유는 무엇인가요?' · '…Kubernetes를 활용한 이유는 무엇인가요?'."""
+    resume = "프로젝트: 추천 모델 재학습 파이프라인 (2023) 주간 재학습과 A/B 검증을 자동화"
+    first = "추천 모델 재학습 파이프라인에서 Airflow를 활용한 이유는 무엇인가요?"
+    out = question_compose.RagQuestion(question="추천 모델 재학습 파이프라인에서 Kubernetes를 활용한 이유는 무엇인가요?",
+                                       evidence="주간 재학습과 A/B 검증을 자동화", task_count=1)
+    anchors = ["재학습 파이프라인"]
+    assert question_compose.checkGenerated("resume", out, resume, anchors, [first]) == "same_ending"
+    out.question = "추천 모델 재학습 파이프라인에서 A/B 검증을 자동화할 때 가장 어려웠던 점은 무엇이었나요?"
+    assert question_compose.checkGenerated("resume", out, resume, anchors, [first]) is None
 
 
 def test_jobQuestionWithSameEndingAsEarlierIsRejected():
@@ -656,7 +715,6 @@ def test_jobSlotsGetDifferentForms():
     """직무 자리마다 꼴 하나를 정해 준다 (꼴 예 여러 개를 한꺼번에 주면 '기준은 무엇인가요'로 쏠림)."""
     prompts = [question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=question_compose.jobFormFor(i))
                for i in range(len(question_compose.JOB_FORMS))]
-    assert all(f"이번 질문은 이 꼴로 쓴다: {form}" in p for form, p in zip(question_compose.JOB_FORMS, prompts, strict=True))
+    assert all(f"이번 질문은 되도록 이 꼴로 쓴다: {form}" in p for form, p in zip(question_compose.JOB_FORMS, prompts, strict=True))
     assert len(set(question_compose.JOB_FORMS)) == len(question_compose.JOB_FORMS) >= 4
     assert not any("기준은 무엇인가요" in form for form in question_compose.JOB_FORMS)
-    assert "회사 이름이나 회사가 붙인" in prompts[0]

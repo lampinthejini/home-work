@@ -19,6 +19,8 @@ for i, line in enumerate(doc):
         refs = list(REF.finditer(cell))
         if not refs:
             continue
+        if "` ~ `:" in cell or line.startswith("#"):  # 줄 범위·머리글(데코레이터 줄부터 보여 줌)은 course_lines.py 가 본다
+            continue
         p = resolve(refs[0].group(1))
         if p is None:
             continue

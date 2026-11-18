@@ -12,6 +12,9 @@ FILE_ROLE = {
 }
 
 NEW = {
+    'app.services.question_compose:personalityAngleFor': '인성 자리 번호에 맞는 초점 하나 (협업·책임감·성장을 돌아가며, 2026-11-18)',
+    'app.services.question_compose:companyAngleFor': '회사 자리 번호에 맞는 초점 하나 (지원 동기·회사 이해·조직 문화를 돌아가며, 2026-11-18)',
+    'app.services.question_compose:topicCore': "직무 주제 줄에서 자격 요건 꼬리('…에 대한 기본 이해를 가진 분')를 떼고 기술 내용만 남긴다 (2026-11-18)",
     'app.services.question_compose:jobFormFor': '직무 자리 번호에 맞는 질문 꼴 하나 (JOB_FORMS 를 돌아가며, 말투가 한 가지로 굳지 않게, 2026-11-18)',
     # 2026-11-18 (C-21·C-22·C-24)
     'app.routers.admin_company:noTitle': "프로젝트 이름이 비었을 때 돌려줄 422 오류",

@@ -11,7 +11,6 @@
 """
 
 import logging
-import re
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -156,17 +155,6 @@ POSTING_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("직
 def profileText(profile: CompanyProfile, fields=QUESTION_FIELDS, chars: int = CONTEXT_TEXT_CHARS) -> str:
     parts = [f"회사 이름: {profile.name}"] + [f"{label}: {(getattr(profile, key) or '')[:chars]}" for label, key in fields]
     return "\n".join(p for p in parts if not p.endswith(": "))
-
-
-# 회사 정보에 따옴표로 적힌 고유 이름 (예: 'AIIT-X', '마루 1') — 직무 질문에 넣지 않는다 (2026-11-18 실측)
-QUOTED_NAME = re.compile(r"['‘’\"“”]([^'‘’\"“”\n]{2,20})['‘’\"“”]")
-
-
-def properTerms(db: Session) -> list[str]:
-    """지원자는 모를 회사 고유 이름: 회사 이름(이름으로 시작하는 'AIIT-X' 같은 이름도 걸림)과 회사 정보 안 따옴표 이름."""
-    profile = getProfile(db)
-    body = "\n".join(getattr(profile, key) or "" for key in PROFILE_FIELDS if key not in ("name", "tech_feed_url"))
-    return list(dict.fromkeys([profile.name, *QUOTED_NAME.findall(body)]))
 
 
 def withProjects(base: str, projects: list[CompanyProject]) -> str:
