@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 from ..domain import status as st
 from ..errors import ApiError
 from ..models import Application, InterviewSession, Recording, SessionEvent
-from ..timeutil import asKst, now
+from ..timeutil import asKst, now, releaseAtFor
 from . import storage
 
-RETENTION_DAYS = 3  # 응시 끝 + 3일
+RETENTION_DAYS = 3  # 결과 공개 + 3일 (2026-11-18 사용자 결정, 이전: 응시 끝 + 3일)
+RESULT_WAIT_DAYS = 7  # 결과를 아직 못 정한 건(채점 중·확인 필요)은 공고 공개 + 3일에서 이만큼 더 기다린다 (확인 필요는 최대 7일)
 CHUNK_MAX_BYTES = 5 * 1024 * 1024  # 10초 조각 (화면은 약 300kbps 로 녹화)
 SEGMENT_MAX_BYTES = 400 * 1024 * 1024
 FINISH_GRACE_SEC = 60  # 응시가 끝난 직후 마지막 조각은 받는다
@@ -26,14 +27,20 @@ def chunkKey(fileKey: str, chunkNo: int) -> str:
 
 
 def baseExpiry(app: Application):
-    """응시가 끝났으면 끝난 시각, 아직이면 마감 시각(가장 늦게 끝날 수 있는 시각) + 3일."""
-    end = app.completed_at or app.posting.close_at or now()
-    return asKst(end) + timedelta(days=RETENTION_DAYS)
+    """이 건의 결과 공개 시각 + 3일. 결과가 아직 없으면 공고의 공개 시각으로 센다(결과가 늦게 나오면 그 건의 공개 시각으로 늦춰진다, EVL-08)."""
+    release = app.release_at or app.posting.release_at or releaseAtFor(app.posting.close_at)
+    return asKst(release) + timedelta(days=RETENTION_DAYS)
 
 
 def expiresAt(rec: Recording, app: Application):
-    """기록된 기한과 '끝난 시각 + 3일' 중 이른 쪽. 조각이 더 오지 않아 기록된 기한이 마감 기준으로 남아 있어도 3일에 지운다."""
-    return min(asKst(rec.expires_at), baseExpiry(app)) if app.completed_at else asKst(rec.expires_at)
+    """보관 기한. 공개 시각이 바뀔 수 있어(늦은 결과·마감일 변경) 저장한 expires_at 이 아니라 지금 값으로 센다."""
+    return baseExpiry(app)
+
+
+def waitsForResult(app: Application, at) -> bool:
+    """결과가 정해지지 않아 공개 시각을 아직 모르는 끝난 응시. 공개 전에 지우지 않게 기다린다 (최대 RESULT_WAIT_DAYS)."""
+    return (app.release_at is None and app.attempt_status in st.FINAL_STATUSES
+            and at < baseExpiry(app) + timedelta(days=RESULT_WAIT_DAYS))
 
 
 def acceptsUploads(app: Application) -> bool:

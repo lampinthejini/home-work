@@ -224,3 +224,46 @@ def test_deletePostingRemovesDraftThread(sessionFactory, adminClient, monkeypatc
     assert not asyncio.run(posting_draft.hasDraft(postingId))
     with sessionFactory() as db:
         assert db.get(JobPosting, postingId) is None
+
+
+def test_longInputDropsReferencesThenCompany(monkeypatch):
+    """요청 하나(4,096토큰)에 안 들어가면 예전 공고 → 회사 프로젝트 → 회사 정보 순으로 뺀다 (2026-11-18 실측: 다 채우면 약 4,120토큰)."""
+    def fitsUnder(limit):
+        async def fits(system, user, maxTokens, lane="rt"):
+            return len(user) <= limit
+        return fits
+
+    prompt, full, short, refs = "관리자 입력", "회사 정보\n회사가 진행한 프로젝트:\n- 검색", "회사 정보", ["예전 공고 가" * 20, "예전 공고 나" * 20]
+    whole = len(posting_draft.withReferences(posting_draft.withCompany(prompt, full), refs))
+    monkeypatch.setattr(llm, "fits", fitsUnder(whole))
+    text, used, notes = asyncio.run(posting_draft.fitDraftInput(prompt, full, short, refs))
+    assert used == refs and notes == [] and "검색" in text
+
+    oneRef = len(posting_draft.withReferences(posting_draft.withCompany(prompt, full), refs[:1]))
+    monkeypatch.setattr(llm, "fits", fitsUnder(oneRef))
+    text, used, notes = asyncio.run(posting_draft.fitDraftInput(prompt, full, short, refs))
+    assert used == refs[:1] and notes == ["입력이 길어 예전 공고 1건을 참고에서 뺐습니다"]
+
+    monkeypatch.setattr(llm, "fits", fitsUnder(len(posting_draft.withCompany(prompt, short))))
+    text, used, notes = asyncio.run(posting_draft.fitDraftInput(prompt, full, short, refs))
+    assert used == [] and "검색" not in text and "<회사>" in text and notes[-1] == "입력이 길어 회사 프로젝트를 참고에서 뺐습니다"
+
+    monkeypatch.setattr(llm, "fits", fitsUnder(len(prompt)))
+    text, used, notes = asyncio.run(posting_draft.fitDraftInput(prompt, full, short, refs))
+    assert text == prompt and notes[-1] == "입력이 길어 회사 정보를 참고에서 뺐습니다"
+
+
+def test_tooLongRewriteIsReportedNotSent(adminClient, monkeypatch):
+    """다시 쓰기 요청이 회사 정보까지 빼도 안 들어가면 LLM 을 부르지 않고 이유를 알린다."""
+    postingId, call = makeDraft(adminClient, monkeypatch)
+    run(postingId, call, FakeLlm(GOOD), monkeypatch)
+    fake = FakeLlm(GOOD, ["- 새 업무를 합니다\n- 다른 업무를 합니다\n- 세 번째 업무를 합니다"])
+    monkeypatch.setattr(llm, "structured", fake)
+
+    async def never(system, user, maxTokens, lane="rt"):
+        return False
+    monkeypatch.setattr(llm, "fits", never)
+    asyncio.run(posting_draft.revise(postingId, "duties", "더 길게", "- 다" * 2000))
+    state = posting_draft.status(postingId, None)
+    assert state["status"] == "failed" and any("너무 길어" in n for n in state["notes"])
+    assert fake.prompts == []

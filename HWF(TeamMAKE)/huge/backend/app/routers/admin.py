@@ -447,7 +447,7 @@ def answerAudio(answerId: str, db: Session = Depends(getDb), admin: User = Depen
 
 @router.get("/media/recordings/{applicationId}/{segmentNo}")
 def recordingVideo(applicationId: str, segmentNo: int, db: Session = Depends(getDb), admin: User = Depends(requireAdmin)):
-    """녹화 다시 보기. 보관 기한(응시 끝 + 3일)이 지났으면 410. 재생할 때마다 감사 로그 (API 명세서 2-6)."""
+    """녹화 다시 보기. 보관 기한(결과 공개 + 3일)이 지났으면 410. 재생할 때마다 감사 로그 (API 명세서 2-6)."""
     a = db.get(Application, applicationId)
     rec = db.query(Recording).filter_by(application_id=applicationId, segment_no=segmentNo).first() if a else None
     if rec is None:

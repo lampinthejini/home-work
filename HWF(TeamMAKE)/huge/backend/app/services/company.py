@@ -11,6 +11,7 @@
 """
 
 import logging
+import re
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -157,6 +158,17 @@ def profileText(profile: CompanyProfile, fields=QUESTION_FIELDS, chars: int = CO
     return "\n".join(p for p in parts if not p.endswith(": "))
 
 
+# 회사 정보에 따옴표로 적힌 고유 이름 (예: 'AIIT-X', '마루 1') — 직무 질문에 넣지 않는다 (2026-11-18 실측)
+QUOTED_NAME = re.compile(r"['‘’\"“”]([^'‘’\"“”\n]{2,20})['‘’\"“”]")
+
+
+def properTerms(db: Session) -> list[str]:
+    """지원자는 모를 회사 고유 이름: 회사 이름(이름으로 시작하는 'AIIT-X' 같은 이름도 걸림)과 회사 정보 안 따옴표 이름."""
+    profile = getProfile(db)
+    body = "\n".join(getattr(profile, key) or "" for key in PROFILE_FIELDS if key not in ("name", "tech_feed_url"))
+    return list(dict.fromkeys([profile.name, *QUOTED_NAME.findall(body)]))
+
+
 def withProjects(base: str, projects: list[CompanyProject]) -> str:
     return base + ("\n회사가 진행한 프로젝트:\n" + "\n".join(projectLine(p) for p in projects) if projects else "")
 
@@ -190,7 +202,7 @@ def questionContext(db: Session, vector: list[float] | None, usedPosts: set[int]
     return context + ("\n회사가 요즘 다루는 기술 (지원자는 모를 수 있음):\n" + lines if lines else "")
 
 
-def postingContext(db: Session, vector: list[float] | None = None) -> str:
+def postingContext(db: Session, vector: list[float] | None = None, projectCount: int = POSTING_PROJECT_COUNT) -> str:
     """AI 공고 초안에 넣는 회사 정보 (직무 소개·인재상·기술 스택 포함) + 그 공고와 가까운 프로젝트."""
-    return withProjects(profileText(getProfile(db), POSTING_FIELDS, POSTING_TEXT_CHARS),
-                        relatedProjects(db, vector, POSTING_PROJECT_COUNT))
+    projects = relatedProjects(db, vector, projectCount) if projectCount else []
+    return withProjects(profileText(getProfile(db), POSTING_FIELDS, POSTING_TEXT_CHARS), projects)

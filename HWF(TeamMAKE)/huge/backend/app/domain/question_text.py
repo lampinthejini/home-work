@@ -38,8 +38,13 @@ def isYesNo(text: str) -> bool:
     return bool(QUESTION_END.search(text)) and not OPEN_WORD.search(text) and not REQUEST_FORM.search(text)
 
 
+# 쉼표 앞 '데'는 이어 주는 말(-는데·-은데)이라 앞말에 붙인다 (실측 2026-11-18: '만들어가고 있는 데,').
+# 쉼표가 없으면 '곳·경우' 뜻('배포하는 데 걸리는')일 수 있어 건드리지 않는다
+SPACED_CONNECTIVE_DE = re.compile(r"([가-힣]) 데\s*,")
+
+
 def cleanQuestion(text: str) -> str:
-    return TRAILING_JUNK.sub("", (text or "").strip())
+    return SPACED_CONNECTIVE_DE.sub(r"\1데,", TRAILING_JUNK.sub("", (text or "").strip()))
 
 
 def textProblem(text: str) -> str | None:

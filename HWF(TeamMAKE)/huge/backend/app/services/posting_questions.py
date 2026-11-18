@@ -55,8 +55,8 @@ async def examplesFor(db: Session, posting: JobPosting, kind: str, topic: str | 
         return [], None
 
 
-async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None, made: list[tuple[str, list[float] | None]],
-                  usedPosts: set[int] | None = None):
+async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None, made: list[tuple[str, list[float] | None, str]],
+                  usedPosts: set[int] | None = None, jobForm: str | None = None, companyTerms: list[str] | tuple = ()):
     """질문 1개를 만들어 검사한다. (글, 벡터) 또는 (None, None)."""
     vectorsOn = rag.supported(db)
     examples, queryVector = await examplesFor(db, posting, kind, topic) if vectorsOn else ([], None)
@@ -65,16 +65,17 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
     techPosts = fence(company.techLines(db, queryVector, usedPosts)) if kind == "job" else ""
     problem = None
     for _ in range(ATTEMPTS):
-        prompt = qc.ragPrompt(kind, postingText, "", examples, [t for t, _ in made], problem, topic, companyInfo, techPosts=techPosts)
+        prompt = qc.ragPrompt(kind, postingText, "", examples, [t for t, _, _ in made], problem, topic, companyInfo,
+                              techPosts=techPosts, jobForm=jobForm)
         try:
             out = await llm.structured(qc.RagQuestion, qc.SYSTEM, prompt, TIMEOUT_SEC, maxTokens=400, temperature=0.6)
         except llm.LlmError:
             return None, None
         text = question_text.cleanQuestion(out.question)
-        code = qc.checkGenerated(kind, out, "")
+        code = qc.checkGenerated(kind, out, "", companyTerms=companyTerms, sameKind=[t for t, _, k in made if k == kind])
         if code is None and question_bank.excludedReason(text):
             code = "other_company"
-        if code is None and (question_bank.isKnown(db, text) or qc.isRepeat(text, [{"text": t} for t, _ in made])):
+        if code is None and (question_bank.isKnown(db, text) or qc.isRepeat(text, [{"text": t} for t, _, _ in made])):
             code = "duplicate"
         vector = None
         if code is None and vectorsOn:
@@ -83,7 +84,7 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
             except rag.EmbedUnavailable:
                 vector = None
             if vector and (rag.maxStoredSimilarity(db, kind, vector) >= rag.RESERVE_DUPLICATE_SIMILARITY
-                           or rag.maxSimilarity(vector, [v for _, v in made if v]) >= rag.RESERVE_DUPLICATE_SIMILARITY):
+                           or rag.maxSimilarity(vector, [v for _, v, _ in made if v]) >= rag.RESERVE_DUPLICATE_SIMILARITY):
                 code = "duplicate"
         if code is None:
             return text, vector
@@ -99,17 +100,21 @@ async def generateForPosting(postingId: str) -> dict:
             if posting is None:
                 return {"saved": 0, "skipped": 0}
             slots = [("job", t) for t in qc.jobTopics(posting, {})[:JOB_TOPIC_LIMIT]] + [("company", angle) for angle in COMPANY_ANGLES]
-            made: list[tuple[str, list[float] | None]] = []
+            made: list[tuple[str, list[float] | None, str]] = []
+            terms = company.properTerms(db)
+            jobSlot = 0  # 직무 자리마다 다른 꼴 (qc.JOB_FORMS)
             usedPosts: set[int] = set()  # 후보마다 다른 기술 글
             for kind, topic in slots:
                 if question_bank.reserveCount(db, kind) >= question_bank.RESERVE_LIMIT_PER_KIND:
                     skipped += 1  # 이 종류 예비 질문이 다 찼으면 LLM 을 쓰지 않는다
                     continue
-                text, vector = await makeOne(db, posting, kind, topic, made, usedPosts)
+                jobForm = qc.jobFormFor(jobSlot) if kind == "job" else None
+                jobSlot += kind == "job"
+                text, vector = await makeOne(db, posting, kind, topic, made, usedPosts, jobForm, terms)
                 if text is None or not saveCandidate(db, posting, kind, text, vector, CATEGORY):
                     skipped += 1
                     continue
-                made.append((text, vector))
+                made.append((text, vector, kind))
                 saved += 1
             db.add(AuditLog(action="question.posting_candidates", target=postingId, detail={"saved": saved, "skipped": skipped}))
             db.commit()

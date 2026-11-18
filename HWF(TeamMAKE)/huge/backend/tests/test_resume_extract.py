@@ -4,6 +4,7 @@ import fitz
 import pytest
 
 from app.models import ResumeUpload, User
+from app.services import llm
 from app.services import resume_extract as rx
 
 
@@ -198,3 +199,58 @@ def saveUpload(sessionFactory, stage: str) -> str:
         db.add(upload)
         db.commit()
         return upload.id
+
+
+def test_longResumeIsSplitToFitAndMerged(monkeypatch):
+    """요청 하나(4,096토큰)에 안 들어가는 긴 이력서는 줄 경계에서 나눠 정리하고 합친다 (2026-11-18 실측: 빽빽한 6,000자 ≈ 4,200토큰)."""
+    lines = [f"{2010 + i}년 3월 ~ {2011 + i}년 2월 회사{i} 엔지니어. 검색 서비스를 만들었습니다." for i in range(12)]
+    text = "성명: 홍길동\n" + "\n".join(lines)
+
+    async def fits(system, user, maxTokens, lane="rt"):
+        return user.count("회사") <= 7  # 한 번에 회사 줄 7개까지만 들어간다고 친다
+    prompts = []
+
+    async def fakeStructured(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4):
+        prompts.append(user)
+        body = user.split("<이력서>")[1]
+        careers = [{"company": f"회사{i}", "role": "엔지니어"} for i in range(12) if f"회사{i} " in body]
+        return schema(name="홍길동" if "홍길동" in body else "", career=careers, skills=["Python"])
+
+    monkeypatch.setattr(llm, "fits", fits)
+    monkeypatch.setattr(llm, "structured", fakeStructured)
+    resume = asyncio.run(rx.structure(text, timeoutSec=60))
+    assert len(prompts) == 2 and all("2조각으로 나눈 것 중" in p for p in prompts)
+    assert resume["name"] == "홍길동" and resume["skills"] == ["Python"]
+    assert [c["company"] for c in resume["career"]] == [f"회사{i}" for i in range(12)]
+
+
+def test_shortResumeIsOneRequestWithSamePrompt(monkeypatch):
+    prompts = []
+
+    async def fakeStructured(schema, system, user, timeoutSec, maxTokens=400, temperature=0.4):
+        prompts.append(user)
+        return schema(name="홍길동")
+    monkeypatch.setattr(llm, "structured", fakeStructured)
+    asyncio.run(rx.structure("성명: 홍길동\n" + "\n".join(TEXT_LINES), timeoutSec=60))
+    assert len(prompts) == 1 and "조각" not in prompts[0]
+
+
+def test_mergeResumesKeepsFirstNameAndDropsSameItems():
+    a = {"name": "홍길동", "education": [{"school": "한국대"}], "career": [], "projects": [], "skills": ["Python"], "certificates": [], "cover_letter": ""}
+    b = {"name": "", "education": [{"school": "한국대"}, {"school": "대학원"}], "career": [], "projects": [], "skills": ["Python", "SQL"],
+         "certificates": [], "cover_letter": ""}
+    merged = rx.mergeResumes(a, b)
+    assert merged["name"] == "홍길동" and merged["education"] == [{"school": "한국대"}, {"school": "대학원"}] and merged["skills"] == ["Python", "SQL"]
+
+
+def test_nextPartKnowsHeadingItContinues():
+    """조각을 나누면 앞 조각의 마지막 칸 제목(예: 프로젝트)을 다음 조각에 알려 준다 (2026-11-18 실측: 알려 주지 않으면 프로젝트가 경력으로 들어감)."""
+    assert rx.lastHeading("학력\n2012년 한국대\n경력\n2014 회사\n프로젝트\n검색 (2015년 4월): 했다") == "프로젝트"
+    assert rx.lastHeading("기술: Python, SQL 2020") == "" and rx.SECTION_HEADING.match("[경력 사항]")
+    assert "앞 조각의 '프로젝트' 칸에서 이어진다" in rx.structurePrompt("검색 개선", False, 2, 2, "프로젝트")
+
+
+def test_mergeKeepsFirstOfSameCompanyAcrossParts():
+    a = {"name": "", "career": [{"company": "한빛 데이터", "start": "2014-03", "description": "앞"}], "skills": []}
+    b = {"name": "", "career": [{"company": "한빛데이터", "start": "2014-03", "description": "뒤"}, {"company": "누리", "start": "2016-03"}], "skills": []}
+    assert [c.get("description", "") for c in rx.mergeResumes(a, b)["career"]] == ["앞", ""]

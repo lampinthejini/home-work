@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v1.3** (개인용 개정본, 2026-11-16 · 처음 개정 — 팀 원본 아님, 기준: 구현(`huge/`) + `huge/CONFLICTS.md` (2026-11-03)) |
-| 기준 문서 | API 명세서 v1.5 (값 이름·응답 칸), TRD v1.9 (4-1 주요 테이블, 4-3 데이터 전달 형식) |
+| 문서 버전 | **v1.4** (개인용 개정본, 2026-11-18 · 처음 개정 — 팀 원본 아님, 기준: 구현(`huge/`) + `huge/CONFLICTS.md` (2026-11-03)) |
+| 기준 문서 | API 명세서 v1.6 (값 이름·응답 칸), TRD v2.0 (4-1 주요 테이블, 4-3 데이터 전달 형식) |
 | DB | PostgreSQL 16 + pgvector. 테이블은 서버가 시작할 때 `create_all`로 만들고, 이미 있는 표에 칸을 더하는 일은 `app/migrate.py`가 한다(Alembic은 아직 쓰지 않는다) |
 | 작성일 | 2026-11-03 |
 | 읽는 법 | 키: PK 기본 키, FK 외래 키(다른 테이블을 가리킴), UQ 중복 불가. NULL: Y면 비워 둘 수 있음. 칸 이름과 상태 값은 API 명세서와 같은 영어 이름을 쓴다. 기본값은 앱 코드가 넣는 값이며 DB 기본값(server default)은 따로 없다 |
@@ -17,6 +17,7 @@
 | v1.0 (원본) | 2026-10-29 | 최초 작성(PDF, 버전 표기 없음). 테이블 25개 |
 | v1.1 (개인용) | 2026-11-03 | 구현(`models.py`)에 맞춘 개정. 아래 세부. 검토(백엔드·프론트엔드·UI/UX) 반영: 재생 위치 설명(4-23)·STT 재시도(4-21)·`is_empty`(4-21)·알림 종류 `purge_notice`(4-25)·답변 음성 감사 로그(4-26)·Redis `audio:{sid}`·`caption:active`(5장) |
 | v1.2 (개인용) | 2026-11-10 | 2026-11-06·11-09·11-10 검토 보정을 반영했다(자세한 것은 문서 끝 보정 절): 코드 대조로 고친 곳(E7~E18), 논의사항 정리, AI 질문 품질·질문 적용 범위·질문 후보·AI 공고 초안 그래프(CONFLICTS C-13~C-17) |
+| v1.4 (개인용) | 2026-11-18 | 회사 정보 (CONFLICTS C-21·C-22, 사용자 결정 2026-11-17): 4-29 company_news 삭제, 4-28 company_profile 에서 `news_query`·`news_refreshed_at` 을 빼고 `mission`·`talent`·`tech_stack`·`tech_feed_url`·`tech_source_name`·`tech_refreshed_at` 추가, 4-29 company_projects·4-30 company_tech_posts 새로(테이블 29 → 30개). 4-18 questions `job_code` 설명(관리자 화면에서 뺌, C-23). 문서 끝 2026-11-17 보정 |
 | v1.3 (개인용) | 2026-11-16 | 엑셀 질문 DB → 예비 질문: 4-18 questions(`created_at` 추가, 값 설명), 4-20 interview_questions `source`. 회사 정보: 4-28 company_profile·4-29 company_news 새로, 4-6 job_postings `company_name` 에 회사 이름(U1 을 바꿈). 3장 목록·ERD (CONFLICTS C-20, 사용자 결정 2026-11-16) |
 
 v1.1 세부 변경(괄호는 `huge/CONFLICTS.md` ID)
@@ -204,13 +205,16 @@ erDiagram
     company_profile {
         int id PK
     }
-    company_news {
+    company_projects {
+        int id PK
+    }
+    company_tech_posts {
         int id PK
         string url UK
     }
 ```
 
-묶음: 회원·관리(users·login_sessions·saved_resumes·resume_uploads·consents·memos·notifications·audit_logs·app_settings) · 공고·코딩(job_codes·job_postings·posting_revisions·evaluation_criteria·coding_submissions) · 지원 건(applications·interview_sessions·recordings·session_events·results·deletion_logs·stats_archive) · 질문·답변(questions·question_usage·interview_questions·answers·item_scores·highlights) · 회사(company_profile·company_news, 다른 테이블과 FK 없음, C-20).
+묶음: 회원·관리(users·login_sessions·saved_resumes·resume_uploads·consents·memos·notifications·audit_logs·app_settings) · 공고·코딩(job_codes·job_postings·posting_revisions·evaluation_criteria·coding_submissions) · 지원 건(applications·interview_sessions·recordings·session_events·results·deletion_logs·stats_archive) · 질문·답변(questions·question_usage·interview_questions·answers·item_scores·highlights) · 회사(company_profile·company_projects·company_tech_posts, 다른 테이블과 FK 없음, C-20·C-21·C-22).
 LangGraph 체크포인트 테이블은 FK 가 없고 `thread_id`(= 지원 건 id)로만 이어진다.
 
 ## 3. 테이블 목록
@@ -245,7 +249,8 @@ LangGraph 체크포인트 테이블은 FK 가 없고 `thread_id`(= 지원 건 id
 | 26 | 회원·관리 | audit_logs  (감사 로그) | 누가 언제 무엇을 했는지(내용은 남기지 않음). 설정 변경의 전·후 값도 여기에 남긴다 |
 | 27 | 회원·관리 | app_settings  (설정) | 서버를 다시 켜지 않고 바꾸는 설정값(목록은 TRD 14장) |
 | 28 | 회사 | company_profile  (회사 정보) | 회사 이름·소개 등. 한 줄(id=1)만 쓴다 (C-20) |
-| 29 | 회사 | company_news  (회사 최근 소식) | 뉴스 제목·링크·출처·날짜와 제목 임베딩. 관리자가 [제거]하면 표시만 남긴다 (C-20) |
+| 29 | 회사 | company_projects  (회사 프로젝트) | 관리자가 적는 회사가 진행한 프로젝트(이름·기간·내용)와 임베딩. 30개까지 (C-21) |
+| 30 | 회사 | company_tech_posts  (회사 기술 글) | 기술 블로그에서 가져온 글의 제목·링크·본문 앞부분과 임베딩. 관리자가 [제거]하면 표시만 남긴다 (C-22) |
 
 코딩 문제 은행(원본 `coding_problems`)은 테이블이 아니다. 문제와 숨겨진 테스트는 코드(`services/coding_bank.py`)에 있고 제출 행은 `problem_key`로 가리킨다. (T10)
 설정 변경 기록(원본 `app_setting_history`)은 테이블 대신 감사 로그가 맡는다. (T11, F8)
@@ -468,7 +473,7 @@ INDEX (release_at), (purge_at): 매일 공개·삭제 작업용
 | id | varchar(36) | PK | N | uuid(앱) | |
 | application_id | varchar(36) | FK | Y | | → applications.id (ON DELETE SET NULL), 인덱스. 지원이 지워지면 NULL |
 | subject_hash | varchar(64) | | Y | | 동의한 사람 표시: 이메일을 서버 키로 HMAC-SHA-256 한 값. 지운 뒤에도 누가 동의·철회했는지 맞춰 볼 수 있고, 이메일 목록을 대입해 되돌릴 수 없다 |
-| consent_version | varchar(16) | | N | | 동의 문구 버전. 예: v1.7 |
+| consent_version | varchar(16) | | N | | 동의 문구 버전. 예: v1.9 |
 | items | json | | N | | data_collection · ai_decision · share_with_admin · retention · exam_rules 각 true |
 | agreed_at | timestamptz | | N | now | |
 | withdrawn_at | timestamptz | | Y | | 철회 시각 |
@@ -503,7 +508,7 @@ INDEX (release_at), (purge_at): 매일 공개·삭제 작업용
 | size_bytes | bigint | | N | 0 | |
 | started_at | timestamptz | | N | now | |
 | last_chunk_at | timestamptz | | Y | | |
-| expires_at | timestamptz | | N | | 응시 끝 + 3일, 인덱스. 지나면 재생은 바로 410, 파일은 매시 30분 작업이 지움 (R3) |
+| expires_at | timestamptz | | N | | 올릴 때 계산한 예정 기한(결과 공개 + 3일), 인덱스. 실제 기한은 지금의 공개 시각으로 다시 센다(`recording.expiresAt`, 2026-11-18 C-24, 이전 응시 끝 + 3일). 지나면 재생은 바로 410, 파일은 매시 30분 작업이 지움 (R3) |
 
 UNIQUE (application_id, segment_no)
 
@@ -629,7 +634,7 @@ UNIQUE (application_id, problem_no)
 | eval_items | json | | N | [] | 이 질문으로 보는 평가 항목(배열) |
 | embedding | vector(1024) | | Y | | BGE-M3 임베딩. pgvector 가 있을 때만 `migrate.py` 가 더한다 |
 | posting_id | varchar(36) | FK → job_postings.id (ON DELETE CASCADE) | Y | | 적용 범위: 이 공고에서만 쓴다. 인덱스. 비면 모든 공고 (C-17). 2026-11-16 부터 새 질문에는 붙이지 않는다 (C-20) |
-| job_code | varchar(32) | | Y | | 적용 범위: 이 직무 공고에서만 쓴다. 관리자 화면 '해당 직무만'. 비면 모든 직무 (C-17·C-20) |
+| job_code | varchar(32) | | Y | | 적용 범위: 이 직무 공고에서만 쓴다. 비면 모든 직무 (C-17·C-20). 관리자 화면의 '해당 직무만'은 2026-11-17 에 뺐다(직무가 하나뿐, C-23). 값은 그대로 쓴다 |
 | created_at | timestamptz | | N | now | 넣은 시각. 관리자 화면에서 하루 동안 NEW. 기존 DB 는 `migrate.py` 가 `DEFAULT now()` 로 더한다 (C-20) |
 
 UNIQUE (sheet, row_no)
@@ -796,7 +801,7 @@ UNIQUE (interview_question_id, eval_item)
 
 ### 4-28. company_profile (회사 정보)
 
-회사 정보(2026-11-16, C-20). 한 기업 전용이라 한 줄(id=1)만 쓴다. 처음 켤 때 가상 회사 AIIT 의 값을 넣는다(`services/company.py` DEFAULT_PROFILE). 회사 질문과 AI 공고 초안에 참고 자료로 들어간다.
+회사 정보(2026-11-16 C-20, 2026-11-17 C-22). 한 기업 전용이라 한 줄(id=1)만 쓴다. 처음 켤 때 가상 회사 AIIT 의 값을 넣는다(`services/company_defaults.py` DEFAULT_PROFILE, 회사 소개서를 옮김). 이미 있는 줄에는 넣지 않는다. 회사 질문과 AI 공고 초안에 참고 자료로 들어간다.
 
 | 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
 |---|---|---|---|---|---|
@@ -806,24 +811,42 @@ UNIQUE (interview_question_id, eval_item)
 | intro | text | | N | '' | 회사 소개 |
 | jobs_intro | text | | N | '' | 직무 소개 |
 | ai_ax_role | text | | N | '' | AI/AX 가 하는 일 |
-| news_query | varchar(100) | | N | '네이버' | 최근 소식 검색어. 질문에 넣을 때는 이 말을 회사 이름으로 바꾼다 |
-| news_refreshed_at | timestamptz | | Y | | 마지막으로 소식을 찾은 시각 |
+| mission | text | | N | '' | 경영 이념(미션·비전·핵심 가치·AI 윤리 원칙). 회사 질문에 쓴다 (C-22) |
+| talent | text | | N | '' | 인재상과 일하는 방식. 회사 질문과 AI 공고 초안에 쓴다 (C-22) |
+| tech_stack | text | | N | '' | 사내 기술 스택. AI 공고 초안에 쓴다 (C-22) |
+| tech_feed_url | varchar(500) | | N | '' | 기술 블로그 주소(Atom/RSS, https 만). 비면 가져오지 않는다. 처음 값 `https://d2.naver.com/d2.atom` (C-22) |
+| tech_source_name | varchar(100) | | N | '' | 기술 글에서 회사 이름으로 바꿀 말(쉼표로 여러 개). 처음 값 '네이버, NAVER' (C-22) |
+| tech_refreshed_at | timestamptz | | Y | | 마지막으로 기술 글을 가져온 시각 (C-22) |
 | updated_at | timestamptz | | N | now | 고친 시각 |
 
-### 4-29. company_news (회사 최근 소식)
+### 4-29. company_projects (회사 프로젝트)
 
-회사 최근 소식(2026-11-16, C-20). Google 뉴스 RSS 에서 찾은 기사의 제목과 링크만 둔다(본문 없음). 보이는 소식은 최대 30개, 6개월(183일)이 지나면 지운다. 제목에 검색어나 회사 이름이 없는 기사는 넣지 않는다. 직무 관련 최근 소식(면접 질문 만들 때 잠깐 쓰는 것)은 이 테이블에 넣지 않는다.
+회사가 진행한 프로젝트(2026-11-17, C-21). 관리자가 회사 정보 화면에서 적는다. 30개까지(`PROJECT_LIMIT`). 코드에 기본값을 넣지 않는다(운영 DB 에는 회사 소개서의 주요 프로젝트 6개를 한 번 넣었다).
 
 | 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
 |---|---|---|---|---|---|
 | id | integer | PK | N | 자동 증가 | |
-| title | varchar(300) | | N | | 기사 제목(끝의 ' - 언론사'는 뗌) |
-| url | varchar(1000) | UQ | N | | 기사 링크(Google 뉴스를 거치는 주소) |
-| publisher | varchar(100) | | N | '' | 출처(언론사) |
-| published_at | timestamptz | | Y | | 기사 날짜. 인덱스 |
-| fetched_at | timestamptz | | N | now | 찾은 시각 |
-| hidden_at | timestamptz | | Y | | 관리자가 [제거]한 시각. 줄을 남겨 다음에 찾아도 다시 넣지 않는다 |
-| embedding | vector(1024) | | Y | | 제목의 BGE-M3 임베딩. 회사 질문 찾을 글과 가까운 소식 3개를 고른다. pgvector 가 있을 때만 `migrate.py` 가 더한다(인덱스 없음, 30개뿐) |
+| title | varchar(100) | | N | | 프로젝트 이름 |
+| period | varchar(50) | | N | '' | 기간(예: 2023~2024) |
+| summary | text | | N | '' | 내용(무엇을 왜 했고 어떤 기술·결과가 있었나). API 는 1000자까지 받는다 |
+| created_at | timestamptz | | N | now | 적은 시각. 목록은 이 순서(id 순) |
+| updated_at | timestamptz | | N | now | 고친 시각 |
+| embedding | vector(1024) | | Y | | '이름 (기간): 내용 앞 220자'의 BGE-M3 임베딩. 고치면 비우고 다시 만든다. 회사 질문·AI 공고 초안에 가까운 2개를 고른다. pgvector 가 있을 때만 `migrate.py` 가 더한다(인덱스 없음, 30개뿐) |
+
+### 4-30. company_tech_posts (회사 기술 글)
+
+회사 기술 블로그 최신 글(2026-11-17, C-22). `company_profile.tech_feed_url` 에서 가져온 글의 제목·링크·본문 앞부분(태그를 뺀 글 400자)만 둔다. 'news' 분류는 넣지 않는다. 보이는 글이 20개(`POST_LIMIT`)를 넘으면 오래된 것부터 지운다. 화면·질문에 쓸 때 `tech_source_name` 의 말을 회사 이름으로 바꾼다(저장한 글은 바꾸지 않음). 회사 최근 소식 테이블(`company_news`, v1.3 의 4-29)은 2026-11-17 에 지웠다(C-21, `migrate.py` 가 `DROP TABLE IF EXISTS`).
+
+| 칸 | 자료형 | 키 | NULL | 기본값 | 설명 |
+|---|---|---|---|---|---|
+| id | integer | PK | N | 자동 증가 | |
+| title | varchar(300) | | N | | 글 제목 |
+| url | varchar(1000) | UQ | N | | 원문 링크(https 만) |
+| summary | text | | N | '' | 본문 앞부분(태그·발표 공개 머리말을 뺀 400자) |
+| published_at | timestamptz | | Y | | 글 날짜. 인덱스 |
+| fetched_at | timestamptz | | N | now | 가져온 시각 |
+| hidden_at | timestamptz | | Y | | 관리자가 [제거]한 시각. 줄을 남겨 다음에 가져와도 다시 넣지 않는다 |
+| embedding | vector(1024) | | Y | | '제목: 본문 앞 120자'(회사 이름으로 바꾼 글)의 BGE-M3 임베딩. 질문 자리마다 가까운 글 1개를 고른다(한 면접 안에서 앞 자리가 쓴 글은 뺌). pgvector 가 있을 때만 `migrate.py` 가 더한다 |
 
 ## 5. DB 밖에 두는 임시 값 (Redis)
 
@@ -914,3 +937,17 @@ UNIQUE (interview_question_id, eval_item)
 - 4-6 job_postings `company_name`: 회사 이름을 넣는다(U1 을 바꿈).
 - 4-28 company_profile·4-29 company_news 를 새로 적었다(테이블 27 → 29개).
 
+## 2026-11-17 보정 (v1.4)
+
+사용자 결정(CONFLICTS C-21·C-22·C-23)과 코드에 맞춰 고친 내용이다.
+
+- 4-29 company_news 를 지웠다. 실제 DB 에서도 `migrate.py` 가 표와 `company_profile.news_query`·`news_refreshed_at` 칸을 지운다.
+- 4-28 company_profile: `mission`·`talent`·`tech_stack`·`tech_feed_url`·`tech_source_name`·`tech_refreshed_at` 를 더했다(`ADD COLUMN IF NOT EXISTS`).
+- 4-29 company_projects·4-30 company_tech_posts 를 새로 적었다(테이블 29 → 30개).
+- 4-18 questions `job_code`: 관리자 화면에서 바꾸지 않는다는 설명만 고쳤다(칸은 그대로).
+
+## 2026-11-18 보정 (C-24)
+
+사용자 결정(CONFLICTS C-24)과 코드에 맞춰 같은 버전 안에서 고친 내용이다.
+
+- 4-10 recordings.expires_at: 결과 공개 + 3일의 예정 값. 실제 기한은 지금 공개 시각으로 다시 센다(칸은 그대로).

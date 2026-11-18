@@ -28,6 +28,8 @@ from . import company, llm, rag
 log = logging.getLogger("huge.posting_draft")
 
 DRAFT_TIMEOUT_SEC = 150
+DRAFT_MAX_TOKENS = 1000  # 2026-11-18 실측: 다 채운 입력의 초안이 약 460토큰. 1,500 은 자리를 너무 잡아 회사 정보가 빠졌다
+REWRITE_MAX_TOKENS = 700
 DRAFT_ATTEMPTS = 2
 PROJECT_QUERY_CHARS = 1000
 CAREER_LABEL = {"junior": "신입", "experienced": "경력", "any": "경력 무관"}
@@ -227,7 +229,8 @@ class SectionText(BaseModel):
 class DraftState(TypedDict, total=False):
     """체크포인트에 남는 값. 공고 문장과 관리자 입력만 있고 지원자 개인정보는 없다."""
     postingId: str
-    prompt: str  # buildPrompt 결과 (관리자 입력)
+    prompt: str  # buildPrompt 결과 (관리자 입력) + 회사 정보
+    basePrompt: str  # buildPrompt 결과만 (요청 하나에 다 못 넣을 때 회사 정보를 빼고 쓰려고)
     fallbackIntro: str
     mode: str  # initial | revise
     references: list[str]
@@ -288,6 +291,31 @@ async def projectQueryVector(db, prompt: str) -> list[float] | None:
         return None
 
 
+async def fitDraftInput(prompt: str, companyFull: str, companyShort: str, references: list[str]) -> tuple[str, list[str], list[str]]:
+    """초안 요청이 요청 하나(llm-rt 4,096토큰)에 들어가게 덜 중요한 참고부터 뺀다 (2026-11-18 실측: 다 채우면 약 4,120토큰).
+    순서: 예전 공고를 하나씩 → 회사 프로젝트 → 회사 정보. (회사 정보가 든 프롬프트, 쓸 예전 공고, 관리자에게 보일 기록)"""
+    notes: list[str] = []
+    refs = list(references)
+    while True:
+        text = withCompany(prompt, companyFull)
+        if await llm.fits(SYSTEM, withReferences(text, refs), DRAFT_MAX_TOKENS):
+            break
+        if not refs:
+            text = ""
+            break
+        refs.pop()
+    if len(refs) < len(references):
+        notes.append(f"입력이 길어 예전 공고 {len(references) - len(refs)}건을 참고에서 뺐습니다")
+    if text:
+        return text, refs, notes
+    for info, note in ((companyShort, "입력이 길어 회사 프로젝트를 참고에서 뺐습니다"), ("", "입력이 길어 회사 정보를 참고에서 뺐습니다")):
+        text = withCompany(prompt, info)
+        if not info or await llm.fits(SYSTEM, text, DRAFT_MAX_TOKENS):
+            notes.append(note)
+            return text, [], notes
+    return prompt, [], notes
+
+
 def withCompany(prompt: str, companyInfo: str) -> str:
     """저장해 둔 회사 정보와 가까운 회사 프로젝트 (C-20, C-21). 부서 소개·업무를 회사가 하는 일에 맞추는 데만 쓴다."""
     if not companyInfo:
@@ -341,6 +369,16 @@ def rewritePrompt(state: "DraftState", section: str) -> str:
     return "\n".join(lines)
 
 
+async def fitRewritePrompt(state: "DraftState", section: str) -> str | None:
+    """다시 쓰기 요청이 요청 하나에 들어가게 예전 공고 → 회사 정보 순으로 뺀다. 그래도 안 들어가면 None."""
+    base = state.get("basePrompt") or state["prompt"]
+    for variant in (state, {**state, "references": []}, {**state, "references": [], "prompt": base}):
+        prompt = rewritePrompt(variant, section)
+        if await llm.fits(SYSTEM, prompt, REWRITE_MAX_TOKENS):
+            return prompt
+    return None
+
+
 def rewriteLimit(state: "DraftState", section: str) -> int:
     request = state.get("request") or {}
     return REWRITE_LIMIT + (1 if state.get("mode") == "revise" and request.get("section") == section else 0)
@@ -361,11 +399,15 @@ def buildDraftGraph():
         setState(state["postingId"], stage="retrieve")
         with dbModule.SessionLocal() as db:
             posting = db.get(JobPosting, state["postingId"])
-            references = findReferences(db, posting) if posting is not None else []
-            companyInfo = company.postingContext(db, await projectQueryVector(db, state["prompt"]))
+            found = findReferences(db, posting) if posting is not None else []
+            companyFull = company.postingContext(db, await projectQueryVector(db, state["prompt"]))
+            companyShort = company.postingContext(db, projectCount=0)
+        prompt, references, fitNotes = await fitDraftInput(state["prompt"], companyFull, companyShort, found)
         notes = [f"같은 직무의 예전 공고 {len(references)}건을 참고했습니다"] if references else []
-        notes.append("저장된 회사 정보를 참고했습니다")
-        return {"prompt": withCompany(state["prompt"], companyInfo), "references": references,
+        if "<회사>" in prompt:
+            notes.append("저장된 회사 정보를 참고했습니다")
+        notes += fitNotes
+        return {"prompt": prompt, "basePrompt": state["prompt"], "references": references,
                 "draft": None, "draftAttempts": 0, "problems": {}, "rewrites": {},
                 "request": None, "notes": notes, "error": None}
 
@@ -373,7 +415,7 @@ def buildDraftGraph():
         setState(state["postingId"], stage="draft")
         try:
             out = await llm.structured(DraftText, SYSTEM, withReferences(state["prompt"], state.get("references", [])),
-                                       timeoutSec=DRAFT_TIMEOUT_SEC, maxTokens=1500, temperature=0.5)
+                                       timeoutSec=DRAFT_TIMEOUT_SEC, maxTokens=DRAFT_MAX_TOKENS, temperature=0.5)
             if not isUsable(out):
                 raise llm.LlmError("draft_invalid")
         except llm.LlmError as exc:
@@ -395,9 +437,16 @@ def buildDraftGraph():
         for section in pendingSections(state):
             rewrites[section] = rewrites.get(section, 0) + 1
             reason = "; ".join(state.get("problems", {}).get(section, [])) or "관리자 요청"
+            prompt = await fitRewritePrompt({**state, "draft": current}, section)
+            if prompt is None:
+                rewrites[section] = rewriteLimit(state, section)
+                notes.append(f"{SECTION_LABEL[section]}: 지금 내용이 너무 길어 다시 쓰지 못했습니다. 내용을 줄인 뒤 다시 요청해 주세요")
+                if request.get("section") == section:
+                    error = "too_long"
+                continue
             try:
-                out = await llm.structured(SectionText, SYSTEM, rewritePrompt({**state, "draft": current}, section),
-                                           timeoutSec=REWRITE_TIMEOUT_SEC, maxTokens=700, temperature=0.3)
+                out = await llm.structured(SectionText, SYSTEM, prompt, timeoutSec=REWRITE_TIMEOUT_SEC,
+                                           maxTokens=REWRITE_MAX_TOKENS, temperature=0.3)
             except llm.LlmError as exc:
                 log.info("draft %s rewrite %s failed: %s", state["postingId"], section, exc)
                 rewrites[section] = rewriteLimit(state, section)  # 서버 문제면 더 돌리지 않는다

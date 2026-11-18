@@ -186,3 +186,25 @@ def test_companyCandidatesEachGetDifferentAngle(sessionFactory, monkeypatch):
     asyncio.run(posting_questions.generateForPosting(postingId))
     companyPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
     assert [a for a in posting_questions.COMPANY_ANGLES for p in companyPrompts if f"초점: {a}" in p] == list(posting_questions.COMPANY_ANGLES)
+
+
+def test_jobCandidatesGetRotatingFormsAndCompanyTerms(sessionFactory, monkeypatch):
+    """직무 후보 자리마다 다른 꼴을 주고, 회사 이름이 들어간 직무 질문은 버린다 (2026-11-18 실측)."""
+    fake = FakePostingLlm()
+    withFakes(sessionFactory, monkeypatch, fake)
+    with sessionFactory() as db:
+        postingId = addPosting(db).id
+        db.commit()
+    asyncio.run(posting_questions.generateForPosting(postingId))
+    jobPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 직무")]
+    used = [f for p in jobPrompts for f in question_compose.JOB_FORMS if f"이 꼴로 쓴다: {f}" in p]
+    assert len(jobPrompts) >= 2 and used == [question_compose.jobFormFor(i) for i in range(len(jobPrompts))]
+
+
+def test_companyProperTermsIncludeNameAndQuotedNames(sessionFactory):
+    with sessionFactory() as db:
+        profile = company.getProfile(db)
+        profile.name, profile.basics = "AIIT", "데이터센터: 춘천 '마루 1'. 자체 모델 'AIIT-X'"
+        db.commit()
+        terms = company.properTerms(db)
+    assert "AIIT" in terms and "마루 1" in terms

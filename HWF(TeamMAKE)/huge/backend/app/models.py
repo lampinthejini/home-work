@@ -351,7 +351,7 @@ class Recording(Base):
     size_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     last_chunk_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)  # 응시 끝 + 3일
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)  # 예정 기한. 실제는 recording.expiresAt (공개 + 3일)
 
 
 class SessionEvent(Base):

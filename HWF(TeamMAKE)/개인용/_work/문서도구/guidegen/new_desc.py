@@ -1,6 +1,8 @@
 """2026-11-10 코드에서 새로 생기거나 하는 일이 바뀐 항목의 '하는 일' (코드 본문을 읽고 썼다)."""
 
 FILE_ROLE = {
+    # 2026-11-18 (C-21·C-22·C-24)
+    'app/services/tech_blog.py': '회사 기술 블로그 최신 글 — 회사 정보의 주소(처음 값 D2 Atom)에서 기술 글을 가져와 제목·본문 앞부분을 두고, 회사·직무 질문에 질문마다 다른 글 1개를 넣는다 (C-22)',
     # 2026-11-16 (C-20)
     'app/routers/admin_company.py': '관리자 회사 정보 API — 회사 정보 보기·고치기, 회사 최근 소식 새로 찾기·[제거] (CONFLICTS C-20)',
     'app/services/company.py': '회사 정보와 회사 최근 소식 — 가상 회사 AIIT 정보, Google 뉴스 RSS 로 최근 6개월 소식 찾기·거르기·저장, 회사 질문·AI 공고 초안에 넣을 참고 글 (CONFLICTS C-20)',
@@ -10,6 +12,30 @@ FILE_ROLE = {
 }
 
 NEW = {
+    'app.services.question_compose:jobFormFor': '직무 자리 번호에 맞는 질문 꼴 하나 (JOB_FORMS 를 돌아가며, 말투가 한 가지로 굳지 않게, 2026-11-18)',
+    # 2026-11-18 (C-21·C-22·C-24)
+    'app.routers.admin_company:noTitle': "프로젝트 이름이 비었을 때 돌려줄 422 오류",
+    'app.routers.admin_company:stripped': '요청에서 보낸 칸만 앞뒤 빈칸을 지워 dict 로',
+    'app.routers.admin_company:ProjectIn': '회사 프로젝트 더하기 요청 모양(이름 1~100자·기간 50자·내용 1000자)',
+    'app.routers.admin_company:ProjectPatch': '회사 프로젝트 고치기 요청 모양(보낸 칸만 고침)',
+    'app.services.company:projectView': '회사 프로젝트 하나를 화면용 dict 로 (이름·기간·내용)',
+    'app.services.company:listProjects': '회사 프로젝트를 적은 순서로',
+    'app.services.company:updateProject': '회사 프로젝트를 고치고 임베딩을 비워 다시 만들게 한다(감사 기록). 없으면 None',
+    'app.services.company:deleteProject': '회사 프로젝트를 지운다(감사 기록). 없으면 False',
+    'app.services.company:projectLine': "프롬프트에 넣을 프로젝트 한 줄 '- 이름 (기간): 내용 앞 220자'",
+    'app.services.company:withProjects': "회사 정보 글 뒤에 '회사가 진행한 프로젝트' 줄들을 붙인다",
+    'app.services.question_compose:isHurried': '이 지원 건의 질문 만들기를 서둘러 끝내라는 신호(면접 시작)가 왔는가',
+    'app.services.resume_extract:structurePrompt': '이력서 정리 프롬프트. 나눈 조각이면 몇 번째 조각인지와 앞 조각에서 이어지는 칸 제목을 알려 준다 (C-24)',
+    'app.services.resume_extract:partFits': '이력서 글 조각이 1,600토큰 이하이고 요청 하나(입력 + 출력 2,000)에 들어가는가 (C-24)',
+    'app.services.tech_blog:plainText': '글 본문에서 태그·스크립트를 빼고 빈칸을 하나로 줄인 글자',
+    'app.services.tech_blog:parseDate': 'Atom·RSS 날짜 글을 시각으로. 못 읽으면 None',
+    'app.services.tech_blog:fetchFeed': '기술 블로그 주소를 GET 으로 읽어 글 목록으로 (20초, 5MB 까지, 테스트에서는 막아 둠)',
+    'app.services.tech_blog:visiblePosts': '[제거]하지 않은 기술 글만 고르는 조회의 시작',
+    'app.services.tech_blog:listPosts': '보이는 기술 글을 최신 날짜 순으로',
+    'app.services.tech_blog:hidePost': '기술 글에 [제거] 표시(hidden_at)를 남기고 감사 기록. 없거나 이미 지웠으면 False',
+    'app.services.tech_blog:embedMissing': '임베딩이 없는 기술 글을 BGE-M3 로 임베딩한다. 임베딩 서버가 없으면 0',
+    'app.services.tech_blog:postView': '기술 글 하나를 화면용 dict 로 (모티프 회사 이름을 회사 이름으로 바꿔서)',
+    'app.services.tech_blog:promptLine': "프롬프트에 넣을 기술 글 한 줄 '- 제목: 본문 앞 120자' (회사 이름으로 바꿔서)",
     # 2026-11-16 (C-20)
     'app.main:indexMissing.run': 'DB 세션을 열어 임베딩이 빈 예비 질문을 채우고 채운 개수를 돌려준다 (pgvector 가 없으면 0)',
     'app.manage:resetQuestions': '명령 `reset-questions`: 예비 질문을 기본 40개로 되돌리고 임베딩을 다시 만든다',
@@ -101,6 +127,9 @@ NEW = {
 }
 
 NEW_TS = {
+    # 2026-11-18 (C-21·C-23)
+    'app/admin/company/page.tsx:ProjectFields': '회사 프로젝트 입력 칸 묶음(이름·기간·내용). 새 프로젝트와 고치기에 같이 쓴다',
+    'components/PostingEditor.tsx:weightSum': '평가 항목 가중치의 합계(%)',
     # 2026-11-16 (C-20)
     'app/admin/company/page.tsx:CompanyBody': '회사 정보 화면 본문: 칸 고치기·[저장], 최근 소식 목록·[새로 찾기]·[제거]',
     'app/admin/company/page.tsx:CompanyPage': '/admin/company 화면 — 관리자 틀(AdminShell) 안에 CompanyBody',

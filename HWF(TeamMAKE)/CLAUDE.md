@@ -27,25 +27,25 @@
 
 | 문서 | 파일명 | 역할 |
 |---|---|---|
-| 제품 요구사항 정의서 | `개인용/Final_Project_PRD_v2.0.md` | 제품 목표, 주요 기능, 요구사항 |
-| 기술 요구사항 정의서 | `개인용/Final_Project_TRD_v1.9.md` | 기술 스택 및 기술 요구사항 |
-| 기능정의서 | `개인용/Final_Project_기능정의서_0.6v.xlsx` | 기능별 동작 및 세부 정의 |
-| 화면정의서 | `개인용/Final_Project_화면정의서_v1.0.md` | 화면 구성 및 UI 동작 |
-| API 명세서 | `개인용/Final_Project_API 명세서_v1.5.md` | API 요청 및 응답 구조 |
-| 테이블 정의서 | `개인용/Final_Project_테이블정의서_v1.3.md` | DB 테이블 및 컬럼 정의 |
-| 시나리오 기획서 | `개인용/Final_Project_시나리오기획서_v1.3.docx` | 사용자 시나리오 및 동작 흐름 |
-| 플로우차트 | `개인용/AI_면접통합서비스 플로우차트_11v.md` | 서비스 흐름 참고 |
-| 기술 아키텍처 | `개인용/Final_Project_기술아키텍처_v1.4.md` | 시스템 구성 및 기술 구조 |
-| AI 아키텍처 | `개인용/ai-architecture_v1.8.md` | AI 기능 및 기술 구조 |
-| 테스트케이스 | `개인용/Final_Project_테스트케이스_v0.6.xlsx` | 테스트 항목과 자동 테스트 연결 |
+| 제품 요구사항 정의서 | `개인용/Final_Project_PRD_v2.1.md` | 제품 목표, 주요 기능, 요구사항 |
+| 기술 요구사항 정의서 | `개인용/Final_Project_TRD_v2.0.md` | 기술 스택 및 기술 요구사항 |
+| 기능정의서 | `개인용/Final_Project_기능정의서_0.7v.xlsx` | 기능별 동작 및 세부 정의 |
+| 화면정의서 | `개인용/Final_Project_화면정의서_v1.1.md` | 화면 구성 및 UI 동작 |
+| API 명세서 | `개인용/Final_Project_API 명세서_v1.6.md` | API 요청 및 응답 구조 |
+| 테이블 정의서 | `개인용/Final_Project_테이블정의서_v1.4.md` | DB 테이블 및 컬럼 정의 |
+| 시나리오 기획서 | `개인용/Final_Project_시나리오기획서_v1.4.docx` | 사용자 시나리오 및 동작 흐름 |
+| 플로우차트 | `개인용/AI_면접통합서비스 플로우차트_12v.md` | 서비스 흐름 참고 |
+| 기술 아키텍처 | `개인용/Final_Project_기술아키텍처_v1.5.md` | 시스템 구성 및 기술 구조 |
+| AI 아키텍처 | `개인용/ai-architecture_v1.9.md` | AI 기능 및 기술 구조 |
+| 테스트케이스 | `개인용/Final_Project_테스트케이스_v0.7.xlsx` | 테스트 항목과 자동 테스트 연결 |
 | 논의사항 | `개인용/논의사항.md` | 프로그램 문제와 결정 목록 |
 | 설계와 다른 구현 | `huge/CONFLICTS.md` | 구현 차이와 결정 기록 |
 | 코딩 규칙 | `CLAUDE.md` | AI 개발 에이전트 지침 |
 
-면접 질문 데이터는 다음 파일을 참고한다.
+면접 질문과 회사 정보는 다음을 참고한다. 엑셀 질문 DB(`면접_질의응답_한글정리_IT만.xlsx`, `인성질문_전체.xlsx`)는 2026-11-16 에 지웠다(CONFLICTS C-20).
 
-- `면접_질의응답_한글정리_IT만.xlsx`
-- `인성질문_전체.xlsx`
+- 예비 질문: 기본 40개는 코드 `huge/backend/app/services/question_bank.py` 의 `RESERVE_QUESTIONS`, 나머지는 AI 가 만든 질문(관리자 화면 [예비 질문])
+- 회사 정보: `개인용/AIIT_회사소개서.pdf` (가상 회사 AIIT, 처음 값은 `huge/backend/app/services/company_defaults.py`, CONFLICTS C-22)
 
 위 파일 목록은 현재 확인된 파일명을 기준으로 작성하였다. 실제 문서 내용과 버전은 개발 전 확인한다.
 

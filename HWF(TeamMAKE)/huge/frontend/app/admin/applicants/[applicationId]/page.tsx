@@ -247,7 +247,7 @@ function Report({ r }: { r: ResultView }) {
     );
 }
 
-/** 카메라 녹화 다시 보기 (응시 끝 + 3일). 부정행위 확인용이며 평가에는 쓰지 않는다 */
+/** 카메라 녹화 다시 보기 (결과 공개 + 3일). 부정행위 확인용이며 평가에는 쓰지 않는다 */
 function Recordings({ d }: { d: Detail }) {
     const [nowMs] = useState(() => Date.now());
     if (d.recordings.length === 0) return <p className="small muted" style={{ margin: 0 }}>카메라 녹화가 없습니다.</p>;

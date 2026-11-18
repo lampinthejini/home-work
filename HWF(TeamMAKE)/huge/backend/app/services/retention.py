@@ -2,7 +2,7 @@
 
 purge_at(결과 공개 + 7일)이 지난 지원 건을 통째로 지운다: 파일(이력서·답변 음성·질문 음성·녹화) → Redis 키 → DB 행.
 동의 기록은 증거로 남기고 지원 건과의 연결만 끊는다. 지운 일은 deletion_logs 에 숫자로만 남긴다 (내용은 남기지 않음).
-녹화는 따로 응시 끝 + 3일에 지운다 (purgeRecordings).
+녹화는 따로 결과 공개 + 3일에 지운다 (purgeRecordings, 2026-11-18 사용자 결정: 이전 응시 끝 + 3일).
 """
 
 import logging
@@ -111,13 +111,15 @@ def purgeApplication(db: Session, app: Application, redisClient=None, cause: str
 
 
 def purgeRecordings(db: Session, at=None) -> int:
-    """보관 기한(응시 끝 + 3일)이 지난 녹화 파일·행을 지운다. 지원 건은 남긴다. 실패한 건은 다음 날 다시."""
+    """보관 기한(결과 공개 + 3일)이 지난 녹화 파일·행을 지운다. 지원 건은 남긴다. 실패한 건은 다음 시간에 다시."""
     at = at or now()
+    cutoff = at - timedelta(days=recording.RETENTION_DAYS)
     candidates = (db.query(Recording, Application).join(Application, Application.id == Recording.application_id)
-                  .filter((Recording.expires_at <= at) | (Application.completed_at <= at - timedelta(days=recording.RETENTION_DAYS))).all())
+                  .join(JobPosting, JobPosting.id == Application.posting_id)
+                  .filter(func.coalesce(Application.release_at, JobPosting.release_at) <= cutoff).all())
     done = 0
     for rec, app in candidates:
-        if recording.expiresAt(rec, app) > at:
+        if recording.expiresAt(rec, app) > at or recording.waitsForResult(app, at):
             continue
         try:
             files = storage.deletePrefix(rec.file_key)

@@ -256,17 +256,107 @@ def cleanResult(resume: dict) -> dict:
     return {**resume, "name": name, "projects": projects, "education": education}
 
 
-async def structure(text: str, timeoutSec: float) -> dict:
-    body, cover = splitCoverLetter(tidyText(text))
-    prompt = (
+STRUCTURE_MAX_TOKENS = 2000  # 정리 결과는 받은 글과 길이가 비슷하다 (2026-11-18 실측: 3,000자 조각의 결과가 1,500토큰을 넘어 끊김)
+STRUCTURE_PART_TOKENS = 1600  # 한 번에 정리할 이력서 글. 입력 + 출력 2,000 + 지시문(약 300)이 요청 하나(4,096)에 든다
+STRUCTURE_MAX_PARTS = 6  # 6,000자(약 4,200토큰)를 넘게 받지 않으므로 충분하다
+OUTPUT_CHARS_PER_SEC = 45  # 정리 속도 어림. 2026-11-18 실측 혼자 쓸 때 약 90자/초(6,000자 68초) → 면접과 나눠 쓸 때를 생각해 절반
+LIST_KEYS = {"education": ("school", "start"), "career": ("company", "start"), "projects": ("name",), "certificates": ("name",)}
+SECTION_HEADING = re.compile(r"^[\s\[【<(]*(학력|경력|프로젝트|기술|보유\s*기술|자격|자격증|수상|활동|교육|자기\s*소개)[^\d]{0,10}$")
+
+
+def lastHeading(text: str) -> str:
+    """글에서 마지막으로 나온 칸 제목(학력·경력·프로젝트 …). 없으면 빈 문자열."""
+    found = ""
+    for line in text.split("\n"):
+        if SECTION_HEADING.match(line.strip()):
+            found = line.strip()
+    return found
+
+
+def structurePrompt(body: str, hasCover: bool, part: int = 1, parts: int = 1, heading: str = "") -> str:
+    split = (f" 이 글은 긴 이력서를 {parts}조각으로 나눈 것 중 {part}번째다. 이 조각에 있는 항목만 정리한다."
+             + (f" 이 조각의 첫 줄들은 앞 조각의 '{heading}' 칸에서 이어진다." if heading else "") if parts > 1 else "")
+    return (
         "아래 이력서 글을 학력·경력·프로젝트·기술·자격증·자기소개로 나눠 정리하라. 날짜는 YYYY-MM 형식으로, 모르면 빈 문자열. "
         "글은 표를 펼친 것이라 한 줄에 여러 칸이 섞여 있을 수 있다. '2012년 3월 ~ 2025년 8월' 처럼 같은 줄의 기간은 그 줄의 학교·회사 것이다. "
         "'<프로젝트명>', '00월 00일' 같은 채우지 않은 양식 글은 항목으로 만들지 않는다."
-        + (" 자기소개서는 따로 받았으니 cover_letter 는 빈 문자열로 둔다." if cover else "")
-        + f"\n<이력서>\n{body[:MAX_TEXT_CHARS]}\n</이력서>"
+        + (" 자기소개서는 따로 받았으니 cover_letter 는 빈 문자열로 둔다." if hasCover else "")
+        + split
+        + f"\n<이력서>\n{body}\n</이력서>"
     )
-    result = await llm.structured(StructuredResume, STRUCTURE_SYSTEM, prompt, timeoutSec, maxTokens=1500, temperature=0.1)
-    resume = cleanResult(result.model_dump())
+
+
+def halves(body: str) -> list[str]:
+    """줄 경계에서 글자 수로 반을 나눈다. 줄이 하나뿐이면 글자로 자른다."""
+    lines = body.split("\n")
+    if len(lines) < 2:
+        mid = len(body) // 2
+        return [body[:mid], body[mid:]]
+    total, run = len(body), 0
+    for i, line in enumerate(lines):
+        run += len(line) + 1
+        if run >= total / 2:
+            cut = max(1, min(i + 1, len(lines) - 1))
+            return ["\n".join(lines[:cut]), "\n".join(lines[cut:])]
+    return [body]
+
+
+async def partFits(part: str, hasCover: bool) -> bool:
+    return (await llm.countTokens(part) <= STRUCTURE_PART_TOKENS
+            and await llm.fits(STRUCTURE_SYSTEM, structurePrompt(part, hasCover, 2, 2), STRUCTURE_MAX_TOKENS))
+
+
+def structureSeconds(text: str) -> int:
+    """이력서 글을 정리하는 데 걸릴 시간 어림 (글이 길면 조각마다 차례로 정리한다)."""
+    return round(min(len(text), MAX_TEXT_CHARS) / OUTPUT_CHARS_PER_SEC)
+
+
+async def splitToFit(body: str, hasCover: bool) -> list[str]:
+    """요청 하나(llm-rt 4,096토큰 = 입력 + 출력)에 들어가게 이력서 글을 나눈다 (2026-11-18 실측: 빽빽한 6,000자 ≈ 4,200토큰).
+    조각 수는 STRUCTURE_MAX_PARTS 까지. 그래도 크면 그대로 보내 서버가 거절하게 둔다(too_long)."""
+    parts = [body]
+    while len(parts) < STRUCTURE_MAX_PARTS:
+        checks = [await partFits(p, hasCover) for p in parts]
+        if all(checks):
+            break
+        i = checks.index(False)
+        parts[i:i + 1] = [h for h in halves(parts[i]) if h.strip()]
+    return parts
+
+
+def mergeResumes(base: dict | None, extra: dict) -> dict:
+    """조각별 결과를 합친다. 이름·자기소개는 먼저 나온 것, 목록은 차례대로 잇고 같은 항목은 하나만 둔다."""
+    if base is None:
+        return extra
+    merged = dict(base)
+    for key in ("name", "cover_letter"):
+        if not (merged.get(key) or "").strip():
+            merged[key] = extra.get(key, "")
+    for key, fields in LIST_KEYS.items():  # 두 조각에 걸친 항목은 이름(과 시작일)이 같으면 먼저 나온 것을 둔다
+        def ident(x, fields=fields):
+            return tuple((x.get(f) or "").replace(" ", "") for f in fields)
+        seen = {ident(x) for x in merged.get(key, [])}
+        merged[key] = list(merged.get(key, [])) + [x for x in extra.get(key, []) if ident(x) not in seen]
+    merged["skills"] = list(dict.fromkeys([*merged.get("skills", []), *extra.get("skills", [])]))
+    return merged
+
+
+async def structure(text: str, timeoutSec: float) -> dict:
+    body, cover = splitCoverLetter(tidyText(text))
+    parts = await splitToFit(body[:MAX_TEXT_CHARS], bool(cover))
+    if len(parts) > 1:
+        log.info("resume text split into %d parts to fit the context", len(parts))
+    deadline = time.monotonic() + timeoutSec
+    merged = None
+    for n, part in enumerate(parts, start=1):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise llm.LlmError("timeout")
+        heading = lastHeading("\n".join(parts[:n - 1])) if n > 1 else ""
+        result = await llm.structured(StructuredResume, STRUCTURE_SYSTEM, structurePrompt(part, bool(cover), n, len(parts), heading),
+                                      left, maxTokens=STRUCTURE_MAX_TOKENS, temperature=0.1)
+        merged = mergeResumes(merged, result.model_dump())
+    resume = cleanResult(merged)
     if cover:
         resume["cover_letter"] = cover
     return resume
@@ -376,6 +466,11 @@ async def extractUpload(uploadId: str) -> None:
                 log.warning("ocr unavailable for upload %s: %s", uploadId, exc)
                 ocrFailed = True
         text = joined(pages)
+        # 글이 길면 정리에 시간이 더 든다. 예상 시간과 실패 기준(예상의 2배)을 글 길이에 맞춰 늘린다 (2026-11-18)
+        needed = round(time.monotonic() - started) + structureSeconds(text)
+        if needed > upload.estimated_seconds:
+            setStage(db, upload, upload.stage, estimated_seconds=needed)
+            limit = max(limit, needed * 2)
         if not text.strip():
             setStage(db, upload, "failed", fail_reason="OCR_FAILED" if ocrFailed else "NO_TEXT", finished_at=now())
             return

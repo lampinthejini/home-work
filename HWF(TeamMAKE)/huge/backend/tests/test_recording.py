@@ -1,4 +1,4 @@
-"""카메라 녹화 (API 명세서 6장 POST /interview/{sid}/recording · 2-6 미디어, 테이블 정의서 4-10, 녹화 3일 삭제)."""
+"""카메라 녹화 (API 명세서 6장 POST /interview/{sid}/recording · 2-6 미디어, 테이블 정의서 4-10, 결과 공개 + 3일 삭제)."""
 
 from datetime import timedelta
 
@@ -56,7 +56,7 @@ def test_chunksStoredInOrderAndRetriesIgnored(adminClient, sessionFactory, bucke
         rec = db.query(Recording).one()
         assert (rec.segment_no, rec.last_chunk_no, rec.size_bytes) == (1, 1, len(WEBM_HEAD) + len(b"second"))
         app = db.get(Application, appId)
-        assert asKstDate(rec.expires_at) == asKstDate(app.posting.close_at + timedelta(days=3))
+        assert asKstDate(rec.expires_at) == asKstDate(app.posting.release_at + timedelta(days=3))  # 결과 공개 + 3일
     assert sorted(bucket) == [f"recordings/{appId}/1/00000.webm", f"recordings/{appId}/1/00001.webm"]
 
 
@@ -87,9 +87,9 @@ def test_lastChunkAcceptedRightAfterFinish(adminClient, sessionFactory, bucket):
         app.completed_at = now()
         db.commit()
     assert upload(client, sid, 0, WEBM_HEAD, phase="coding").status_code == 204
-    with sessionFactory() as db:  # 응시가 끝났으면 보관 기한은 끝난 시각 + 3일
+    with sessionFactory() as db:  # 응시가 끝나도 보관 기한은 결과 공개 + 3일 (2026-11-18 사용자 결정)
         rec = db.query(Recording).one()
-        assert asKstDate(rec.expires_at) == asKstDate(db.get(Application, appId).completed_at + timedelta(days=3))
+        assert asKstDate(rec.expires_at) == asKstDate(db.get(Application, appId).posting.release_at + timedelta(days=3))
 
 
 def test_adminPlaysRecordingWithAuditAndExpiry(adminClient, sessionFactory, bucket):
@@ -106,7 +106,7 @@ def test_adminPlaysRecordingWithAuditAndExpiry(adminClient, sessionFactory, buck
     assert res.status_code == 200 and res.content == WEBM_HEAD + b"tail" and res.headers["content-type"] == "video/webm"
     with sessionFactory() as db:
         assert db.query(AuditLog).filter_by(action="recording.play", target=appId).count() == 1
-        db.query(Recording).one().expires_at = now() - timedelta(minutes=1)
+        db.get(Application, appId).release_at = now() - timedelta(days=3, minutes=1)
         db.commit()
     expired = client.get(f"/admin/media/recordings/{appId}/1")
     assert expired.status_code == 410 and expired.json()["code"] == "MEDIA_EXPIRED"
@@ -124,7 +124,14 @@ def test_purgeRecordingsAfterThreeDays(adminClient, sessionFactory, bucket):
     upload(client, sid, 0, WEBM_HEAD)
     with sessionFactory() as db:
         assert retention.purgeRecordings(db) == 0
-        db.query(Recording).one().expires_at = now() - timedelta(minutes=1)
+        app = db.get(Application, appId)
+        app.attempt_status, app.completed_at = st.COMPLETED, now() - timedelta(days=10)
+        db.commit()
+        assert retention.purgeRecordings(db) == 0  # 응시 끝 + 10일이어도 결과 공개 전이면 남긴다
+        app.release_at = now() - timedelta(days=2)
+        db.commit()
+        assert retention.purgeRecordings(db) == 0  # 공개 + 2일
+        app.release_at = now() - timedelta(days=3, minutes=1)
         db.commit()
         assert retention.purgeRecordings(db) == 1
         assert db.query(Recording).count() == 0
@@ -161,3 +168,18 @@ def test_lateSmallerChunkIsKeptNotDropped(adminClient, sessionFactory, bucket):
         rec = db.query(Recording).one()
         assert (rec.last_chunk_no, rec.size_bytes) == (2, len(WEBM_HEAD) + len(b"second") + len(b"third"))
     assert sorted(bucket) == [f"recordings/{appId}/1/0000{n}.webm" for n in range(3)]
+
+
+def test_undecidedRecordingWaitsForResultThenCap(adminClient, sessionFactory, bucket):
+    """결과를 아직 못 정한 끝난 응시(채점 중·확인 필요)는 공고 공개 + 3일이 지나도 바로 지우지 않고, 7일 더 기다린 뒤 지운다."""
+    client, appId, sid = started(adminClient, sessionFactory)
+    upload(client, sid, 0, WEBM_HEAD)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        app.attempt_status, app.completed_at = st.COMPLETED, now() - timedelta(days=20)
+        app.posting.release_at = now() - timedelta(days=4)
+        db.commit()
+        assert retention.purgeRecordings(db) == 0
+        app.posting.release_at = now() - timedelta(days=3 + recording.RESULT_WAIT_DAYS, minutes=1)
+        db.commit()
+        assert retention.purgeRecordings(db) == 1

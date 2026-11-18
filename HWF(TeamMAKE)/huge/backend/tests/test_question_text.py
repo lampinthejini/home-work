@@ -145,3 +145,12 @@ def test_awkwardEndingIsRejected(text):
 ])
 def test_naturalEndingsPass(text):
     assert qt.textProblem(text) is None
+
+
+def test_connectiveDeIsJoined():
+    """실측 2026-11-18: 'AIIT가 … 만들어가고 있는 데, …' — 쉼표 앞 '데'는 이어 주는 말(-는데)이라 붙인다."""
+    assert qt.cleanQuestion("AIIT가 사용자 중심의 서비스를 만들어가고 있는 데, 참여해 보고 싶은 이유는 무엇인가요?") == \
+        "AIIT가 사용자 중심의 서비스를 만들어가고 있는데, 참여해 보고 싶은 이유는 무엇인가요?"
+    assert qt.cleanQuestion("모델이 작은 데 , 성능을 지키는 방법은 무엇인가요?") == "모델이 작은데, 성능을 지키는 방법은 무엇인가요?"
+    # 쉼표가 없으면 '곳·경우' 뜻일 수 있어 그대로 둔다 ('배포하는 데 걸리는 시간')
+    assert qt.cleanQuestion("모델을 배포하는 데 걸리는 시간을 줄이는 방법은 무엇인가요?") == "모델을 배포하는 데 걸리는 시간을 줄이는 방법은 무엇인가요?"

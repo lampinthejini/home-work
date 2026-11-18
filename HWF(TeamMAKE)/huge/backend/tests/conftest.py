@@ -54,6 +54,16 @@ def noTechBlogFetch(monkeypatch):
     monkeypatch.setattr(tech_blog, "fetchFeed", offline)
 
 
+@pytest.fixture(autouse=True)
+def offlineTokenCount(monkeypatch):
+    """토큰 세기(llama.cpp /tokenize)가 테스트에서 서버로 나가지 않게 글자 수로 센다."""
+    from app.services import llm
+
+    async def byChars(text, lane="rt"):
+        return llm.math.ceil(len(text) / llm.CHARS_PER_TOKEN)
+    monkeypatch.setattr(llm, "countTokens", byChars)
+
+
 @pytest.fixture()
 def sessionFactory(monkeypatch):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)

@@ -90,7 +90,7 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "login_block_window_min": (60, 60),
     "login_block_hours": (24, 24),
     "release_hour": (10, 10),
-    "consent_version": ("v1.8", "v1.8"),  # 2026-11-09 ⑤ "응시 취소(1차 불합격)"
+    "consent_version": ("v1.9", "v1.9"),  # 2026-11-18 ④ 녹화 보관을 "결과 공개일부터 3일"로 (v1.8: 2026-11-09 ⑤ "응시 취소(1차 불합격)")
 }
 
 

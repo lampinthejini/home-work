@@ -58,7 +58,7 @@ PLACE = [
     ("정류장 10.", "head", shot("14-admin-ai"), "화면. AI 공고 초안 (draftAi → posting_draft)"),
     ("정류장 10.", "head", shot("15-admin-applicant"), "화면. 지원자 상세 (applicantDetail)"),
     ("정류장 10.", "head", shot("16-admin-questions"), "화면. 예비 질문 — 종류 탭·NEW·해당 직무만 (admin/questions, 2026-11-16)"),
-    ("정류장 10.", "head", shot("17-admin-company"), "화면. 회사 정보 — 이 글이 회사 질문과 AI 공고 초안에 들어간다 (admin/company, 2026-11-16)"),
+    ("정류장 10.", "head", shot("17-admin-company"), "화면. 회사 정보 — 이 글과 회사 프로젝트·기술 글이 회사 질문과 AI 공고 초안에 들어간다 (admin/company, 2026-11-18)"),
     ("정류장 10.", "head", figs.layers, "그림. 요청 하나가 지나가는 층 — 관리자 창구도 같은 모양"),
     ("정류장 11.", "look", figs.dailyJobs, "그림. 하루 동안 자동으로 도는 일"),
     ("🧰 출발 전 준비물", "head", figs.funcMachine, "그림. 함수는 자판기"),
@@ -137,7 +137,7 @@ def main() -> None:
     doc = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>코드 읽기 코스</title><style>{CSS}{EXTRA_CSS}</style></head><body>
 <section class="cover"><img src="{LOGO}" alt="AIIT"><h1 style="page-break-before:auto">코드 읽기 코스</h1>
 <div class="sub">처음부터 순서대로 — 13개 정류장, 정류장마다 코드 한 줄씩 읽기</div>
-<div class="meta">AI 1차 채용면접 자동화 플랫폼 · Team AIIT · 2026-11-11 코드 기준 · 2026-11-16 일부 고침·화면 다시 찍음</div></section>
+<div class="meta">AI 1차 채용면접 자동화 플랫폼 · Team AIIT · 2026-11-11 코드 기준 · 2026-11-16 일부 고침·화면 다시 찍음 · 2026-11-18 줄 번호 맞춤·회사 정보 화면 다시 찍음</div></section>
 {html}</body></html>"""
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(doc, encoding="utf-8")

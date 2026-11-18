@@ -16,4 +16,4 @@ PDF·PNG 를 인쇄할 때 `huge/e2e/node_modules` 의 Playwright 크롬을 쓴�
 - **표지 날짜**는 `build.py`·`build_course.py`, 다크 PDF 표지 날짜는 `build_dark.py` 에 박혀 있다.
 - **코드읽기코스 화면 사진**은 `pdfguide/shots/*.png`. E2E 로 찍는다: 임시 spec `huge/e2e/tests/_guide-shots.spec.ts` 를 만들어 `SHOT_DIR=<shots 폴더> npx playwright test _guide-shots` 로 돌리고 지운다(면접 한 번을 끝까지 하므로 몇 분 걸림).
 - **활동 다이어그램 md** 는 `make_md.py` 가 통째로 다시 쓴다. md 를 손으로 고쳤다면 `make_md.py` 의 글(ITEMS)과 `diagrams.py` 도 같이 고친다.
-- **프로그램명세서**: `refresh.py` 는 '하는 일'을 이미 적힌 글 그대로 두고 줄·인자·부르는 곳만 새로 뽑는다. 그래서 동작이 바뀐 함수는 설명을 따로 고쳐야 한다 — 2026-11-16 에는 `post_1116.py`(개요 표·가져오기 줄·낡은 설명·새 화면 절·머리말)와 `tests_1116.py`(5장 테스트 표)로 고쳤다. 다음에 쓸 때는 날짜와 DESC 목록을 바꿔 쓴다.
+- **프로그램명세서**: `refresh.py` 는 '하는 일'을 이미 적힌 글 그대로 두고 줄·인자·부르는 곳만 새로 뽑는다. 그래서 동작이 바뀐 함수는 설명을 따로 고쳐야 한다 — 2026-11-16 에는 `post_1116.py`(개요 표·가져오기 줄·낡은 설명·새 화면 절·머리말)와 `tests_1116.py`(5장 테스트 표)로 고쳤다. 코드읽기코스의 줄 번호는 `guidegen/course_lines.py`(코드 발췌 블록, `--fix` 면 통째로 옮김)·`course_refs.py`(`파일:줄` `이름` 짝, `--fix`)로 대조한다 — 줄 끝 주석은 무시하고, 옮겨도 안 맞는 블록은 코드가 바뀐 것이라 손으로 다시 쓴다. 2026-11-18 에는 `post_1118.py`(개요 표·새 파일 줄·역할·낡은 설명·테스트 표·머리말을 한 번에) 하나로 고쳤다. 다음에 쓸 때는 날짜와 DESC·ROWS 목록을 바꿔 쓴다.

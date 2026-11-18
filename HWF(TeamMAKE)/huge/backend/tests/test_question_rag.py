@@ -76,7 +76,8 @@ class FakeWorld:
                     else "RAG 챗봇을 만들 때 본인이 맡은 역할은 무엇이었나요?")
             return schema(question=text, evidence=evidence, task_count=1)
         kind = user.split("[만들 질문] ")[1].split(" ")[0]
-        return schema(question=f"{kind} 관점에서 새로 만든 질문 {self.counter}번에 답해 주시겠어요?", task_count=1)
+        # 말끝까지 다르게 (같은 직무 말끝은 same_ending 으로 다시 만든다, 2026-11-18)
+        return schema(question=f"{kind} 관점에서 새로 만든 질문은 {self.counter}번째인가요?", task_count=1)
 
 
 @pytest.fixture()
@@ -629,3 +630,33 @@ def test_jobTopicsSkipHeadingAndAttitudeLines():
         "LLM 기반 서비스를 설계하고 개발합니다.", "Python을 활용한 개발 경험을 갖춘 분", "벡터 DB 운영 경험이 있는 분",
         "RAG 기반 검색 시스템을 구현합니다.", "Git으로 협업한 경험이 있는 분", "PyTorch"]
 
+
+
+def test_jobQuestionWithCompanyOwnNameIsRejected():
+    """실측 2026-11-18: 직무 질문에 회사 모델 이름 'AIIT-X'가 들어감 — 지원자는 모를 이름이라 다시 만든다."""
+    terms = ("AIIT", "마루 1")
+    out = question_compose.RagQuestion(question="AIIT-X 기반 서비스에서 응답 일관성을 지키는 원리는 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", out, "", companyTerms=terms) == "job_company_term"
+    ok = question_compose.RagQuestion(question="초거대 언어 모델 응답의 일관성을 지키는 원리는 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", ok, "", companyTerms=terms) is None
+    company = question_compose.RagQuestion(question="AIIT가 서비스에 AI를 넣는 방식에서 가장 끌리는 점은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("company", company, "", companyTerms=terms) is None  # 회사 질문은 회사 이름을 쓴다
+
+
+def test_jobQuestionWithSameEndingAsEarlierIsRejected():
+    """실측 2026-11-18: 직무 질문 6개 중 5개가 '…핵심 기준은 무엇인가요?'로 끝남 → 앞 직무 질문과 말끝이 같으면 다시 만든다."""
+    earlier = ["RAG 검색에서 정보의 정확성과 관련된 핵심 기준은 무엇인가요?"]
+    same = question_compose.RagQuestion(question="모델 경량화 뒤 배포할 때 고려할 중요한 기준은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", same, "", sameKind=earlier) == "same_ending"
+    other = question_compose.RagQuestion(question="모델 경량화에서 양자화와 지식 증류의 차이는 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", other, "", sameKind=earlier) is None
+
+
+def test_jobSlotsGetDifferentForms():
+    """직무 자리마다 꼴 하나를 정해 준다 (꼴 예 여러 개를 한꺼번에 주면 '기준은 무엇인가요'로 쏠림)."""
+    prompts = [question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=question_compose.jobFormFor(i))
+               for i in range(len(question_compose.JOB_FORMS))]
+    assert all(f"이번 질문은 이 꼴로 쓴다: {form}" in p for form, p in zip(question_compose.JOB_FORMS, prompts, strict=True))
+    assert len(set(question_compose.JOB_FORMS)) == len(question_compose.JOB_FORMS) >= 4
+    assert not any("기준은 무엇인가요" in form for form in question_compose.JOB_FORMS)
+    assert "회사 이름이나 회사가 붙인" in prompts[0]

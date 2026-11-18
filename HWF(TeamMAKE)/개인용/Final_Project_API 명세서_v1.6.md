@@ -2,7 +2,9 @@
 
 Oct 29, 2026 · @혜현
 
-**v1.5 (개인용 개정본)** · 2026-11-16 · 관리자 예비 질문 API(`/admin/questions` 다시 씀: 목록·PATCH·여러 개 삭제, approve·reject 삭제), 관리자 회사 정보 API(`/admin/company` 4개) 추가, 공고 객체 `company_name` 에 회사 이름, 게시 뒤 예비 질문, 질문 `source` 값 (CONFLICTS C-20, 사용자 결정 2026-11-16). 기준 문서 PRD v2.0 · TRD v1.9 · 화면정의서 v1.0
+**v1.6 (개인용 개정본)** · 2026-11-18 · 회사 정보 API 다시 씀: 회사 최근 소식(`/admin/company/news/*` 2개) 삭제, 회사 프로젝트(`/admin/company/projects` 3개)·회사 기술 글(`/admin/company/tech/*` 2개) 추가, profile 새 칸(`mission`·`talent`·`tech_stack`·`tech_feed_url`·`tech_source_name`·`tech_refreshed_at`), 오류 코드 `PROJECT_LIMIT`. 예비 질문 `job_only` 는 남지만 화면에서 쓰지 않음. 공고 가중치 자동 맞춤은 화면에서만(서버는 그대로 합계 100) (CONFLICTS C-21·C-22·C-23, 사용자 결정 2026-11-17). 문서 끝 2026-11-17 보정
+
+v1.5 (개인용 개정본) · 2026-11-16 · 관리자 예비 질문 API(`/admin/questions` 다시 씀: 목록·PATCH·여러 개 삭제, approve·reject 삭제), 관리자 회사 정보 API(`/admin/company` 4개) 추가, 공고 객체 `company_name` 에 회사 이름, 게시 뒤 예비 질문, 질문 `source` 값 (CONFLICTS C-20, 사용자 결정 2026-11-16). 기준 문서 PRD v2.1 · TRD v2.0 · 화면정의서 v1.1
 
 v1.4 (개인용 개정본) · 2026-11-13 · 7장 이탈: 코딩테스트 첫 화면 이탈에도 코딩 시계를 멈추지 않음, 경고 창 확인 때 '이탈 후 돌아옴 · 이탈 시간' 기록 (CONFLICTS C-18, 사용자 결정 2026-11-13). 기준 문서 PRD v1.9 · TRD v1.8 · 화면정의서 v0.9
 
@@ -16,11 +18,11 @@ v1.0 · 2026-10-29 · 최초 작성
 
 ## 1. 개요
 
-이 문서는 프런트엔드(Next.js)와 백엔드(FastAPI)가 주고받는 REST API 76개(이 중 5개는 현재 구현 없음: 구현 범위 밖 3개, 마이페이지 이력서 올리기 2개)와 면접 실시간 메시지 20종, 답변 음성 이진 프레임을 한곳에 정리한 명세다. 경로·요청·응답·오류를 여기서 맞추고, 칸 하나하나의 DB 정의는 테이블 정의서를 따른다.
+이 문서는 프런트엔드(Next.js)와 백엔드(FastAPI)가 주고받는 REST API 79개(이 중 5개는 현재 구현 없음: 구현 범위 밖 3개, 마이페이지 이력서 올리기 2개)와 면접 실시간 메시지 20종, 답변 음성 이진 프레임을 한곳에 정리한 명세다. 경로·요청·응답·오류를 여기서 맞추고, 칸 하나하나의 DB 정의는 테이블 정의서를 따른다.
 
 | 항목 | 내용 |
 | --- | --- |
-| 기준 문서 | TRD v1.9(5장·4-3·14장), PRD v2.0, 화면정의서 v1.0(§1.1 결정 D-01\~D-10, §12 추가 API), 테이블 정의서 v1.3, 기술 아키텍처 v1.4(ADR-01·04·05) |
+| 기준 문서 | TRD v2.0(5장·4-3·14장), PRD v2.1, 화면정의서 v1.1(§1.1 결정 D-01\~D-10, §12 추가 API), 테이블 정의서 v1.4, 기술 아키텍처 v1.5(ADR-01·04·05) |
 | 화면 주소 | `http://127.0.0.1:8080` — 같은 PC 브라우저에서만 접속 |
 | REST 기본 주소 | `http://127.0.0.1:8080/api` — frontend가 Next.js rewrites(`/api/*` → api)로 api(8000)에 넘긴다. 미디어 파일도 `/api/media/…` · `/api/admin/media/…`로 같은 rewrites를 지난다(2-6). 이 문서의 경로는 `/api`를 뺀 값 |
 | 실시간 주소 | WebSocket `ws://127.0.0.1:8000/ws/interview/{session_id}` (답변 음성도 이 연결의 이진 메시지로 보낸다. WebRTC·UDP 포트는 쓰지 않는다, CONFLICTS V4) |
@@ -122,7 +124,7 @@ v1.0 · 2026-10-29 · 최초 작성
 | --- | --- | --- |
 | 질문 음성 | 그 면접의 지원자 | 응시 데이터와 같이 |
 | 답변 음성 | 관리자 | 공개 + 7일 |
-| 녹화 | 관리자 | 응시 끝 + 3일 (재생은 기한이 지나면 바로 410, 파일은 매시 30분 작업이 지움) |
+| 녹화 | 관리자 | 결과 공개 + 3일 (2026-11-18 C-24. 재생은 기한이 지나면 바로 410, 파일은 매시 30분 작업이 지움) |
 
 - **Range 없음**: 세 주소 모두 `Range` 요청을 받지 않고 처음부터 전체를 보낸다(206 없음). 녹화(MediaRecorder WebM)는 탐색 정보가 없어 Range를 줘도 건너뛰기가 잘 안 된다(CONFLICTS R2). 하이라이트 구간(`start_ms`)으로 이동하는 일은 화면이 내려받은 음성의 재생 위치를 옮겨서 한다. 녹화에는 하이라이트가 없다. 〔답변 음성의 Range 여부는 논의사항 #2〕
 - **녹화 이어 보내기(CONFLICTS R1)**: 녹화는 조각마다 객체 하나로 저장되고, 재생할 때 서버가 조각을 순서대로 이어서 보낸다. 받는 쪽에서는 구간(`segment_no`)마다 파일 하나와 같다.
@@ -280,7 +282,7 @@ v1.0 · 2026-10-29 · 최초 작성
 }
 ```
 
-- 가중치는 5 단위, 항목마다 5 이상, 합계 100. 틀리면 400 `WEIGHT_SUM`.
+- 가중치는 5 단위, 항목마다 5 이상, 합계 100. 틀리면 400 `WEIGHT_SUM`. 관리자 화면은 합계만 틀리면 보내기 전에 비율대로 100으로 맞추고 알린다(2026-11-17, C-23, 화면정의서 S-R03) — 서버 규칙은 그대로다.
 - `coding_ratio`는 10 단위(기본 30 = 면접 70 : 코딩 30). `coding_enabled: false`면 무시한다.
 - `pass_score`는 0\~100 정수, 기본 70.
 - 첫 응시가 시작되면 `locked: true`. 그 뒤 `PATCH`에 `criteria`가 있으면 409 `CRITERIA_LOCKED`, 공고 내용 칸은 그대로 바뀐다(JOB-07).
@@ -299,20 +301,31 @@ v1.0 · 2026-10-29 · 최초 작성
 
 - `GET` 쿼리: `kind`(personality · company · resume · job, 없으면 전체). 최신순으로 모두 준다(종류마다 100개 상한이라 최대 400개).
 - 응답 200 — `{ "items": [{ "id": 12, "kind": "job", "text": "…", "category": "공고 기반", "job_code": "AI_AX", "job_name": "AI/AX 엔지니어", "job_only": true, "is_new": true, "created_at": "2026-11-16T19:40:00+09:00" }], "counts": { "personality": 10, "company": 12, "resume": 10, "job": 20 }, "limit": 100 }`. `category`: `기본` · `AI 생성` · `공고 기반` · `인터넷 참고`. `job_only`가 `false`면 모든 공고에서 쓰고 화면은 "공통"으로 보인다. `is_new`는 들어온 지 하루가 안 됐을 때 `true`.
-- `PATCH` 요청 — `{ "text": "…"(5~200자, 앞뒤·겹친 공백은 하나로), "job_only": true }`(둘 중 하나만 보내도 됨). 글을 바꾸면 임베딩을 다시 만든다(임베딩 서버가 없으면 비워 두고 다음 시작 때 채움). 관리자가 고친 글은 유사도로 막지 않는다. 400 `QUESTION_TEXT_INVALID`(5자 미만), 409 `QUESTION_DUPLICATE`(같은 글이 이미 있음). 감사 기록 `question.edit`(바꾼 글 전후). 응답 200은 질문 1개(위 모양).
+- `PATCH` 요청 — `{ "text": "…"(5~200자, 앞뒤·겹친 공백은 하나로), "job_only": true }`(둘 중 하나만 보내도 됨). 2026-11-17 부터 관리자 화면은 `text` 만 보낸다(직무 칸을 화면에서 뺌, C-23). `job_only` 는 API 에 남아 있다. 글을 바꾸면 임베딩을 다시 만든다(임베딩 서버가 없으면 비워 두고 다음 시작 때 채움). 관리자가 고친 글은 유사도로 막지 않는다. 400 `QUESTION_TEXT_INVALID`(5자 미만), 409 `QUESTION_DUPLICATE`(같은 글이 이미 있음). 감사 기록 `question.edit`(바꾼 글 전후). 응답 200은 질문 1개(위 모양).
 - `POST /admin/questions/delete` 요청 — `{ "ids": [12, 13] }`(1~400개). 예비 질문만 지운다(다른 id 는 건너뜀). 이미 낸 면접 질문(`interview_questions`)은 남기고 연결(`source_question_id`)만 비우며, 공고별 사용 횟수도 함께 지운다. 감사 기록 `question.delete`. 응답 200 — `{ "deleted": 2 }`.
 
 ### GET /admin/company · PUT /admin/company
 
-회사 정보와 회사 최근 소식 (2026-11-16, C-20. 화면정의서 S-R12). 회사는 하나다(한 기업 전용).
+회사 정보·회사 프로젝트·회사 기술 글 (2026-11-16 C-20, 2026-11-17 C-21·C-22. 화면정의서 S-R12). 회사는 하나다(한 기업 전용).
 
-- 응답 200 — `{ "profile": { "name": "AIIT", "basics": "…", "intro": "…", "jobs_intro": "…", "ai_ax_role": "…", "news_query": "네이버", "news_refreshed_at": "2026-11-16T20:15:15+09:00" }, "news": [{ "id": 31, "title": "…", "url": "https://news.google.com/rss/articles/…", "publisher": "농민신문", "published_at": "2026-11-16T…" }], "news_limit": 30 }`. `news`는 [제거]하지 않은 소식을 최신순으로.
-- `PUT` 요청 — `profile`의 칸 가운데 바꿀 것만(`name`·`news_query` 1~100자, 나머지 3000자까지, 앞뒤 공백은 지움). `name`을 바꾸면 모든 공고의 `company_name`도 바꾼다. 감사 기록을 남긴다. 응답 200은 `GET`과 같은 모양.
+- 응답 200 — `{ "profile": { "name": "AIIT", "basics": "…", "intro": "…", "mission": "…", "talent": "…", "jobs_intro": "…", "ai_ax_role": "…", "tech_stack": "…", "tech_feed_url": "https://d2.naver.com/d2.atom", "tech_source_name": "네이버, NAVER", "tech_refreshed_at": "2026-11-17T17:40:00+09:00" }, "projects": [{ "id": 1, "title": "검색 요약", "period": "2023.09 ~ 2024.06 (출시 후 운영)", "summary": "…" }], "project_limit": 30, "tech_posts": [{ "id": 7, "title": "…", "url": "https://d2.naver.com/helloworld/…", "summary": "…(본문 앞 400자)", "published_at": "2026-11-10T…" }], "tech_post_limit": 20 }`. `projects` 는 적은 순, `tech_posts` 는 [제거]하지 않은 글을 최신순으로. `tech_posts` 의 제목·본문은 `tech_source_name` 의 말(쉼표로 여러 개, 대소문자 무시)을 회사 이름으로 바꿔 준다(`url` 은 원문). 회사 최근 소식(`news`·`news_limit`·`news_query`·`news_refreshed_at`)은 2026-11-17 에 없앴다(C-21).
+- `PUT` 요청 — `profile`의 칸 가운데 바꿀 것만(`name` 1~100자, `tech_source_name` 100자까지, `tech_feed_url` 500자까지이고 비우거나 `https://` 로 시작해야 함(아니면 422), 나머지 3000자까지, 앞뒤 공백은 지움). `name`을 바꾸면 모든 공고의 `company_name`도 바꾼다. 감사 기록을 남긴다. 응답 200은 `GET`과 같은 모양.
 
-### POST /admin/company/news/refresh · POST /admin/company/news/{id}/hide
+### POST /admin/company/projects · PATCH /admin/company/projects/{id} · DELETE /admin/company/projects/{id}
 
-- `refresh`: 지금 회사 최근 소식을 다시 찾는다(Google 뉴스 RSS, 검색어 `news_query`, 최근 6개월을 한 달씩 6번). 제목에 검색어나 회사 이름이 없는 기사는 뺀다. 응답 200 — `GET /admin/company` 모양에 `"refresh": { "ok": true, "added": 3, "total": 30 }`. 검색이 모두 실패하면 `ok: false`이고 있던 소식은 그대로 둔다. 앱을 켤 때도 한 번 돈다.
-- `hide`: 그 소식을 목록에서 뺀다. 다음에 찾아도 다시 넣지 않는다. 없는 id 는 404 `NOT_FOUND`. 응답 200은 `GET /admin/company` 모양.
+회사가 진행한 프로젝트 (2026-11-17, C-21). 회사 질문(가까운 2개)과 AI 공고 초안(가까운 2개)에 들어간다.
+
+- `POST` 요청 — `{ "title": "…"(1~100자), "period": "…"(50자까지, 선택), "summary": "…"(1000자까지, 선택) }`. 앞뒤 공백을 지운 이름이 비면 422 `VALIDATION_ERROR` "프로젝트 이름을 적어 주세요." 30개가 차 있으면 409 `PROJECT_LIMIT`. 저장하면 임베딩을 만든다(10초 안, 못 하면 앱을 켤 때 채움). 감사 기록 `company.project_add`.
+- `PATCH` 요청 — 위 칸 가운데 바꿀 것만. 이름·내용이 바뀌면 임베딩을 다시 만든다. 없는 id 는 404 `NOT_FOUND`. 감사 기록 `company.project_update`.
+- `DELETE` — 지운다. 없는 id 는 404 `NOT_FOUND`. 감사 기록 `company.project_delete`.
+- 응답 200 은 모두 `GET /admin/company` 모양.
+
+### POST /admin/company/tech/refresh · POST /admin/company/tech/{id}/hide
+
+회사 기술 블로그 최신 글 (2026-11-17, C-22).
+
+- `refresh`: 지금 `tech_feed_url`(Atom 또는 RSS)을 다시 읽는다(20초 제한, 5MB 상한, https 링크만, 'news' 분류는 뺌). 없던 글만 넣고 보이는 글이 20개를 넘으면 오래된 것부터 지운다. 응답 200 — `GET /admin/company` 모양에 `"refresh": { "ok": true, "added": 3, "total": 20 }`. 주소가 비었거나 가져오지 못하면 `ok: false` 이고 있던 글은 그대로 둔다. 앱을 켤 때도 한 번 돈다. 감사 기록 `company.tech_refresh`.
+- `hide`: 그 글을 목록에서 뺀다. 다음에 가져와도 다시 넣지 않는다. 없거나 이미 뺀 id 는 404 `NOT_FOUND`. 감사 기록 `company.tech_hide`. 응답 200은 `GET /admin/company` 모양.
 
 ### POST /admin/postings/import
 
@@ -406,7 +419,7 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 
 ```json
 {
-  "consent_version": "v1.8",
+  "consent_version": "v1.9",
   "items": {
     "data_collection": true,
     "ai_decision": true,
@@ -616,7 +629,7 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 - **상한(CONFLICTS R6)**: 조각 5MB, 구간 400MB. 응시가 끝난 뒤 60초까지만 마지막 조각을 받는다. 구간의 첫 조각은 WebM 머리글을 확인한다. 이를 어기면 4xx이고(413 `FILE_TOO_LARGE`, 400 `INVALID_FILE`, 409 `NOT_IN_PROGRESS`, 409 `SEGMENT_MISMATCH`) 화면은 장애로 보지 않고 그 조각만 버린다.
 - **저장소 장애(CONFLICTS R5)**: 저장소에 쓰지 못하면 503 `STORAGE_UNAVAILABLE`을 돌려주고 `session_events`에 `upload_error`를 남긴다.
 - **재시도와 실패 알림**: 실패하면 화면이 1·2·4초 간격으로 3번(`upload_retry_limit`) 다시 올리고, 그래도 안 되면 WebSocket으로 `upload_failed`를 보낸다(7장). 서버는 화면이 말한 원인을 믿지 않고 서버 기록으로 정한다. 최근 60초 안에 `upload_error`가 있으면 `server_error`(서버 쪽 장애, 이어가기 횟수에 안 셈), 없으면 `upload_failed`(지원자 쪽, 횟수에 셈)로 장애 중단한다.
-- 녹화는 응시 끝 + 3일 뒤 지운다(재생은 기한이 지나면 바로 410, 파일은 매시 30분 작업이 지움, CONFLICTS R3). 답변 음성은 이 API가 아니라 WebSocket의 이진 메시지로 보낸다(7장).
+- 녹화는 결과 공개 + 3일 뒤 지운다(C-24, 재생은 기한이 지나면 바로 410, 파일은 매시 30분 작업이 지움, CONFLICTS R3). 답변 음성은 이 API가 아니라 WebSocket의 이진 메시지로 보낸다(7장).
 
 ## 7. 면접 실시간 통신 (WebSocket)
 
@@ -1101,6 +1114,7 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 | 관리자 | `INVALID_SETTING` | 400 | 화면에서 바꿀 수 없는 설정이거나 형식이 맞지 않음, 범위 밖(1~20을 입력해 주세요) |
 | 관리자 | `QUESTION_TEXT_INVALID` | 400 | 질문은 5자 이상 써 주세요 (C-20) |
 | 관리자 | `QUESTION_DUPLICATE` | 409 | 같은 질문이 이미 있습니다 (C-20) |
+| 관리자 | `PROJECT_LIMIT` | 409 | 프로젝트는 30개까지 적을 수 있습니다 (C-21) |
 | 관리자 | `INVALID_SORT` | 400 | 정렬 기준이 올바르지 않습니다 |
 | 관리자 | `COMPARE_COUNT` | 400 | 2~3명을 골라 주세요 |
 | 관리자 | `MEMO_EMPTY` | 400 | 메모 내용을 입력해 주세요 |
@@ -1244,3 +1258,20 @@ AI 초안의 한 칸을 관리자 요청대로 다시 쓴다(CONFLICTS C-15). �
 - 공고 객체 `company_name` 에 회사 이름이 온다(U1 을 바꿈). 게시 뒤 질문은 예비 질문으로 바로 들어간다.
 - 지원자 상세 `questions[].source` 값, 대시보드 `questions.bank`(0), 오류 코드 2개.
 
+## 2026-11-17 보정 (v1.6)
+
+사용자 결정(CONFLICTS C-21·C-22·C-23)과 코드에 맞춰 고친 내용이다.
+
+- `/admin/company/news/refresh`·`/news/{id}/hide` 를 지웠다(회사 최근 소식 없앰, C-21).
+- `/admin/company/projects` 3개(더하기·고치기·지우기)와 `/admin/company/tech/refresh`·`/tech/{id}/hide` 를 넣었다. REST 76 → 79개.
+- `GET /admin/company` 응답: `news`·`news_limit` 대신 `projects`·`project_limit`·`tech_posts`·`tech_post_limit`, profile 에 `mission`·`talent`·`tech_stack`·`tech_feed_url`·`tech_source_name`·`tech_refreshed_at`.
+- 오류 코드 `PROJECT_LIMIT`(409) 추가.
+- 예비 질문 `PATCH` 의 `job_only`·공고 가중치 규칙은 API 가 그대로다. 바뀐 것은 관리자 화면뿐이다(C-23).
+
+## 2026-11-18 보정 (C-24)
+
+사용자 결정(CONFLICTS C-24)과 코드에 맞춰 같은 버전 안에서 고친 내용이다.
+
+- 녹화 보관·재생 410 기준: 결과 공개 + 3일.
+- `GET /applications/{id}/consent` 의 `consent_version` 이 v1.9 가 됐다(④ 문구 변경). 예전 버전으로 보내면 409 `CONSENT_VERSION_CHANGED`.
+- 이력서 정리 상태의 `estimated_seconds` 는 글을 읽은 뒤 길이에 맞춰 늘어날 수 있다.

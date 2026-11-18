@@ -184,7 +184,7 @@ function CompanyBody() {
                             회사 기술 블로그 최신 글 <span className="small muted">{data.tech_posts.length}/{data.tech_post_limit}</span>
                         </h2>
                         <div className="small muted">
-                            앱을 켤 때 위 주소에서 가져옵니다. 회사 관련 면접 질문을 만들 때 내용이 가까운 글을 골라 씁니다.
+                            앱을 켤 때 위 주소에서 가져옵니다. 회사 관련·직무 면접 질문을 만들 때 내용이 가까운 글을 질문마다 하나씩 골라 씁니다.
                             {data.profile.tech_refreshed_at && ` 마지막으로 가져온 시각: ${shortDateTime(data.profile.tech_refreshed_at)}`}
                         </div>
                     </div>

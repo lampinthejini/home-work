@@ -234,7 +234,7 @@ h4 code { background: none; }
 """
     doc = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>{title}</title><style>{CSS}{extra}</style></head><body>
 <section class="cover"><img src="{LOGO}" alt="AIIT"><h1>{title}</h1><div class="sub">{sub}</div>
-<div class="meta">AI 1차 채용면접 자동화 플랫폼 · Team AIIT · 2026-11-16 프로그램 기준</div></section>
+<div class="meta">AI 1차 채용면접 자동화 플랫폼 · Team AIIT · 2026-11-18 프로그램 기준</div></section>
 {html}</body></html>"""
     out = OUT / f"{name}.html"
     out.write_text(doc, encoding="utf-8")
