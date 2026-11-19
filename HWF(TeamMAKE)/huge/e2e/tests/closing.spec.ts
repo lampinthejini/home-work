@@ -25,6 +25,8 @@ const status = async (id: string) =>
     ((await (await admin.get(`/api/admin/applicants/${id}`)).json()) as { attempt_status: string }).attempt_status;
 
 test("마감하면 진행 중 면접은 바로 끝나고, 시작 전 지원자는 시작할 수 없다", async ({ page, browser }) => {
+    // 두 사람을 차례로 지원시킨다: 서류 평가·질문 만들기가 한 사람씩이라(C-28) 두 번째 사람은 첫 사람을 기다린다
+    test.setTimeout(20 * 60_000);
     const posting = await ownPosting("마감 확인");
     const password = randomPassword();
     const liveEmail = uniqueEmail("e2e-exam");

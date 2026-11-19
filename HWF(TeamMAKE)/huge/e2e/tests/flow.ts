@@ -65,8 +65,9 @@ export async function applyAndStartInterview(page: Page, email: string, password
         await page.getByRole("dialog").getByRole("button", { name: "제출하기" }).click();
         await expect(page).toHaveURL(/\/mypage/);
         // 실제 AI(Qwen3-4B)가 서류를 평가한다. E2E 공고는 합격선 30점·2차 없음
+        // 서류 평가는 질문 만들기가 끝나기를 기다린다 (한 사람씩, C-28) — 앞사람이 있으면 그만큼 늦다
         await expect.poll(async () => (await (await page.request.get(`/api/applications/${applicationId}`)).json()).attempt_status,
-            { timeout: 180_000, intervals: [3_000] }).toBe("ready");
+            { timeout: 6 * 60_000, intervals: [3_000] }).toBe("ready");
         await page.goto(`/apply/${applicationId}/precheck`);
         await expect(page).toHaveURL(/\/precheck/);
     });
@@ -91,8 +92,8 @@ export async function applyAndStartInterview(page: Page, email: string, password
     if (!waitFirstQuestion) return applicationId;
 
     await test.step("첫 질문이 나오고 답변을 녹음한다", async () => {
-        // 질문 10개를 RAG + LLM 으로 만드는 동안 '준비 중' 화면이 나올 수 있다
-        await expect(page.getByLabel(/질문 1 \/ \d+/)).toBeVisible({ timeout: 4 * 60_000 });
+        // 질문 10개를 RAG + LLM 으로 만드는 동안 '준비 중' 화면이 나올 수 있다 (앞사람이 있으면 최대 10분, C-28)
+        await expect(page.getByLabel(/질문 1 \/ \d+/)).toBeVisible({ timeout: 10 * 60_000 });
         await expect(page.getByRole("button", { name: "답변 완료" })).toBeVisible({ timeout: 90_000 });
     });
 
