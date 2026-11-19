@@ -901,3 +901,43 @@ def test_reviewKeyPointsEchoingInstructionsOrForeignScriptAreDropped():
     echo = review(natural=True, accurate=True, key_points=["답변의 타당성은 전제와 물음이 일관성 있게 연결되어야 함"])
     assert question_compose.reviewedPoints(echo) == []  # 실측 2026-11-18
     assert question_compose.reviewedPoints(review(natural=True, accurate=True, key_points=["异步 요청 처리", "HTTP 검증"])) == []
+
+
+@pytest.mark.parametrize(("text", "repeated"), [
+    ("E2E 테스트 자동화를 설계할 때 Python으로 테스트 케이스를 실행하는 순서를 결정할 때 어떤 기준을 사용하시나요?", True),
+    ("Python에서 데이터 처리 과정에서 오류가 생기는 원인은 무엇인가요?", True),
+    ("사내 문서 RAG 챗봇 프로젝트에서 표를 문장으로 전처리한 이유는 무엇인가요?", False),
+    ("배포할 때 장애 때문에 되돌린 적이 있나요?", False),
+])
+def test_repeatedConnectiveIsDetected(text, repeated):
+    """실측 2026-11-19: 한 문장에 '~할 때'·'~에서'가 두 번."""
+    assert question_compose.repeatedConnective(text) is repeated
+
+
+def test_sameEndingAndRepeatedConnectivePassOnLastTry():
+    """말끝이 같거나 연결 말이 겹치는 것은 큰 흠이 아니라, 마지막 시도에서는 받는다 (2026-11-19 사용자 결정)."""
+    earlier = ["RAG 검색에서 정보의 정확성과 관련된 핵심 기준은 무엇인가요?"]
+    same = question_compose.RagQuestion(question="모델 경량화 뒤 배포할 때 고려할 중요한 기준은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", same, "", sameKind=earlier) == "same_ending"
+    assert question_compose.checkGenerated("job", same, "", sameKind=earlier, lastTry=True) is None
+    doubled = question_compose.RagQuestion(question="Python에서 데이터 처리 과정에서 오류가 생기는 원인은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("job", doubled, "") == "repeated_connective"
+    assert question_compose.checkGenerated("job", doubled, "", lastTry=True) is None
+
+
+def test_bankFallbackPrefersReserveNotSimilarToSameKind(sessionFactory, world, monkeypatch):
+    """실측 2026-11-19: 회사 질문을 예비 질문으로 바꿨더니 앞 회사 질문과 거의 같은 질문이 들어감 → 같은 종류와 0.7 이상이면 다른 예비 질문."""
+    world()
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        pool = question_compose.candidates(db, app, "company", set(), set())
+        first, second = pool[0], pool[1]
+        near = [1.0, 0.0]
+        monkeypatch.setattr(rag, "vectorsFor", lambda _db, ids: {i: ([0.75, math.sqrt(1 - 0.75 ** 2)] if i == first.id else [0.0, 1.0]) for i in ids})
+        chosen = [{"text": "앞 회사 질문", "qtype": "company", "vector": near}]
+        ctx = {"usedGroups": set(), "usedIds": set()}
+        assert question_compose.bankFallback(db, app, "company", chosen, ctx).id == second.id
+        # 모두 비슷하면 그래도 하나는 쓴다 (중복 0.9 아래)
+        monkeypatch.setattr(rag, "vectorsFor", lambda _db, ids: {i: [0.75, math.sqrt(1 - 0.75 ** 2)] for i in ids})
+        assert question_compose.bankFallback(db, app, "company", chosen, ctx).id == first.id

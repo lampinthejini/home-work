@@ -424,6 +424,15 @@ def endingOf(text: str) -> str:
     return "".join(words[-2:])
 
 
+# 한 문장에 같은 연결 말이 두 번 (실측 2026-11-19: '설계할 때 … 결정할 때', 'Python에서 데이터 처리 과정에서')
+REPEATED_CONNECTIVES = (re.compile(r"^때(는|에|도)?$"), re.compile(r"..에서(는|도|의)?$"))
+
+
+def repeatedConnective(text: str) -> bool:
+    words = re.findall(r"[가-힣A-Za-z0-9]+", text)
+    return any(sum(bool(pattern.search(w)) for w in words) >= 2 for pattern in REPEATED_CONNECTIVES)
+
+
 def overusedPhrase(text: str, previous: list[str] | tuple) -> bool:
     if FIRST_PHRASE in text and any(FIRST_PHRASE in t for t in previous):
         return True
@@ -431,9 +440,10 @@ def overusedPhrase(text: str, previous: list[str] | tuple) -> bool:
 
 
 def checkGenerated(kind: str, out: RagQuestion, experience: str, anchors: list[str] | tuple = (),
-                   sameKind: list[str] | tuple = (), previous: list[str] | tuple = ()) -> str | None:
+                   sameKind: list[str] | tuple = (), previous: list[str] | tuple = (), lastTry: bool = False) -> str | None:
     """형식·범위·근거 확인 (TRD 7-4 ④). 문제 코드, 맞으면 None. experience·anchors 는 이력서 질문에만,
-    sameKind(같은 종류 앞 질문, 말끝 비교)는 직무·이력서 질문에만 쓴다. 회사 이름은 막지 않는다 (2026-11-18 사용자 결정, 내부용)."""
+    sameKind(같은 종류 앞 질문, 말끝 비교)는 직무·이력서 질문에만 쓴다. 회사 이름은 막지 않는다 (2026-11-18 사용자 결정, 내부용).
+    lastTry: 이 자리의 마지막 시도. 말끝이 같거나 연결 말이 겹치는 것은 큰 흠이 아니라 마지막에는 받는다 (2026-11-19 사용자 결정)."""
     text = question_text.cleanQuestion(out.question)
     if not looksLikeQuestion(text):
         return "invalid_question"
@@ -444,8 +454,10 @@ def checkGenerated(kind: str, out: RagQuestion, experience: str, anchors: list[s
         return problem
     if kind == "job" and JOB_EXPERIENCE.search(text):
         return "job_asks_experience"
-    if kind in ("job", "resume") and endingOf(text) in {endingOf(t) for t in sameKind}:
+    if not lastTry and kind in ("job", "resume") and endingOf(text) in {endingOf(t) for t in sameKind}:
         return "same_ending"
+    if not lastTry and repeatedConnective(text):
+        return "repeated_connective"
     if overusedPhrase(text, previous):  # previous: 이 면접에서 앞서 고른 모든 질문
         return "overused_phrase"
     if kind == "company" and COMPANY_INSIDE.search(text):
@@ -469,7 +481,9 @@ PROBLEM_TEXT = {
     "job_asks_experience": "직무 질문이 지원자가 겪은 일을 물음 — 개념·기준·방법 같은 지식을 물을 것",
     "resume_not_anchored": "질문에 이력서의 프로젝트 이름이나 회사 이름이 없음",
     "awkward_ending": "말끝이 어색함('~는가요'·'~싶은가요') — '~하시나요?', '~느끼셨나요?', '~생각하시나요?'처럼 쓸 것",
-    "same_ending": "앞의 같은 종류 질문과 말끝이 같음 — 다른 물음(역할·어려움·결과·배운 점 등)과 다른 말끝으로 쓸 것",
+    "same_ending": "앞의 같은 종류 질문과 말끝이 같음 — 다른 물음(역할·어려움·결과·배운 점 등)과 다른 말끝으로 쓸 것"
+                   " (예: '어떻게 정하셨나요?', '어떤 어려움이 있었나요?', '결과는 어땠나요?')",
+    "repeated_connective": "한 문장에 '~할 때'·'~에서' 같은 연결 말이 두 번 나옴 — 한 번만 쓰고 짧게 줄일 것",
     "similar_company": "앞 회사 질문과 내용이 비슷함 — 앞 질문의 핵심 낱말(예: '사용자 중심')을 되풀이하지 말고 이번 초점만 물을 것",
     "similar_same_kind": "앞의 같은 종류 질문과 내용이 비슷함 — 앞 질문의 주제·핵심 낱말을 되풀이하지 말고 이번 주제·분야·초점만 물을 것",
     "overused_phrase": "'가장 먼저'·'가장 …' 이 앞 질문에 이미 나옴 — 이 말을 빼고 다른 표현으로 물을 것",
@@ -495,16 +509,24 @@ def chosenVectors(chosen: list[dict]) -> list[list[float]]:
 
 
 def bankFallback(db: Session, app: Application, kind: str, chosen: list[dict], ctx: dict) -> Question | None:
-    """예비 질문에서 적게 쓴 것부터 고른다. 이미 고른 질문과 뜻이 0.9 이상 비슷하면 건너뛴다 (TRD 7-4 ②)."""
+    """예비 질문에서 적게 쓴 것부터 고른다. 이미 고른 질문과 뜻이 0.9 이상 비슷하면 건너뛰고,
+    같은 종류(직무·회사·인성) 질문과 0.7 이상 비슷한 것은 다른 것이 없을 때만 쓴다 (TRD 7-4 ②, 2026-11-19 사용자 결정)."""
     pool = [q for q in candidates(db, app, kind, ctx["usedGroups"], ctx["usedIds"]) if not isRepeat(q.text, chosen)]
     taken = chosenVectors(chosen)
+    sameKind = chosenVectors([c for c in chosen if c.get("qtype") == kind]) if kind in SAME_KIND_CHECKED else []
     head = pool[:20]
     vectors = rag.vectorsFor(db, [q.id for q in head]) if taken else {}
+    similar = None  # 같은 종류와 비슷하지만 중복은 아닌 첫 예비 질문
     for q in head:
         vector = vectors.get(q.id)
-        if vector is None or rag.maxSimilarity(vector, taken) < rag.DUPLICATE_SIMILARITY:
+        if vector is None:
             return q
-    return pool[0] if pool else None
+        if rag.maxSimilarity(vector, taken) >= rag.DUPLICATE_SIMILARITY:
+            continue
+        if rag.maxSimilarity(vector, sameKind) < SAME_KIND_SIMILARITY:
+            return q
+        similar = similar or q
+    return similar or (pool[0] if pool else None)
 
 
 # ---------- 질문 만들기 그래프 (ADR-07, TRD 7-4, AI 아키텍처 6.1) ----------
@@ -667,7 +689,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             out = state["candidate"]
             # 근거는 자기소개서 전체에서 찾는다 (자리에 넣은 문단만이 아니라 지원자가 낸 글 어디든 근거다)
             problem = checkGenerated(kind, out, ctx["experienceGround"], ctx["anchors"],
-                                     [c["text"] for c in state["chosen"] if c.get("qtype") == kind], [c["text"] for c in state["chosen"]])
+                                     [c["text"] for c in state["chosen"] if c.get("qtype") == kind], [c["text"] for c in state["chosen"]],
+                                     lastTry=attempt + 1 >= regenLimit)
             text = question_text.cleanQuestion(out.question)
             if problem is None:
                 try:
@@ -729,7 +752,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             chosenTexts = [c["text"] for c in state["chosen"]]
             if not fixed or sameText(fixed, text) or checkGenerated(
                     kind, fixedOut, ctx["experienceGround"], ctx["anchors"],
-                    [c["text"] for c in state["chosen"] if c.get("qtype") == kind], chosenTexts) or isRepeat(fixed, state["chosen"]):
+                    [c["text"] for c in state["chosen"] if c.get("qtype") == kind], chosenTexts,
+                    lastTry=state["attempt"] + 1 >= regenLimit) or isRepeat(fixed, state["chosen"]):
                 log.info("slot %s review: awkward, fix unusable (%s) app=%s", kind, result.reason, app.id)
                 return "awkward_sentence", text, vector
             if "질문" in fixed and "질문" not in text:
