@@ -219,6 +219,13 @@ async def submitResume(applicationId: str, body: ResumeSubmit, db: Session = Dep
             raise ApiError(400, "UPLOAD_REQUIRED", "올린 이력서 파일을 찾을 수 없습니다.")
     resume = body.resume.model_dump()
     app.resume_name = resume.pop("name")
+    # 이력서의 자기소개·칸 없는 항목(교육·대회·수상 등)은 추가 서류의 자기소개서 칸으로 옮긴다 (2026-11-18 사용자 결정).
+    # 지원자가 추가 서류 단계를 아직 건드리지 않았을 때만 — 이미 쓴 자기소개서는 덮지 않는다
+    from . import screening  # screening 이 이 모듈을 불러 쓰므로 여기서 불러온다
+    carried = screening.carriedCover(resume.pop("cover_letter", None), resume.pop("others", None))
+    resume["cover_letter"] = None
+    if carried and app.extra_documents is None:
+        screening.setCoverText(app, carried, auto=True)
     app.resume_snapshot = resume
     app.resume_method = body.method
     app.edited_fields = body.edited_fields[:200]

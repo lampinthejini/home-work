@@ -71,7 +71,7 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
         except llm.LlmError:
             return None, None
         text = question_text.cleanQuestion(out.question)
-        code = qc.checkGenerated(kind, out, "", sameKind=[t for t, _, k in made if k == kind])
+        code = qc.checkGenerated(kind, out, "", sameKind=[t for t, _, k in made if k == kind], previous=[t for t, _, _ in made])
         if code is None and question_bank.excludedReason(text):
             code = "other_company"
         if code is None and (question_bank.isKnown(db, text) or qc.isRepeat(text, [{"text": t} for t, _, _ in made])):

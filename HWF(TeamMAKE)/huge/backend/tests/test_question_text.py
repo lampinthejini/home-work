@@ -132,6 +132,7 @@ def test_yesNoQuestionTellsLlmToAskReason():
     "우리 회사의 혁신적인 아이디어를 현실로 만들기 위한 환경에 어떤 호감을 느꼈는가요?",
     "이 직무에서 가장 중요한 역량은 무엇이라고 생각하는가요?",
     "협업 문화 속에서 자신이 어떻게 일하고 싶은가요?",  # 실측: '싶으신가요'보다 낮춘 말
+    "팀 내에서 의견이 달라졌을 때 어떻게 조율하고 함께 해결하던가요?",  # 실측 2026-11-18
 ])
 def test_awkwardEndingIsRejected(text):
     """'~는가요'는 면접 존댓말로 어색하다 ('느끼셨나요'·'생각하시나요'로 써야 함)."""
@@ -154,3 +155,23 @@ def test_connectiveDeIsJoined():
     assert qt.cleanQuestion("모델이 작은 데 , 성능을 지키는 방법은 무엇인가요?") == "모델이 작은데, 성능을 지키는 방법은 무엇인가요?"
     # 쉼표가 없으면 '곳·경우' 뜻일 수 있어 그대로 둔다 ('배포하는 데 걸리는 시간')
     assert qt.cleanQuestion("모델을 배포하는 데 걸리는 시간을 줄이는 방법은 무엇인가요?") == "모델을 배포하는 데 걸리는 시간을 줄이는 방법은 무엇인가요?"
+
+
+def test_honorificPastEndingIsAllowed():
+    assert qt.textProblem("그 상황을 어떻게 해결해 나가셨던가요?") is None
+
+
+def test_awkwardEndingInsideTwoSentenceQuestionIsRejected():
+    text = "팀 프로젝트에서 계획이 지연된 상황에서 어떤 점을 통해 성장했는가요? 솔직히 말씀해 주시겠어요?"
+    assert qt.textProblem(text) == "awkward_ending"
+
+
+@pytest.mark.parametrize(("raw", "fixed"), [
+    ("그 실패를 통해 무엇을 배웠는가요?", "그 실패를 통해 무엇을 배웠나요?"),  # 실측 2026-11-18
+    ("어떻게 함께 방향을 정하고 조율했는가요?", "어떻게 함께 방향을 정하고 조율했나요?"),
+    ("어떻게 기여하고 싶은가요?", "어떻게 기여하고 싶으신가요?"),
+    ("무엇을 배웠는가요? 솔직히 말씀해 주시겠어요?", "무엇을 배웠나요? 솔직히 말씀해 주시겠어요?"),
+    ("어떤 점이 중요하다고 생각하시나요?", "어떤 점이 중요하다고 생각하시나요?"),
+])
+def test_fixableAwkwardEndingIsFixed(raw, fixed):
+    assert qt.cleanQuestion(raw) == fixed and qt.textProblem(qt.cleanQuestion(raw)) is None

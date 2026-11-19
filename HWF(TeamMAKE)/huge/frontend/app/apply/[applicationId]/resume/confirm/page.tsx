@@ -57,9 +57,10 @@ function Confirm() {
         setBusy(true);
         try {
             const { name, ...rest } = draft!.resume;
-            // 이력서는 저장만 한다. 지원서 제출은 다음 단계(추가 서류)에서 (CONFLICTS C-25). 자기소개서도 그 단계에서 받는다
+            // 이력서는 저장만 한다. 지원서 제출은 다음 단계(추가 서류)에서 (CONFLICTS C-25). 자기소개서도 그 단계에서 받는다.
+            // 이력서에서 읽은 자기소개·칸 없는 항목(others)은 서버가 추가 서류의 자기소개서 칸으로 옮긴다 (2026-11-18)
             await api(`/applications/${app.application_id}/resume`, {
-                body: { method: draft!.method, upload_id: draft!.upload_id, resume: { name, ...rest, cover_letter: null }, edited_fields: [...edited] },
+                body: { method: draft!.method, upload_id: draft!.upload_id, resume: { name, ...rest, cover_letter: rest.cover_letter || null, others: rest.others || null }, edited_fields: [...edited] },
             });
             sessionStorage.removeItem(draftKey(app.application_id));
             router.push(`/apply/${app.application_id}/documents`);

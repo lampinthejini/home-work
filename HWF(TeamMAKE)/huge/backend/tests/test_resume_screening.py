@@ -832,3 +832,67 @@ def test_multiSentenceQuoteIsSplitAndLimitedToTwo():
     # 같은 축에서 이미 쓴 문장은 빼고 새 문장만 남긴다
     quotes, problem, _ = rs.checkQuotes(out, COVER_LETTER, [("측정하고 판단", "응답 시간이 30% 줄었습니다")])
     assert problem is None and quotes == ["사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다."]
+
+
+# ---------- 이력서의 자기소개·칸 없는 항목을 자기소개서 칸으로 (2026-11-18 사용자 결정) ----------
+
+CARRIED_RESUME = {**RESUME["resume"], "cover_letter": "학원에서 RAG 챗봇을 만들며 팀장을 맡았습니다.",
+                  "others": "2026.05~11 메가 AI 캠퍼스 빅데이터·AI 개발 과정 수료"}
+
+
+def test_resumeCoverAndOthersAreCarriedIntoCoverLetter(adminClient, sessionFactory):
+    client, appId = drafted(adminClient, resume=CARRIED_RESUME)
+    docs = client.get(f"/applications/{appId}/documents").json()
+    assert docs["cover_auto"] is True
+    assert docs["cover_text"] == ("[이력서에서 옮긴 내용 — 자기소개 · 교육 · 대회 · 수상 · 활동 등]\n"
+                                  "2026.05~11 메가 AI 캠퍼스 빅데이터·AI 개발 과정 수료\n\n"
+                                  "학원에서 RAG 챗봇을 만들며 팀장을 맡았습니다.")
+    assert docs["cover_cut"] is False
+    with sessionFactory() as db:
+        snapshot = db.get(Application, appId).resume_snapshot
+    assert snapshot["cover_letter"] is None and "others" not in snapshot  # 이력서 사본에는 두지 않고 자기소개서 칸으로만
+    # 지원자가 고치면 지원자 글이 된다
+    client.put(f"/applications/{appId}/documents", json={"cover_text": docs["cover_text"] + " 고침"})
+    assert client.get(f"/applications/{appId}/documents").json()["cover_auto"] is False
+    # 제출하면 평가·질문 만들기가 읽는 자리에 들어간다
+    client.post(f"/applications/{appId}/submit", json={"cover_text": docs["cover_text"]})
+    with sessionFactory() as db:
+        assert "메가 AI 캠퍼스" in db.get(Application, appId).resume_snapshot["cover_letter"]
+
+
+def test_carriedCoverDoesNotOverwriteWrittenCoverLetter(adminClient):
+    client, appId = drafted(adminClient)
+    client.put(f"/applications/{appId}/documents", json={"cover_text": "제가 쓴 자기소개서"})
+    client.post(f"/applications/{appId}/resume", json={**RESUME, "resume": CARRIED_RESUME})  # 이력서로 돌아가 다시 저장
+    docs = client.get(f"/applications/{appId}/documents").json()
+    assert docs["cover_text"] == "제가 쓴 자기소개서" and docs["cover_auto"] is False
+
+
+def test_noCarriedTextLeavesDocumentsUntouched(adminClient, sessionFactory):
+    client, appId = drafted(adminClient)
+    with sessionFactory() as db:
+        assert db.get(Application, appId).extra_documents is None
+    assert client.get(f"/applications/{appId}/documents").json()["cover_text"] == ""
+
+
+def test_longCarriedCoverIsCutAtParagraphAndMarked(adminClient):
+    # 칸 없는 항목은 앞에 두어 잘리지 않고, 자기소개 뒷부분이 문단 끝에서 잘린다
+    longCover = "\n".join(f"{n}번째 문단입니다. " + "가" * 290 for n in range(1, 15))  # 약 4,300자
+    client, appId = drafted(adminClient, resume={**CARRIED_RESUME, "cover_letter": longCover})
+    docs = client.get(f"/applications/{appId}/documents").json()
+    assert docs["cover_cut"] is True and len(docs["cover_text"]) <= rs.COVER_TEXT_MAX
+    assert "메가 AI 캠퍼스" in docs["cover_text"] and docs["cover_text"].endswith("가")  # 문단이 중간에서 끊기지 않음
+    assert "14번째 문단" not in docs["cover_text"]
+
+
+def test_coverLetterSpanningChunksIsJoined():
+    from app.services import resume_extract as rx
+    a = {"name": "홍길동", "education": [], "career": [], "projects": [], "skills": [], "certificates": [], "cover_letter": "앞부분", "others": ""}
+    assert rx.mergeResumes(a, {**a, "cover_letter": "뒷부분"})["cover_letter"] == "앞부분\n뒷부분"
+
+
+def test_carriedOthersDropLinesAlreadyInCover():
+    from app.routers.screening import carriedCover
+    text = carriedCover("대학교를 졸업하고 교육 회사에서 일했습니다. 그 뒤 AI 를 공부했습니다.",
+                        "메가 AI 캠퍼스 과정 수료\n대학교를 졸업하고 교육 회사에서 일했습니다.")
+    assert text.count("대학교를 졸업하고") == 1 and "메가 AI 캠퍼스 과정 수료" in text

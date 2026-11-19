@@ -39,6 +39,8 @@ class FakeWorld:
         self.copyExamples, self.ungrounded, self.embedDown = copyExamples, ungrounded, embedDown
         self.prompts: list[str] = []
         self.keyPointPrompts: list[str] = []
+        self.reviewPrompts: list[str] = []
+        self.reviewAnswer = None  # 다시 보기 답을 정하는 함수 (없으면 모두 통과)
         self.counter = 0
 
     async def embed(self, texts, timeoutSec=10):
@@ -67,6 +69,9 @@ class FakeWorld:
         if schema is question_compose.KeyPointsOut:  # 직무 질문 핵심 요소 (M3) — 질문 만들기 호출 수에 넣지 않는다
             self.keyPointPrompts.append(user)
             return schema(points=["핵심 요소 하나", "핵심 요소 둘"])
+        if schema is question_compose.QuestionReview:  # 만든 질문 다시 보기 — 질문 만들기 호출 수에 넣지 않는다
+            self.reviewPrompts.append(user)
+            return self.reviewAnswer(user) if self.reviewAnswer else schema(natural=True, accurate=True)
         assert schema is question_compose.RagQuestion
         self.prompts.append(user)
         self.counter += 1
@@ -294,7 +299,8 @@ def test_bankFallbackSkipsQuestionTooSimilarToChosen(sessionFactory, world):
 
 @pytest.mark.parametrize(("similarity", "lastText", "regenCount"), [
     (0.95, "인성 질문 셋째은 무엇인가요?", 1),  # 면접 안 중복 기준(0.9) 이상 → 다시 만든다
-    (0.85, "인성 질문 둘째은 무엇인가요?", 0),  # 0.8~0.9 는 면접에서 물어도 된다 (예비 질문에만 넣지 않는다)
+    (0.75, "인성 질문 셋째은 무엇인가요?", 1),  # 같은 종류끼리 0.7 이상도 다시 만든다 (2026-11-18 사용자 결정)
+    (0.65, "인성 질문 둘째은 무엇인가요?", 0),  # 0.7 아래는 그대로 쓴다
 ])
 def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, monkeypatch, similarity, lastText, regenCount):
     fake = world()
@@ -320,7 +326,7 @@ def test_generatedQuestionSimilarToChosenIsRegenerated(sessionFactory, world, mo
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)
     assert len(rows) == 10
-    # 인성 2번째 자리(9번). 회사 질문끼리는 더 엄격한 SAME_COMPANY_SIMILARITY(0.75)를 쓰므로 인성으로 일반 기준을 본다
+    # 인성 2번째 자리(9번). 같은 종류 기준(SAME_KIND_SIMILARITY 0.7)과 면접 안 중복 기준(0.9)을 함께 본다
     assert (rows[-2].text, rows[-2].source, rows[-2].regen_count) == (lastText, "generated", regenCount)
 
 
@@ -812,3 +818,86 @@ def test_keyPointFailureLeavesEmpty(monkeypatch):
     class Post:
         title, duties = "AI/AX 엔지니어", "RAG 개발"
     assert asyncio.run(question_compose.keyPointsFor("질문", Post())) == []
+
+
+# ---------- 2026-11-18 질문 품질: 개인 말 · 분야 · 같은 종류 0.7 · '가장' · 다시 보기 ----------
+
+def test_coverPhraseShorterThanWindowIsPersonal(sessionFactory):
+    """실측 2026-11-18: E2E 자기소개서의 '도서관 좌석 예약'(같은 글자 7자)이 예비 질문으로 새어 다른 지원자에게 나갔다."""
+    cover = "학교 도서관 좌석 예약이 불편하다는 학생 다섯 명의 이야기를 듣고 Python 으로 예약 알림 챗봇을 만들었습니다."
+    appId = makeApplication(sessionFactory)
+    with sessionFactory() as db:
+        app = db.get(Application, appId)
+        app.resume_snapshot = {**RESUME, "cover_letter": cover}
+        terms = question_compose.personalTerms(app)
+        assert question_compose.isPersonal("도서관 좌석 예약 프로젝트에서 다른 동료들과 의견이 다를 때 어떻게 조율하시나요?", terms, app)
+        assert not question_compose.isPersonal("다른 동료들과 의견이 다를 때 어떻게 조율하시나요?", terms, app)
+        assert not question_compose.isPersonal("맡은 프로젝트를 끝까지 이끌기 위해 어떤 방식으로 책임을 다하시나요?", terms, app)
+
+
+def test_jobSkillAlreadyInPostingTopicIsNotRepeated():
+    class Posting:
+        duties, requirements, preferred = "LLM 기반 서비스 개발", "Python 개발 경험", ""
+    topics = question_compose.jobTopics(Posting(), {"skills": ["Python", "PyTorch", "Java"]})
+    assert topics == ["LLM 기반 서비스 개발", "Python 개발 경험", "PyTorch", "Java"]
+
+
+def test_jobPromptNamesArea():
+    form = question_compose.JOB_FORMS[1]
+    prompt = question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=form)
+    assert f"이번 질문의 분야: {question_compose.JOB_AREAS[form]}" in prompt
+    assert set(question_compose.JOB_AREAS) == set(question_compose.JOB_FORMS)
+
+
+def test_topPhraseIsLimitedPerInterview():
+    out = question_compose.RagQuestion(question="RAG 챗봇에서 가장 먼저 확인한 것은 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("personality", out, "", previous=["입사하면 가장 먼저 해 보고 싶은 일은 무엇인가요?"]) == "overused_phrase"
+    assert question_compose.checkGenerated("personality", out, "", previous=["팀에서 맡은 역할은 무엇인가요?"]) is None
+    other = question_compose.RagQuestion(question="이 직무에서 가장 필요한 태도는 무엇인가요?", task_count=1)
+    assert question_compose.checkGenerated("personality", other, "", previous=["가장 큰 배움은?", "가장 끌리는 점은?"]) == "overused_phrase"
+    assert question_compose.checkGenerated("personality", other, "", previous=["가장 큰 배움은?"]) is None
+    assert "가장" not in question_compose.KIND_FORMS["resume"]
+
+
+def test_reviewFixesAwkwardSentenceAndRejectsWrongPremise(sessionFactory, world):
+    fake = world()
+
+    def answer(user):
+        if "교훈" in user.split("[문장]")[0]:
+            return question_compose.QuestionReview(natural=False, fixed="팀 프로젝트에서 실패를 겪었을 때 어떻게 대처하셨고, 무엇을 배우셨나요?",
+                                                   accurate=True, reason="앞뒤가 이어지지 않음")
+        if "생성 시스템" in user.split("[문장]")[0]:
+            return question_compose.QuestionReview(natural=True, accurate=False, reason="비교할 수 없는 두 개념")
+        return question_compose.QuestionReview(natural=True, accurate=True, key_points=["정확한 용어 하나", "정확한 용어 둘"])
+    fake.reviewAnswer = answer
+    personality = iter(["팀 프로젝트에서 실패를 겪은 경험 중 가장 큰 교훈을 얻었을 때 어떻게 대처하시나요?"])
+    job = iter(["LLM 서비스에서 추론 시스템과 생성 시스템의 차이는 무엇인가요?"])
+    base = fake.structured
+
+    async def structured(schema, system, user, timeoutSec, **kwargs):
+        if schema is question_compose.RagQuestion and user.startswith("[만들 질문] 인성"):
+            text = next(personality, None)
+            if text:
+                return schema(question=text, task_count=1)
+        if schema is question_compose.RagQuestion and user.startswith("[만들 질문] 직무"):
+            text = next(job, None)
+            if text:
+                return schema(question=text, task_count=1)
+        return await base(schema, system, user, timeoutSec, **kwargs)
+    llm.structured = structured
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    rows = composed(sessionFactory, appId)
+    assert rows[0].text == "팀 프로젝트에서 실패를 겪었을 때 어떻게 대처하셨고, 무엇을 배우셨나요?" and rows[0].regen_count == 0
+    jobs = [r for r in rows if r.qtype == "job"]
+    assert "생성 시스템" not in jobs[0].text and jobs[0].regen_count == 1  # 전제가 틀린 질문은 다시 만든다
+    assert all(r.key_points == ["정확한 용어 하나", "정확한 용어 둘"] for r in jobs)  # 다시 보기의 핵심 요소를 쓴다
+    assert fake.keyPointPrompts == []  # 따로 핵심 요소를 묻지 않는다
+
+
+def test_reviewKeyPointsEchoingInstructionsOrForeignScriptAreDropped():
+    review = question_compose.QuestionReview
+    assert question_compose.reviewedPoints(review(natural=True, accurate=True, key_points=["인덱스 사용", "쿼리 최적화"])) == ["인덱스 사용", "쿼리 최적화"]
+    echo = review(natural=True, accurate=True, key_points=["답변의 타당성은 전제와 물음이 일관성 있게 연결되어야 함"])
+    assert question_compose.reviewedPoints(echo) == []  # 실측 2026-11-18
+    assert question_compose.reviewedPoints(review(natural=True, accurate=True, key_points=["异步 요청 처리", "HTTP 검증"])) == []

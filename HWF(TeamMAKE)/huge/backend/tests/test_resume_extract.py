@@ -254,3 +254,13 @@ def test_mergeKeepsFirstOfSameCompanyAcrossParts():
     a = {"name": "", "career": [{"company": "한빛 데이터", "start": "2014-03", "description": "앞"}], "skills": []}
     b = {"name": "", "career": [{"company": "한빛데이터", "start": "2014-03", "description": "뒤"}, {"company": "누리", "start": "2016-03"}], "skills": []}
     assert [c.get("description", "") for c in rx.mergeResumes(a, b)["career"]] == ["앞", ""]
+
+
+def test_othersAreKeptMergedAndCapped():
+    # 이력서 칸이 없는 내용(교육·대회·수상 등)은 others 로 받아 자기소개서 칸으로 옮긴다 (2026-11-18)
+    assert "others 에는 교육 과정" in rx.structurePrompt("글", False) and "병역" in rx.structurePrompt("글", False)
+    a = {"name": "홍길동", "education": [], "career": [], "projects": [], "skills": [], "certificates": [], "cover_letter": "", "others": "부트캠프 수료"}
+    b = {**a, "name": "", "others": "해커톤 우수상"}
+    assert rx.mergeResumes(a, b)["others"] == "부트캠프 수료\n해커톤 우수상"
+    assert rx.mergeResumes(a, a)["others"] == "부트캠프 수료"
+    assert len(rx.cleanResult({**a, "others": "가" * 5000})["others"]) == rx.OTHERS_MAX

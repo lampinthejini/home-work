@@ -24,7 +24,10 @@ META_PHRASE = re.compile(
 STATEMENT_END = re.compile(r"[입습]니다\??$")  # 실측: "…된 계기입니다?" 처럼 서술문 끝에 물음표만 붙인 것
 QUESTION_END = re.compile(r"(\?|요\.?|까\.?)$")  # 실측: "…동기입니다." "…관심을 갖게 된 이유" 는 질문이 아니다
 # 면접 존댓말로 어색한 끝 (실측 2026-11-10: "…매력을 느꼈는가요?"). "느끼셨나요"·"생각하시나요"로 쓴다. "인가요"는 괜찮다
-AWKWARD_END = re.compile(r"(는|싶은)가요\??$")  # "일하고 싶은가요"도 "싶으신가요"보다 낮춘 말
+# "일하고 싶은가요"도 "싶으신가요"보다 낮춘 말. "해결하던가요"(실측 2026-11-18)도 어색하지만, 높임이 든 "해결하셨던가요"는 괜찮다
+# (실측: '던가요' 를 모두 막았더니 4B 가 즐겨 쓰는 '…셨던가요?' 가 걸려 첫 인성 자리가 세 번 모두 반려됨)
+# 문장 가운데 물음도 본다 (실측 2026-11-18: "…성장했는가요? 솔직히 말씀해 주시겠어요?")
+AWKWARD_END = re.compile(r"((는|싶은)가요|(?<!셨)던가요)(\?|$)")
 
 # 예/아니오로 답할 수 있는 질문 (실측: "의견 차이가 생긴 적이 있었나요?"). 의문사가 없고 부탁하는 꼴("설명해 주시겠어요?")도 아닌 질문
 OPEN_WORD = re.compile(r"무엇|어떻게|어떤|왜|얼마|언제|어디|누구|뭐|몇")
@@ -43,8 +46,19 @@ def isYesNo(text: str) -> bool:
 SPACED_CONNECTIVE_DE = re.compile(r"([가-힣]) 데\s*,")
 
 
+# 바로 고칠 수 있는 어색한 말끝 (실측 2026-11-18: 4B 가 '…배웠는가요?' '…조율했는가요?' 를 자주 써 3번 다시 만들고도 예비 질문으로 넘어감).
+# '는가요' → '나요'(배웠나요·조율했나요·있나요), '싶은가요' → '싶으신가요'. '해결하던가요' 처럼 고치기 어려운 것은 그대로 두고 반려한다
+ENDING_FIXES = ((re.compile(r"싶은가요(?=\?|$)"), "싶으신가요"), (re.compile(r"는가요(?=\?|$)"), "나요"))
+
+
+def fixEnding(text: str) -> str:
+    for pattern, replacement in ENDING_FIXES:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def cleanQuestion(text: str) -> str:
-    return SPACED_CONNECTIVE_DE.sub(r"\1데,", TRAILING_JUNK.sub("", (text or "").strip()))
+    return fixEnding(SPACED_CONNECTIVE_DE.sub(r"\1데,", TRAILING_JUNK.sub("", (text or "").strip())))
 
 
 def textProblem(text: str) -> str | None:

@@ -19,6 +19,7 @@ export type ResumeData = {
     skills: string[];
     certificates: { name: string; acquired: string }[];
     cover_letter: string | null;
+    others?: string | null; // 이력서 칸이 없는 내용 (교육 · 대회 · 수상 등) — 자기소개서 칸으로 옮김
 };
 
 export type ApplicationState = {

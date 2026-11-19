@@ -176,6 +176,7 @@ class ResumeIn(Strict):
     skills: list[str] = Field(default_factory=list, max_length=60)
     certificates: list[CertificateIn] = Field(default_factory=list, max_length=30)
     cover_letter: str | None = Field(default=None, max_length=5000)
+    others: str | None = Field(default=None, max_length=3000)  # 이력서 칸이 없는 내용 (교육·대회·수상 등)
 
 
 class ResumeSubmit(Strict):

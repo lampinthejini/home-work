@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-18 (밤) — 면접 질문 품질: 개인 말 · 직무 분야 · 같은 종류 0.7 · '가장' · 말끝 · LLM 다시 보기 (CONFLICTS C-27)
+
+- 개인 질문 검사: 이력서·자기소개서에 이어진 두 낱말이 질문에 나오면 예비 질문에 넣지 않음(`sharesResumePhrase`). 새어 나간 예비 질문 6860 과 E2E 뒷정리 누락 9개를 지움.
+- 직무 자리마다 분야(`JOB_AREAS`), 시작 꼴을 지원자마다, 공고 주제에 있는 기술은 다시 넣지 않음.
+- 같은 종류(직무·회사·인성) 유사도 0.7 이상이면 다시 만들기, 한 면접에 '가장 먼저' 1개·'가장' 2개까지, '…는가요'·'…싶은가요' 바로 고침, '…하던가요' 반려.
+- 만든 질문을 4B 로 한 번 더 봄(`QuestionReview`): 앞뒤·말끝 고치기, 전제가 틀리면 다시 만들기, 직무 핵심 요소.
+- 실측 3명 × 10개: 27개 새로 만듦, 한 명 약 81초. pytest **630 passed, 4 skipped**, ruff 통과.
+
 ## 2026-11-18 (밤) — 면접 채점 기준 보완 M1~M7 (CONFLICTS C-26)
 
 - 채점(T5): 항목별 1·3·5점 기준, 질문 종류별 기본 요구(3점), 직무 질문 핵심 요소(없는 내용도 타당하면 인정), 직무·이력서 질문에 공고 글·회사 질문에 회사 정보, 조직 적합성 = 조직 생활 적합성 + 인재상 참고, 5점은 조건을 모두 채운 답에만.
@@ -12,7 +20,8 @@
 - 새 공고 기본 비율: 전달력 5 · 관련성·구체성 25.
 - DB: `interview_questions.key_points json`, `item_scores.first_score integer` (migrate 가 더함).
 - 화면: 이력서·추가 서류 화면에 "이력서에 칸이 없는 내용은 자기소개서에" 안내, 자기소개서 빈 칸 예시 머리말.
-- 시험: 새 시험 10개, 가끔 실패하던 시험 2개 고정(`test_longCoverParagraphReachesPersonalitySlot` 인성 초점이 지원 id 로 바뀜, `test_coverEmbeddingTimeIsNotTakenFromComposeBudget` 예산 1.2초가 전체 실행 중 모자람). pytest **601 passed, 4 skipped**, ruff·tsc·lint 통과.
+- 이력서 → 자기소개서 자동 옮기기: 이력서 정리에 `others`(교육·대회·수상 등) 추가, 긴 이력서 조각의 자기소개를 이어 붙임, 이력서 저장 때 자기소개 + `others` 를 추가 서류 자기소개서 칸으로(아직 안 건드렸을 때만, 3,000자 넘으면 문단 끝에서 자르고 알림).
+- 시험: 새 시험 10개, 가끔 실패하던 시험 2개 고정(`test_longCoverParagraphReachesPersonalitySlot` 인성 초점이 지원 id 로 바뀜, `test_coverEmbeddingTimeIsNotTakenFromComposeBudget` 예산 1.2초가 전체 실행 중 모자람). pytest **608 passed, 4 skipped**, ruff·tsc·lint 통과.
 - 실측: 질문 하나 채점 9~17초(호출 2번). 남은 문제는 C-26.
 
 ## 2026-11-18 (밤) — 서류 평가 기준 보완 1~6, 평가 기준 전체 문서 (CONFLICTS C-25)

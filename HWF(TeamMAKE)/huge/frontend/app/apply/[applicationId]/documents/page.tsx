@@ -10,7 +10,8 @@ import { Button, Loading, Modal } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
 
 type DocFile = { id: string; kind: string; name: string; chars: number };
-type Documents = { cover_text: string; cover_max: number; max_files: number; file_max_mb: number; files: DocFile[] };
+// cover_auto: 이력서에서 읽은 자기소개 · 칸 없는 항목을 자동으로 옮겨 둔 글 (지원자가 고치기 전)
+type Documents = { cover_text: string; cover_max: number; max_files: number; file_max_mb: number; files: DocFile[]; cover_auto?: boolean; cover_cut?: boolean };
 const AUTOSAVE_MS = 1500;
 
 /** 이력서에 칸이 없는 항목을 어디에 쓰는지 보여 주는 안내 (내용에 넣지 않고 빈 칸에만 보임, 2026-11-18 사용자 결정) */
@@ -152,6 +153,12 @@ function DocumentsStep() {
             </div>
             <div className="card stack" style={{ gap: 8 }}>
                 <label htmlFor="cover-text"><strong>자기소개서</strong> <span className="small muted">(형식 · 문항 자유)</span></label>
+                {docs.cover_auto && (
+                    <p className="notice notice-info small" role="status">
+                        ⓘ 이력서에서 읽은 자기소개와 이력서에 칸이 없는 내용(교육 · 대회 · 수상 · 활동 등)을 아래에 옮겨 두었습니다. 확인하고 고쳐 주세요.
+                        {docs.cover_cut && <> 칸({docs.cover_max.toLocaleString()}자)보다 길어 자기소개 뒷부분은 옮기지 못했습니다. 줄여 쓰거나 PDF 로 올려 주세요.</>}
+                    </p>
+                )}
                 <textarea id="cover-text" className="input" rows={12} maxLength={docs.cover_max} value={cover} placeholder={COVER_PLACEHOLDER}
                     onChange={(e) => change(e.target.value)} />
                 <div className="field-hint">{cover.trim().length.toLocaleString()} / {docs.cover_max.toLocaleString()}자</div>

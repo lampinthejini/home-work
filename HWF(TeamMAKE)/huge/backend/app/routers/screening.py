@@ -71,17 +71,44 @@ def fileDocs(app: Application) -> list[dict]:
     return [d for d in app.extra_documents or [] if d.get("source") == "pdf"]
 
 
+CARRIED_HEADING = "[이력서에서 옮긴 내용 — 자기소개 · 교육 · 대회 · 수상 · 활동 등]"
+
+
+def carriedCover(cover: str | None, others: str | None) -> str:
+    """이력서에서 읽은 자기소개와 칸 없는 항목을 자기소개서 칸에 넣을 글로. 머리말을 달아 지원자가 어디서 왔는지 안다.
+    머리말은 하나만 단다 — 4B 가 자기소개와 칸 없는 항목을 섞어 나누는 일이 있어(실측 2026-11-18) 따로 달면 이름이 틀린다.
+    칸 없는 항목을 앞에 둔다 — 짧고 다른 곳에 둘 데가 없어서, 칸(3,000자)을 넘으면 자기소개 뒷부분이 잘리게."""
+    # 자기소개에 이미 있는 줄은 칸 없는 항목에서 뺀다 (같은 글이 두 번 들어가지 않게)
+    known = normalizeForQuote(cover or "")
+    others = "\n".join(line for line in (others or "").splitlines()
+                       if line.strip() and not (len(normalizeForQuote(line)) >= 10 and normalizeForQuote(line) in known))
+    parts = [t.strip() for t in (others, cover or "") if t.strip()]
+    return f"{CARRIED_HEADING}\n" + "\n\n".join(parts) if parts else ""  # 칸보다 길면 setCoverText 가 문단 끝에서 자르고 표시한다
+
+
 def documentsView(app: Application) -> dict:
     return {"cover_text": coverText(app), "cover_max": COVER_TEXT_MAX, "max_files": MAX_FILES, "file_max_mb": FILE_MAX_MB,
+            "cover_auto": any(d.get("auto") for d in app.extra_documents or [] if d.get("source") == "text"),
+            "cover_cut": any(d.get("cut") for d in app.extra_documents or [] if d.get("source") == "text"),
             "kinds": DOC_KINDS,
             "files": [{"id": d["id"], "kind": d["kind"], "name": d["name"], "chars": len(d.get("text") or "")} for d in fileDocs(app)]}
 
 
-def setCoverText(app: Application, text: str) -> None:
+def setCoverText(app: Application, text: str, auto: bool = False) -> None:
+    """auto: 이력서에서 자동으로 옮긴 글 (지원자가 한 번이라도 고치면 지원자 글이 된다). 칸보다 길면 문단 끝에서 자르고 표시한다."""
     text = text.strip()
+    cut = auto and len(text) > COVER_TEXT_MAX
+    if cut:
+        head = text[:COVER_TEXT_MAX]
+        text = (head[:head.rfind("\n")] if head.rfind("\n") > COVER_TEXT_MAX // 2 else head).strip()
     docs = fileDocs(app)
     if text:
-        docs = [{"id": "cover", "kind": "cover_letter", "source": "text", "name": "자기소개서", "key": None, "text": text}, *docs]
+        doc = {"id": "cover", "kind": "cover_letter", "source": "text", "name": "자기소개서", "key": None, "text": text}
+        if auto:
+            doc["auto"] = True
+        if cut:
+            doc["cut"] = True
+        docs = [doc, *docs]
     app.extra_documents = docs
 
 

@@ -192,6 +192,11 @@ class StructuredResume(BaseModel):
     skills: list[str] = Field(default_factory=list)
     certificates: list[Certificate] = Field(default_factory=list)
     cover_letter: str = ""
+    # 이력서 칸이 없는 내용 — 추가 서류의 자기소개서 칸으로 옮겨 평가·질문에 쓴다 (2026-11-18 사용자 결정)
+    others: str = Field(default="", description="교육 과정·부트캠프·대회·수상·대외활동·어학처럼 위 칸에 없는 내용을 글 그대로")
+
+
+OTHERS_MAX = 1500  # 칸 없는 항목을 옮기는 글자 수 (자기소개서 칸 3,000자 안에 자기소개와 함께 들어가게)
 
 
 STRUCTURE_SYSTEM = (
@@ -254,7 +259,8 @@ def cleanResult(resume: dict) -> dict:
                 if not PLACEHOLDER.search((p.get("name") or "").strip()) and not PLACEHOLDER.search(p.get("period") or "")]
     education = [{**e, "major": "" if (e.get("major") or "").strip() in ("졸업", "재학", "수료") else e.get("major", "")}
                  for e in resume.get("education", [])]
-    return {**resume, "name": name, "projects": projects, "education": education}
+    others = (resume.get("others") or "").strip()[:OTHERS_MAX]
+    return {**resume, "name": name, "projects": projects, "education": education, "others": others}
 
 
 STRUCTURE_MAX_TOKENS = 2000  # 정리 결과는 받은 글과 길이가 비슷하다 (2026-11-18 실측: 3,000자 조각의 결과가 1,500토큰을 넘어 끊김)
@@ -280,7 +286,10 @@ def structurePrompt(body: str, hasCover: bool, part: int = 1, parts: int = 1, he
     return (
         "아래 이력서 글을 학력·경력·프로젝트·기술·자격증·자기소개로 나눠 정리하라. 날짜는 YYYY-MM 형식으로, 모르면 빈 문자열. "
         "글은 표를 펼친 것이라 한 줄에 여러 칸이 섞여 있을 수 있다. '2012년 3월 ~ 2025년 8월' 처럼 같은 줄의 기간은 그 줄의 학교·회사 것이다. "
-        "'<프로젝트명>', '00월 00일' 같은 채우지 않은 양식 글은 항목으로 만들지 않는다."
+        "'<프로젝트명>', '00월 00일' 같은 채우지 않은 양식 글은 항목으로 만들지 않는다. "
+        "자기소개서·지원동기·성장 과정·입사 후 포부·느낀 점 같은 글은 cover_letter 에 글 그대로 옮긴다. "
+        "others 에는 교육 과정·부트캠프(교육기관·과정 이름·기간·배운 내용)·대회·해커톤·수상·대외활동·어학만 글 그대로 옮긴다"
+        "(자기소개 글과 한 줄 소개는 others 가 아니다. 병역·주소·연락처·생년월일 같은 인적 사항은 넣지 않는다)."
         + (" 자기소개서는 따로 받았으니 cover_letter 는 빈 문자열로 둔다." if hasCover else "")
         + split
         + f"\n<이력서>\n{body}\n</이력서>"
@@ -330,9 +339,12 @@ def mergeResumes(base: dict | None, extra: dict) -> dict:
     if base is None:
         return extra
     merged = dict(base)
-    for key in ("name", "cover_letter"):
-        if not (merged.get(key) or "").strip():
-            merged[key] = extra.get(key, "")
+    if not (merged.get("name") or "").strip():
+        merged["name"] = extra.get("name", "")
+    # 자기소개서·칸 없는 항목은 조각에 걸쳐 이어지므로 차례대로 잇는다 (실측 2026-11-18: 먼저 나온 조각만 두면 앞부분이 빠짐)
+    for key in ("cover_letter", "others"):
+        texts = [t for t in ((merged.get(key) or "").strip(), (extra.get(key) or "").strip()) if t]
+        merged[key] = "\n".join(dict.fromkeys(texts))
     for key, fields in LIST_KEYS.items():  # 두 조각에 걸친 항목은 이름(과 시작일)이 같으면 먼저 나온 것을 둔다
         def ident(x, fields=fields):
             return tuple((x.get(f) or "").replace(" ", "") for f in fields)
