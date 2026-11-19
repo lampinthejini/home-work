@@ -1,6 +1,6 @@
 """예비 질문과 회사 정보 (2026-11-16 사용자 결정, CONFLICTS C-20).
 
-- 엑셀 질문 DB 를 지우고 종류마다 기본 질문 10개. AI 질문은 승인 없이 예비 질문에 (0.8 이상 비슷하면 빼고, 종류마다 100개까지)
+- 엑셀 질문 DB 를 지우고 종류마다 기본 질문 10개. AI 질문은 승인 없이 예비 질문에 (0.7 이상 비슷하면 빼고, 종류마다 100개까지 — C-28)
 - 관리자 예비 질문: 질문분야 · 질문(직접 고침) · 직무 · 해당 직무만 · 삭제(여러 개), 하루 동안 NEW
 - 회사 정보와 회사 프로젝트(관리자가 적음, 2026-11-17 C-21 — 최근 소식은 지움), 회사 질문·공고 초안 RAG
 """
@@ -58,9 +58,9 @@ def test_saveReserveRules(sessionFactory, monkeypatch):
 
         monkeypatch.setattr(rag, "supported", lambda s: True)
         monkeypatch.setattr(rag, "storeVector", lambda s, qid, v: None)
-        monkeypatch.setattr(rag, "maxStoredSimilarity", lambda s, kind, v: 0.8)
-        assert question_bank.saveReserve(db, "job", "배깅과 부스팅의 차이는 무엇인가요?", [0.1], "AI 생성") is None  # 0.8 이상
-        monkeypatch.setattr(rag, "maxStoredSimilarity", lambda s, kind, v: 0.79)
+        monkeypatch.setattr(rag, "maxStoredSimilarity", lambda s, kind, v: 0.7)
+        assert question_bank.saveReserve(db, "job", "배깅과 부스팅의 차이는 무엇인가요?", [0.1], "AI 생성") is None  # 0.7 이상 (C-28)
+        monkeypatch.setattr(rag, "maxStoredSimilarity", lambda s, kind, v: 0.69)
         assert question_bank.saveReserve(db, "job", "배깅과 부스팅의 차이는 무엇인가요?", [0.1], "AI 생성", "AI_AX")
 
         monkeypatch.setattr(question_bank, "RESERVE_LIMIT_PER_KIND", 1)

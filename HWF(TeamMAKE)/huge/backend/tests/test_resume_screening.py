@@ -27,7 +27,7 @@ CRITERIA = {"weights": {"expertise": 30, "logic": 25, "relevance": 20, "delivery
             "coding_enabled": False, "coding_ratio": 30, "pass_score": 70,
             "screening_required_skills": ["Python", "SQL", "PyTorch"], "screening_preferred_skills": ["LangChain"],
             "screening_pass_score": 60, "screening_band": 5}
-COVER_EVIDENCE = "불편한 점을 숫자로 모아 검색 화면을 고쳤습니다"
+COVER_EVIDENCE = "불편한 점을 숫자로 모아 표로 만들었습니다"
 EVIDENCE = {"프로젝트": "검색 모듈 담당, LangChain으로 구현", "학력": "컴퓨터공학 학사"}
 COMPANY_GROWTH = [item.label for item in rs.ITEMS if item.axis in ("company", "growth")]
 # 같은 축 안에서 서로 겹치지 않는 자기소개서 문장 (같은 문장을 여러 항목 근거로 쓰면 막힌다, 2026-11-18)
@@ -40,6 +40,13 @@ HIGH = {"프로젝트": 3, "교육·대회·수상": 3, "학력": 2} | {label: 3
 # 10.7 + 16 + 2.7 + 2 + 회사 20 + 성장 6.7 = 58.0 → 합격선 60 ± 5 안이라 2차
 BORDER = {"프로젝트": 2, "교육·대회·수상": 2, "학력": 2} | {item.label: 2 if item.axis == "company" else 1
                                                          for item in rs.ITEMS if item.axis in ("company", "growth")}
+
+
+def idsFor(prompt: str, texts) -> list[int]:
+    """가짜 모델이 근거 글을 번호로 바꾼다: 프롬프트의 '[n] 문장' 가운데 그 글이 든 첫 문장. 없으면 999 (서류에 없는 번호)."""
+    texts = [texts] if isinstance(texts, str) else list(texts)
+    lines = re.findall(r"^\[(\d+)\] (.+)$", prompt, re.M)
+    return [next((int(n) for n, line in lines if rs.normalizeForQuote(text) in rs.normalizeForQuote(line)), 999) for text in texts]
 
 
 class FakeModel:
@@ -57,9 +64,9 @@ class FakeModel:
         self.prompts.append(prompt)
         if "<이의>" in prompt:
             evidence = self.appealEvidence or EVIDENCE.get(label, COVER_EVIDENCE)
-            return schema(level=self.appeal.get(label, 0), evidence=evidence, reason="이의 검토")
+            return schema(level=self.appeal.get(label, 0), evidence_ids=idsFor(prompt, evidence), reason="이의 검토")
         levels = self.byLane.get(lane, self.levels)
-        return schema(level=levels.get(label, 0), evidence=EVIDENCE.get(label, COVER_EVIDENCE), reason="테스트")
+        return schema(level=levels.get(label, 0), evidence_ids=idsFor(prompt, EVIDENCE.get(label, COVER_EVIDENCE)), reason="테스트")
 
 
 def useModel(monkeypatch, model) -> None:
@@ -786,7 +793,7 @@ def test_sameSentenceCannotBeEvidenceForTwoItemsOfOneAxis(monkeypatch):
 
     async def same(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
         calls.append(prompt)
-        return schema(level=3, evidence=[COVER_EVIDENCE], reason="같은 문장")
+        return schema(level=3, evidence_ids=idsFor(prompt, [COVER_EVIDENCE]), reason="같은 문장")
     monkeypatch.setattr(llm, "structured", same)
     taken = [("측정하고 판단", COVER_EVIDENCE)]
     row = asyncio.run(rs.rateItem(rs.ITEM_BY_KEY["together"], COVER_LETTER, COVER_LETTER, "AI/AX", [], [], "rt", "", taken))
@@ -799,7 +806,7 @@ def test_sameSentenceCannotBeEvidenceForTwoItemsOfOneAxis(monkeypatch):
 
 def test_axisTakenIsKeptAcrossItemsInOneRound(monkeypatch):
     async def same(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
-        return schema(level=3, evidence=[COVER_EVIDENCE], reason="같은 문장")
+        return schema(level=3, evidence_ids=idsFor(prompt, [COVER_EVIDENCE]), reason="같은 문장")
     monkeypatch.setattr(llm, "structured", same)
     index = rs.DocIndex([COVER_DOC])
     rows = asyncio.run(rs.rateAll(RESUME["resume"], index, "AI/AX", ["Python"], [], "rt"))
@@ -811,27 +818,41 @@ def test_axisTakenIsKeptAcrossItemsInOneRound(monkeypatch):
 
 
 def test_twoEvidenceSentencesAreAllowedAndBothMustBeInDocuments(monkeypatch):
-    # ⑥ 근거 2문장까지. 역할과 결과가 다른 문장에 있어도 되고, 두 문장 모두 서류에 있어야 한다
+    # ⑥ 근거 2문장까지. 역할과 결과가 다른 문장에 있어도 되고, 두 번호 모두 서류 문장이어야 한다
     answers = iter([["사용자 다섯 명에게 시제품을 보여 주고", "없는 문장입니다"],
                     ["사용자 다섯 명에게 시제품을 보여 주고", "응답 시간이 30% 줄었습니다"]])
 
     async def two(schema, system, prompt, timeoutSec, maxTokens=400, temperature=0.4, lane="rt"):
-        return schema(level=3, evidence=next(answers), reason="역할과 결과")
+        return schema(level=3, evidence_ids=idsFor(prompt, next(answers)), reason="역할과 결과")
     monkeypatch.setattr(llm, "structured", two)
     row = asyncio.run(rs.rateItem(rs.ITEM_BY_KEY["user_problem"], COVER_LETTER, COVER_LETTER, "AI/AX", [], [], "rt"))
-    assert row["level"] == 3 and row["quotes"] == ["사용자 다섯 명에게 시제품을 보여 주고", "응답 시간이 30% 줄었습니다"]
-    assert row["evidence"] == "사용자 다섯 명에게 시제품을 보여 주고 / 응답 시간이 30% 줄었습니다"
-    assert rs.ScreenItemOut(evidence="한 문장", level=1).evidence == ["한 문장"]  # 글 하나로 줘도 받는다
+    first, last = "사용자 다섯 명에게 시제품을 보여 주고 의견을 들었습니다.", "응답 시간이 30% 줄었습니다."
+    assert row["level"] == 3 and row["quotes"] == [first, last]  # 근거는 서류 문장 그대로 (코드가 번호로 채움)
+    assert row["evidence"] == f"{first} / {last}"
+    assert rs.ScreenItemOut(evidence_ids=2, level=1).evidence_ids == [2]  # 번호 하나를 목록 없이 줘도 받는다
 
 
-def test_multiSentenceQuoteIsSplitAndLimitedToTwo():
-    out = rs.ScreenItemOut(evidence=["사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다. 응답 시간이 30% 줄었습니다."],
-                           reason="", level=3)
-    quotes, problem, _ = rs.checkQuotes(out, COVER_LETTER, [])
-    assert problem is None and len(quotes) == 2 and quotes[1] == "응답 시간이 30% 줄었습니다."
+def test_evidenceIsChosenByNumberSoWordingCannotDrift():
+    """C-28: 4B 가 문장을 옮겨 쓰다 글자가 달라져 24점 항목이 0 이 되던 일(67.0 ↔ 43.0). 이제 번호로 고르고 코드가 문장을 채운다."""
+    text, sentences = rs.numberedMaterial("프로젝트: 챗봇 (2025) 검색을 맡았습니다. 정확도를 12% 올렸습니다.\n[자기소개서] 첫 문장입니다.")
+    assert sentences == ["프로젝트: 챗봇 (2025) 검색을 맡았습니다.", "정확도를 12% 올렸습니다.", "첫 문장입니다."]
+    assert "[2] 정확도를 12% 올렸습니다." in text and "(자기소개서)" in text and "[자기소개서]" not in text
+    out = rs.ScreenItemOut(evidence_ids=[1, 2], reason="", level=3)
+    quotes, problem, _ = rs.checkQuotes(out, sentences, "\n".join(sentences), [])
+    assert problem is None and quotes == sentences[:2]
+
+
+def test_numberOutsideDocumentsOrOutsideItemPartIsRejected():
+    sentences = ["학력: 컴퓨터공학 학사", "응답 시간이 30% 줄었습니다."]
+    _, problem, kind = rs.checkQuotes(rs.ScreenItemOut(evidence_ids=[7], level=3), sentences, "\n".join(sentences), [])
+    assert kind == "ungrounded" and "7번" in problem
+    # 학력 항목은 학력 칸만 근거로 본다 — 자기소개서 문장 번호를 고르면 다시 묻는다
+    _, problem, kind = rs.checkQuotes(rs.ScreenItemOut(evidence_ids=[2], level=2), sentences, sentences[0], [])
+    assert kind == "ungrounded" and "2번" in problem
     # 같은 축에서 이미 쓴 문장은 빼고 새 문장만 남긴다
-    quotes, problem, _ = rs.checkQuotes(out, COVER_LETTER, [("측정하고 판단", "응답 시간이 30% 줄었습니다")])
-    assert problem is None and quotes == ["사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다."]
+    quotes, problem, _ = rs.checkQuotes(rs.ScreenItemOut(evidence_ids=[1, 2], level=3), sentences, "\n".join(sentences),
+                                        [("측정하고 판단", "응답 시간이 30% 줄었습니다.")])
+    assert problem is None and quotes == ["학력: 컴퓨터공학 학사"]
 
 
 # ---------- 이력서의 자기소개·칸 없는 항목을 자기소개서 칸으로 (2026-11-18 사용자 결정) ----------

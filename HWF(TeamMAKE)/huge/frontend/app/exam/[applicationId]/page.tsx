@@ -44,7 +44,7 @@ function Exam() {
     const [session] = useState<ExamSession | null>(() => (typeof window === "undefined" ? null : loadExamSession(applicationId)));
     const [posting, setPosting] = useState<Posting | null>(null);
     const [phase, setPhase] = useState<Phase>("connecting");
-    const [prep, setPrep] = useState({ composed: 0, total: 10, elapsed: 0 });
+    const [prep, setPrep] = useState({ composed: 0, total: 10, elapsed: 0, ahead: 0, estimate: 100 });
     const [question, setQuestion] = useState<Question | null>(null);
     const [step, setStep] = useState<Step>("processing");
     const [count, setCount] = useState(COUNTDOWN);
@@ -209,7 +209,7 @@ function Exam() {
         switch (m.type) {
             case "preparing":
                 setPhase("preparing");
-                setPrep({ composed: m.composed, total: m.total, elapsed: m.elapsed_sec });
+                setPrep({ composed: m.composed, total: m.total, elapsed: m.elapsed_sec, ahead: m.ahead ?? 0, estimate: m.estimate_sec ?? 100 });
                 break;
             case "question":
                 warned.current = false;
@@ -517,8 +517,10 @@ function Exam() {
                         <li className={prep.composed >= prep.total ? "current" : ""}><span className="dot">2</span>질문 음성 준비</li>
                         <li><span className="dot">3</span>시작</li>
                     </ol>
-                    <div className="timebar" style={{ width: 420 }}><div style={{ width: `${Math.min(100, (prep.elapsed / 60) * 100)}%` }} /></div>
-                    <p className="center">{prep.elapsed > 30 ? "조금 더 걸리고 있습니다. 창을 닫지 마세요." : "준비가 끝나면 첫 질문이 자동으로 시작됩니다. 창을 닫지 마세요."}<br />
+                    <div className="timebar" style={{ width: 420 }}><div style={{ width: `${Math.min(100, (prep.elapsed / Math.max(prep.elapsed + prep.estimate, 60)) * 100)}%` }} /></div>
+                    {/* 질문 만들기는 한 사람씩이라 앞사람이 있으면 오래 걸릴 수 있다 (C-28) */}
+                    {prep.ahead > 0 && <p className="center"><strong>앞에 {prep.ahead}명의 질문을 만들고 있어 약 {Math.max(1, Math.ceil(prep.estimate / 60))}분 걸릴 수 있습니다.</strong></p>}
+                    <p className="center">{prep.ahead === 0 && prep.elapsed > 30 ? `조금 더 걸리고 있습니다(약 ${Math.max(1, Math.ceil(prep.estimate / 60))}분). 창을 닫지 마세요.` : "준비가 끝나면 첫 질문이 자동으로 시작됩니다. 창을 닫지 마세요."}<br />
                         <span className="small muted">ⓘ 질문이 끝나면 3-2-1 후 답변이 녹음됩니다. 답변은 90초입니다.</span></p>
                 </div>
             )}

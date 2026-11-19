@@ -152,7 +152,7 @@ class LiveSession:
             self.settings = {k: getSetting(db, k) for k in (
                 "heartbeat_interval_sec", "heartbeat_miss_limit", "unload_lookback_sec", "stt_retry_limit",
                 "stt_attempt_timeout_sec", "next_question_target_sec", "followup_target_sec", "followup_min_sec", "followup_total_limit",
-                "followup_answer_sec", "question_compose_budget_sec")}
+                "followup_answer_sec", "question_compose_budget_sec", "question_wait_max_sec")}
 
     # ---------- 보내기 ----------
 
@@ -554,12 +554,15 @@ class LiveSession:
                 return
         self.enter("preparing")
         started = time.monotonic()
-        waiter = asyncio.create_task(question_compose.ensureComposed(self.appId, self.settings["question_compose_budget_sec"]))
+        waiter = asyncio.create_task(question_compose.ensureComposed(self.appId, self.settings["question_wait_max_sec"]))
         while not waiter.done():
             with dbSession() as db:
                 composed = db.query(InterviewQuestion).filter_by(application_id=self.appId, kind="base").count()
+            # 질문 만들기는 한 사람씩 (C-28): 앞사람 수와 예상 시간을 알린다
             await self.send({"type": "preparing", "composed": composed, "total": BASE_QUESTION_COUNT,
-                             "elapsed_sec": int(time.monotonic() - started)})
+                             "elapsed_sec": int(time.monotonic() - started),
+                             "ahead": question_compose.queuePosition(self.appId) or 0,
+                             "estimate_sec": question_compose.estimateSec(self.appId)})
             await asyncio.wait({waiter}, timeout=1)
         waiter.result()
 

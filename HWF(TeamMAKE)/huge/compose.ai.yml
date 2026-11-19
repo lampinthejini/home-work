@@ -10,11 +10,13 @@ volumes:
 
 services:
   # 면접 중 LLM (Qwen3-4B Instruct Q4_K_M, GPU)
+  # --cache-ram: 프롬프트 캐시 기본값 8GB 가 일반 메모리에 다 차서 E2E 가 메모리 부족으로 멈춤 → 1GB 로 제한 (2026-11-19)
   llm-rt:
     restart: unless-stopped
     image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_TAG:?set in .env}
     command: ["-m", "/models/llm/Qwen3-4B-Instruct-2507-Q4_K_M.gguf", "--host", "0.0.0.0", "--port", "8080",
-              "-ngl", "99", "-c", "${LLM_RT_CTX:-8192}", "--parallel", "${LLM_RT_PARALLEL:-2}", "--jinja"]
+              "-ngl", "99", "-c", "${LLM_RT_CTX:-8192}", "--parallel", "${LLM_RT_PARALLEL:-2}", "--jinja",
+              "--cache-ram", "${LLM_RT_CACHE_RAM:-1024}"]
     volumes: ["./models:/models:ro"]
     networks: [internal]
     deploy:

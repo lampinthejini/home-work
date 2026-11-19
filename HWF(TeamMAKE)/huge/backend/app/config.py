@@ -74,6 +74,8 @@ SETTING_DEFAULTS: dict[str, tuple] = {
     "rag_example_count": (3, 3),
     "question_attempt_timeout_sec": (8, 30),
     "question_compose_budget_sec": (60, 180),
+    # 면접 시작에서 질문을 기다리는 최대 시간. 질문 만들기는 한 사람씩이라 앞사람이 있으면 오래 걸릴 수 있다 (C-28, 2026-11-19 사용자 결정)
+    "question_wait_max_sec": (600, 600),
     "compose_slots": (1, 1),
     "upload_max_mb": (50, 50),
     "ocr_sec_per_page": (8, 8),

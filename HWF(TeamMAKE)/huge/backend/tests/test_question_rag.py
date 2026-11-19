@@ -424,7 +424,7 @@ def test_generatedQuestionsSavedToReserveExceptResume(sessionFactory, world):
     assert len(texts) == len(set(texts))  # 같은 질문은 두 번 넣지 않는다
 
 
-@pytest.mark.parametrize(("stored", "saved"), [(0.8, False), (0.79, True)])
+@pytest.mark.parametrize(("stored", "saved"), [(0.7, False), (0.69, True)])  # C-28: 0.8 → 0.7
 def test_saveGeneratedSkipsQuestionSimilarToReserve(sessionFactory, world, monkeypatch, stored, saved):
     world()
     monkeypatch.setattr(rag, "maxStoredSimilarity", lambda db, kind, vector: stored)

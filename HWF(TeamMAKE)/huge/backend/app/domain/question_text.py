@@ -14,6 +14,8 @@ TRAILING_JUNK = re.compile(r"(?<=[?.요까])[\s'\"‘’“”}\])]+$")
 # 질문에 써도 되는 글자: 한글 · 영문 · 숫자 · 흔한 문장부호. 이 밖의 글자(이모지·중괄호·대괄호·일본어·한자 등)는 찌꺼기로 본다
 ALLOWED_CHAR = re.compile(r"[가-힣A-Za-z0-9\s.,?!·'\"‘’“”()\-/+%&:~_…]")
 FOREIGN_SCRIPT = re.compile(r"[぀-ヿ一-鿿]")  # 4B 모델이 가끔 섞는 일본어·한자 (실측: "하나举げ고")
+# 한글 사이 물결표 (실측 2026-11-19: "…활용하셨는가요~인가요?"). '3~5년' 처럼 숫자 사이는 그대로 둔다 (C-28)
+HANGUL_TILDE = re.compile(r"[가-힣]\s*~\s*[가-힣]")
 HANGUL_THEN_LATIN = re.compile(r"[가-힣][A-Za-z]")  # 한글 바로 뒤 영어 (실측: "본ly"). "Python을" 처럼 영어 뒤 한글은 괜찮다
 META_PHRASE = re.compile(
     r"(한|하나의|두|세|\d+)\s*문장\s*(으로|이내|안에|내로)"
@@ -57,15 +59,54 @@ def fixEnding(text: str) -> str:
     return text
 
 
+# ---------- 영문 낱말 뒤 조사 · 두 번 쓴 이름 (CONFLICTS C-28, 2026-11-19) ----------
+# 실측: "LangChain를", "Python과 파이썬의 …". 4B 다듬기는 이런 것을 거의 고치지 못해(모의 50문항 중 0건) 규칙으로 고친다.
+LATIN_PARTICLE = re.compile(r"([A-Za-z][A-Za-z0-9.+#-]*)(을|를|이|가|은|는|과|와)(?=[\s,.?!]|$)")
+WITH_BATCHIM = {"를": "을", "가": "이", "는": "은", "와": "과"}  # 받침 없을 때 → 있을 때
+WITHOUT_BATCHIM = {v: k for k, v in WITH_BATCHIM.items()}
+LETTER_WITH_BATCHIM = set("LMNR")  # 알파벳 이름이 받침으로 끝나는 글자 (엘·엠·엔·알)
+KOREAN_NAMES = {"Python": "파이썬", "Java": "자바", "Docker": "도커", "Redis": "레디스", "React": "리액트"}
+DOUBLED_NAME = re.compile("(" + "|".join(KOREAN_NAMES) + r")(?:과|와)\s*(" + "|".join(KOREAN_NAMES.values()) + ")")
+
+
+def readsWithBatchim(word: str) -> bool | None:
+    """영문 낱말을 우리말로 읽을 때 끝에 받침이 있는가. 숫자로 끝나면 모름(None).
+    약어(모두 대문자)는 알파벳 이름으로(LLM → 엘엘엠), 낱말은 끝 소리로(LangChain → 랭체인, XGBoost → 엑스지부스트)."""
+    letters = word.rstrip(".+#-")
+    if not letters or letters[-1].isdigit():
+        return None
+    if letters.isupper():
+        return letters[-1] in LETTER_WITH_BATCHIM
+    return letters.lower().endswith(("n", "m", "l", "ng"))
+
+
+def fixLatinParticle(text: str) -> str:
+    def fix(m: re.Match) -> str:
+        word, particle = m.group(1), m.group(2)
+        batchim = readsWithBatchim(word)
+        if batchim is None:
+            return m.group(0)
+        return word + (WITH_BATCHIM if batchim else WITHOUT_BATCHIM).get(particle, particle)
+    return LATIN_PARTICLE.sub(fix, text)
+
+
+def dropDoubledName(text: str) -> str:
+    """'Python과 파이썬의' → 'Python의' (같은 이름을 영어·한글로 두 번)."""
+    def fix(m: re.Match) -> str:
+        return m.group(1) if KOREAN_NAMES[m.group(1)] == m.group(2) else m.group(0)
+    return DOUBLED_NAME.sub(fix, text)
+
+
 def cleanQuestion(text: str) -> str:
-    return fixEnding(SPACED_CONNECTIVE_DE.sub(r"\1데,", TRAILING_JUNK.sub("", (text or "").strip())))
+    text = SPACED_CONNECTIVE_DE.sub(r"\1데,", TRAILING_JUNK.sub("", (text or "").strip()))
+    return fixEnding(fixLatinParticle(dropDoubledName(text)))
 
 
 def textProblem(text: str) -> str | None:
     """문제 코드, 괜찮으면 None. 앞에서 cleanQuestion 으로 끝 찌꺼기를 뗀 글을 넣는다."""
     if FOREIGN_SCRIPT.search(text):
         return "foreign_script"
-    if HANGUL_THEN_LATIN.search(text) or any(not ALLOWED_CHAR.match(ch) for ch in text):
+    if HANGUL_THEN_LATIN.search(text) or HANGUL_TILDE.search(text) or any(not ALLOWED_CHAR.match(ch) for ch in text):
         return "junk_text"
     if META_PHRASE.search(text):
         return "meta_phrase"

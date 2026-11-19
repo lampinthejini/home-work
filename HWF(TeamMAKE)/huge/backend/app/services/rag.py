@@ -25,7 +25,7 @@ COPY_SIMILARITY = 0.9
 # 실측(같은 날, 기본 예비 40개 + AI 질문): 주제와 상관없는 예시는 0.40~0.47, 맞는 예시는 0.5 이상
 EXAMPLE_MIN_SIMILARITY = 0.5
 DUPLICATE_SIMILARITY = 0.9
-RESERVE_DUPLICATE_SIMILARITY = 0.8  # 예비 질문에 넣을 때 (2026-11-16 사용자 결정: 0.7 → 0.8. 면접 안 중복은 위 0.9)
+RESERVE_DUPLICATE_SIMILARITY = 0.7  # 예비 질문에 넣을 때 (11-16 0.7→0.8, 11-19 C-28 다시 0.7: 같은 뜻 다른 표현이 0.7~0.8. 면접 안 중복은 위 0.9)
 EMBED_TIMEOUT_SEC = 10
 INDEX_BATCH = 32
 # HNSW 는 가까운 N개를 찾은 뒤 조건으로 거른다. 안 쓰는 질문(excluded·preparing)이 자리를 차지해 예시가 모자라지 않게 넓힌다 (실측 40 → 0개, 200 → 3개, 5ms)

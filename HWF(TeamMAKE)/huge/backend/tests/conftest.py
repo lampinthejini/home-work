@@ -147,7 +147,9 @@ def publishedPosting(adminClient, **overrides) -> str:
     return postingId
 
 
-COVER_LETTER = "사용자 다섯 명에게 시제품을 보여 주고 불편한 점을 숫자로 모아 검색 화면을 고쳤습니다. 응답 시간이 30% 줄었습니다."
+COVER_LETTER = ("사용자 다섯 명에게 시제품을 보여 주고 의견을 들었습니다. 불편한 점을 숫자로 모아 표로 만들었습니다. "
+                "두 번째 시제품을 보여 주고 불편한 점을 다시 물었습니다. 그 표를 보고 검색 화면을 고쳤습니다. "
+                "의견을 숫자로 모아 검색 화면을 우선순위대로 바꿨습니다. 응답 시간이 30% 줄었습니다.")
 
 
 def submitApplication(client, appId: str) -> None:

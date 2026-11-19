@@ -11,7 +11,7 @@
 예시와 대신 낼 질문은 모두 예비 질문이다 (엑셀 질문 DB 는 2026-11-16 지움, CONFLICTS C-20).
 회사 질문에는 회사 정보와, 찾을 글과 가까운 회사 프로젝트·기술 블로그 글을 넣는다 (company.questionContext, CONFLICTS C-21·C-22).
 직무 질문에는 질문 만들기 전에 잠깐 찾은 직무 관련 최근 소식 중 가까운 것을 넣는다 (job_news, 30초 안, DB 에 남기지 않음).
-만든 질문 중 개인적이지 않은 것은 승인 없이 예비 질문에 넣는다 (0.8 이상 비슷하면 빼고, 종류마다 100개까지).
+만든 질문 중 개인적이지 않은 것은 승인 없이 예비 질문에 넣는다 (0.7 이상 비슷하면 빼고, 종류마다 100개까지 — C-28).
 
 자리마다의 순서와 갈림길은 LangGraph 그래프(buildComposeGraph)가 정한다 (ADR-07). api 프로세스의 백그라운드 작업으로 돈다.
 """
@@ -47,6 +47,51 @@ runningTasks: dict[str, asyncio.Task] = {}
 # 면접 시작 뒤 기다림이 넘었을 때 '진행 중인 시도를 끊고 남은 자리만 채워라'는 신호 (TRD 7-4 ⑥). 만든 질문은 버리지 않는다
 hurryEvents: dict[str, asyncio.Event] = {}
 HURRY_WAIT_SEC = 30  # 신호 뒤 남은 자리 채우기·음성 만들기를 기다리는 시간. 넘으면 저장된 질문으로 시작 (음성 없는 질문은 자막만)
+
+# 질문 만들기는 한 번에 한 사람 (CONFLICTS C-28, 2026-11-19 사용자 결정). 실측: 10명이 동시에 오자 6건이 LLM 자리를 나눠 쓰다
+# 각자의 예산을 다 써서 60자리 중 19개만 새로 만들었다. 차례를 기다리는 시간은 예산에서 빼지 않는다.
+composeQueue: list[str] = []  # 차례를 기다리거나 지금 만드는 지원 건 (앞에서부터)
+recentComposeSec: list[float] = []  # 최근 몇 사람의 질문 만들기 시간 (기다리는 사람에게 알리는 예상 시간)
+COMPOSE_SEC_GUESS = 100  # 아직 잰 것이 없을 때 (실측 한 사람 82~94초, 2026-11-19)
+RECENT_COMPOSE_COUNT = 5
+_active: dict[str, str | None] = {"app": None}
+_turnState: dict = {}
+
+
+def _turn() -> dict:
+    """차례 자물쇠와 '줄이 바뀜' 신호. asyncio 도구는 만든 이벤트 루프에 묶이므로 루프마다 새로 만든다."""
+    loop = asyncio.get_running_loop()
+    if _turnState.get("loop") is not loop:
+        _turnState.update(loop=loop, lock=asyncio.Lock(), changed=asyncio.Event())
+    return _turnState
+
+
+def activeCompose() -> str | None:
+    return _active["app"]
+
+
+def queuePosition(applicationId: str) -> int | None:
+    """0 = 지금 만드는 중, 1 = 앞에 한 사람. 줄에 없으면 None."""
+    return composeQueue.index(applicationId) if applicationId in composeQueue else None
+
+
+def estimateSec(applicationId: str) -> int:
+    """앞사람 수 + 나 × 최근 평균 시간."""
+    position = queuePosition(applicationId) or 0
+    average = sum(recentComposeSec) / len(recentComposeSec) if recentComposeSec else COMPOSE_SEC_GUESS
+    return int(round((position + 1) * average))
+
+
+def notifyQueueChanged() -> None:
+    _turn()["changed"].set()
+
+
+async def waitComposeIdle() -> None:
+    """질문 만들기 줄이 빌 때까지 기다린다. 서류 평가(1차, 4B)가 질문 만들기에 LLM 을 먼저 내주려고 쓴다."""
+    while composeQueue:
+        changed = _turn()["changed"]
+        changed.clear()
+        await changed.wait()
 
 
 def isHurried(applicationId: str) -> bool:
@@ -902,6 +947,7 @@ def reviewedPoints(out: QuestionReview) -> list[str]:
 
 
 
+
 async def composeAll(db: Session, app: Application, ctx: dict, deadline: float, settings: dict) -> list[dict]:
     compiled = buildComposeGraph(db, app, ctx, deadline, settings)
     result = await compiled.ainvoke({"chosen": []}, {"recursion_limit": COMPOSE_RECURSION_LIMIT})
@@ -947,11 +993,35 @@ async def synthesizeAll(db: Session, app: Application) -> None:
 
 
 async def compose(applicationId: str, budgetSec: float | None = None) -> None:
+    """줄에 서서 차례가 오면 만든다 (C-28). budgetSec=0 (LLM 없이 예비 질문으로 채우기)은 줄을 서지 않는다."""
+    if budgetSec == 0:
+        await composeNow(applicationId, 0)
+        return
+    composeQueue.append(applicationId)
+    notifyQueueChanged()
+    try:
+        async with _turn()["lock"]:
+            _active["app"] = applicationId
+            started = time.monotonic()
+            try:
+                if await composeNow(applicationId, budgetSec):
+                    recentComposeSec.append(time.monotonic() - started)
+                    del recentComposeSec[:-RECENT_COMPOSE_COUNT]
+            finally:
+                _active["app"] = None
+    finally:
+        if applicationId in composeQueue:
+            composeQueue.remove(applicationId)
+        notifyQueueChanged()
+
+
+async def composeNow(applicationId: str, budgetSec: float | None = None) -> bool:
+    """질문 10개를 만든다. 만들었으면 True (이미 있거나 지원 건이 없으면 False)."""
     db = SessionLocal()
     try:
         app = db.get(Application, applicationId)
         if app is None or app.questions_status == "ready":
-            return
+            return False
         settings = {k: getSetting(db, k) for k in ("question_regen_limit", "question_attempt_timeout_sec", "base_answer_sec",
                                                     "question_compose_budget_sec", "rag_example_count")}
         startedAt = time.monotonic()
@@ -1012,6 +1082,7 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
         generated = sum(item["source"] == "generated" for item in chosen)
         log.info("composed questions generated=%d reserve=%d sec=%.1f app=%s",
                  generated, len(chosen) - generated, time.monotonic() - startedAt, app.id)
+        return True
     except Exception:
         log.exception("compose failed app=%s", applicationId)
         db.rollback()
@@ -1019,6 +1090,7 @@ async def compose(applicationId: str, budgetSec: float | None = None) -> None:
         if app is not None and app.questions_status != "ready":
             app.questions_status = "failed"
             db.commit()
+        return False
     finally:
         db.close()
         runningTasks.pop(applicationId, None)
@@ -1143,6 +1215,7 @@ def cancelCompose(applicationId: str) -> None:
 
 async def ensureComposed(applicationId: str, waitSec: float) -> None:
     """면접 시작 시: 아직이면 최대 waitSec 기다리고, 넘으면 진행 중인 시도를 끊고 못 만든 자리만 예비 질문으로 채운다 (TRD 7-4 ⑥).
+    그때까지 차례가 오지 않았으면 줄에서 빠져 10자리 모두 예비 질문으로 채운다 (C-28).
 
     만든 질문은 버리지 않는다. 그래도 HURRY_WAIT_SEC 안에 안 끝나면(음성 만들기가 밀림) 저장된 질문 10개로 시작하고,
     음성 없는 질문은 자막만 낸다 (INT-01). 저장된 질문도 없을 때만 LLM 없이 처음부터 채운다.
@@ -1154,17 +1227,26 @@ async def ensureComposed(applicationId: str, waitSec: float) -> None:
             return
         except asyncio.TimeoutError:  # noqa: UP041
             pass
-        if not task.done():
-            log.info("compose hurried after %ss app=%s", waitSec, applicationId)
-            hurryEvents.setdefault(applicationId, asyncio.Event()).set()
-        try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=HURRY_WAIT_SEC)
-            return
-        except asyncio.TimeoutError:  # noqa: UP041
-            log.warning("compose still running %ss after hurry, starting with saved questions app=%s", HURRY_WAIT_SEC, applicationId)
+        if not task.done() and activeCompose() != applicationId:
+            # 아직 차례가 오지 않았다: 줄에서 빠져 아래에서 LLM 없이 예비 질문으로 채운다 (앞사람 질문 만들기는 그대로, C-28)
+            log.info("compose still queued after %ss (position %s), filling from reserve app=%s",
+                     waitSec, queuePosition(applicationId), applicationId)
             task.cancel()
+            await asyncio.wait({task})
             runningTasks.pop(applicationId, None)
             hurryEvents.pop(applicationId, None)
+        else:
+            if not task.done():
+                log.info("compose hurried after %ss app=%s", waitSec, applicationId)
+                hurryEvents.setdefault(applicationId, asyncio.Event()).set()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=HURRY_WAIT_SEC)
+                return
+            except asyncio.TimeoutError:  # noqa: UP041
+                log.warning("compose still running %ss after hurry, starting with saved questions app=%s", HURRY_WAIT_SEC, applicationId)
+                task.cancel()
+                runningTasks.pop(applicationId, None)
+                hurryEvents.pop(applicationId, None)
     db = SessionLocal()
     try:
         app = db.get(Application, applicationId)

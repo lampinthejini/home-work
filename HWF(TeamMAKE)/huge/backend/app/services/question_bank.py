@@ -148,7 +148,7 @@ def isKnown(db: Session, text: str) -> bool:
 def saveReserve(db: Session, kind: str, text: str, vector: list[float] | None, category: str,
                 jobCode: str | None = None) -> Question | None:
     """AI 가 만든 질문을 예비 질문으로 넣는다. 넣지 않으면 None: 다른 회사·무관한 글, 같은 글, 종류별 상한,
-    같은 종류 예비 질문과 0.8 이상 비슷함 (벡터가 있을 때). 개인 정보 검사는 부르는 쪽이 한다."""
+    같은 종류 예비 질문과 0.7 이상 비슷함 (C-28) (벡터가 있을 때). 개인 정보 검사는 부르는 쪽이 한다."""
     if kind not in RESERVE_KINDS or excludedReason(text) or isKnown(db, text):
         return None
     if reserveCount(db, kind) >= RESERVE_LIMIT_PER_KIND:
