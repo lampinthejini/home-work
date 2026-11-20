@@ -7,7 +7,7 @@
 import asyncio
 from datetime import timedelta
 
-from app.services import job_news, question_compose, rag
+from app.services import job_news, question_compose, rag, slot_material
 from app.timeutil import now
 from tests.test_question_rag import composed, fakeVector, makeApplication, world  # noqa: F401 — world 는 pytest fixture
 
@@ -72,17 +72,21 @@ def test_jobNewsGoIntoJobPromptsOnlyAndAreCleared(sessionFactory, world, monkeyp
 
     async def collect(jobCode, timeoutSec=30):
         assert jobCode == "AI_AX" and 0 < timeoutSec <= job_news.JOB_NEWS_TIMEOUT_SEC
-        news = [job_news.JobNews("현대제철, 생성형 AI 플랫폼 가동", fakeVector("모델 데이터"))]
+        news = [job_news.JobNews("현대제철, 생성형 AI 에이전트 플랫폼 가동", fakeVector("모델 데이터"))]
         collected.append(news)
         return news
     monkeypatch.setattr(job_news, "collect", collect)
+    # 소식은 직무 자리 자료 칸 하나 (C-31): 소식 칸이 먼저 뽑히게 한다
+    realOrder = slot_material.MaterialPicker.fieldOrder
+    monkeypatch.setattr(slot_material.MaterialPicker, "fieldOrder", lambda self, kind: sorted(
+        realOrder(self, kind), key=lambda f: f != "news"))
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     assert len(composed(sessionFactory, appId)) == 10
     jobPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 직무")]
-    assert jobPrompts and all("<소식>\n- 현대제철, 생성형 AI 플랫폼 가동\n</소식>" in p for p in jobPrompts)
-    assert all("소식에 나온 회사 이름은 질문에 넣지 않는다" in p for p in jobPrompts)
-    assert not any("<소식>" in p for p in fake.prompts if not p.startswith("[만들 질문] 직무"))
+    assert "에이전트 — 최근 소식 '현대제철, 생성형 AI 에이전트 플랫폼 가동'" in jobPrompts[0]  # 제목의 기술 이름이 주제
+    assert "소식에 나온 회사 이름은 질문에 넣지 않는다" in jobPrompts[0]
+    assert not any("현대제철" in p for p in fake.prompts if not p.startswith("[만들 질문] 직무"))
     assert collected[0] == []  # 다 만들면 메모리에서 지운다
 
 

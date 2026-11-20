@@ -93,6 +93,11 @@ def maxSimilarity(vector: list[float], others: list[list[float]]) -> float:
     return max((cosine(vector, o) for o in others), default=0.0)
 
 
+def chunkDistance(chunks: list[list[float]], vector: list[float]) -> float:
+    """조각으로 나눈 글(이력서 등)과 벡터 하나의 거리: 1 − 가장 가까운 조각과의 코사인."""
+    return 1 - maxSimilarity(vector, chunks)
+
+
 def parseResponse(res: httpx.Response, count: int) -> list[list[float]]:
     if res.status_code != 200:
         raise EmbedUnavailable(f"status {res.status_code}")

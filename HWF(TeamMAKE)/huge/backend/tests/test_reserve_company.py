@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from app.domain import question_text
 from app.models import AuditLog, CompanyProject, InterviewQuestion, JobPosting, Question
-from app.services import company, question_bank, question_compose, rag
+from app.services import company, question_bank, question_compose, rag, slot_material
 from app.timeutil import now
 from tests.test_question_rag import composed, makeApplication, world  # noqa: F401 — world 는 pytest fixture
 
@@ -203,8 +203,10 @@ def test_companyQuestionPromptGetsCompanyInfoAndProjects(sessionFactory, world):
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     assert len(composed(sessionFactory, appId)) == 10
-    companyPrompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 회사"))
-    assert "회사 이름: AIIT" in companyPrompt and "- 쇼핑 AI 에이전트 (2025): 상품을 대신 찾아 주는 에이전트" in companyPrompt
-    assert "최근 소식" not in companyPrompt
+    companyPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
+    assert companyPrompts and all("회사 이름: AIIT" in p and "최근 소식" not in p for p in companyPrompts)
+    with sessionFactory() as db:  # 프로젝트는 회사 자료 칸 하나 (C-31)
+        assert "쇼핑 AI 에이전트 (2025): 상품을 대신 찾아 주는 에이전트" in [
+            x.text for x in slot_material.companyPieces(db) if x.field == "project"]
     jobPrompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 직무"))
     assert "<회사>" not in jobPrompt  # 회사 정보는 회사 질문에만

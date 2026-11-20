@@ -1,0 +1,65 @@
+{
+ "posting_id": "d29ddb1b-6638-4b1e-867b-0be1ab77ce40",
+ "apps": [
+  {
+   "no": 1,
+   "label": "신입·RAG 프로젝트 많음(강함)",
+   "name": "김하늘",
+   "application_id": "55c81736-d453-4632-a49e-75b12536435f"
+  },
+  {
+   "no": 2,
+   "label": "경력 3년 백엔드·LLM 도입(강함)",
+   "name": "박준서",
+   "application_id": "0b4960fe-335d-49a4-be30-4e1c70a0240a"
+  },
+  {
+   "no": 3,
+   "label": "데이터 분석가 전환(중간)",
+   "name": "이서연",
+   "application_id": "79d6bfc4-971f-4676-917d-4217e535eb01"
+  },
+  {
+   "no": 4,
+   "label": "부트캠프 수료 신입(중간)",
+   "name": "최민재",
+   "application_id": "a13639b1-eb53-49c4-a33f-70b0aa4a7269"
+  },
+  {
+   "no": 5,
+   "label": "ML 연구 석사(강함)",
+   "name": "정유진",
+   "application_id": "2847d7e2-3f56-448a-b7f2-661cee3e6aa5"
+  },
+  {
+   "no": 6,
+   "label": "프론트엔드 개발자(약함~중간)",
+   "name": "한도윤",
+   "application_id": "38b37786-b3a6-495a-b104-d512ed1bdb68"
+  },
+  {
+   "no": 7,
+   "label": "마케터 비전공(약함)",
+   "name": "오지민",
+   "application_id": "8f011c00-10d6-444b-85a8-9b0adf47f7af"
+  },
+  {
+   "no": 8,
+   "label": "경력 7년 MLOps(강함)",
+   "name": "윤태호",
+   "application_id": "f8d7aa34-f48c-4e3e-a010-1d8a473d975e"
+  },
+  {
+   "no": 9,
+   "label": "전기공학 신입·Python 조금(중간~약함)",
+   "name": "강예린",
+   "application_id": "c1417618-c198-4b75-a194-fca8c7a3cb88"
+  },
+  {
+   "no": 10,
+   "label": "경력 2년 QA·자동화(중간)",
+   "name": "서지후",
+   "application_id": "d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5"
+  }
+ ]
+}

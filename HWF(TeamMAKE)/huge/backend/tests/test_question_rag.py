@@ -5,12 +5,13 @@
 
 import asyncio
 import math
+import random
 from datetime import timedelta
 
 import pytest
 
 from app.models import Application, InterviewQuestion, JobPosting, Question, User
-from app.services import company, llm, question_compose, rag, tech_blog
+from app.services import company, llm, question_compose, rag, slot_material, tech_blog
 from app.settings_store import setSetting
 from app.timeutil import now
 
@@ -103,6 +104,10 @@ def world(sessionFactory, monkeypatch):
         monkeypatch.setattr(rag, "maxStoredSimilarity", fake.maxStoredSimilarity)
         monkeypatch.setattr(rag, "storeVector", fake.storeVector)
         monkeypatch.setattr(llm, "structured", fake.structured)
+        # 가짜 질문은 자료를 쓰지 않으므로 '자료를 썼나' 확인은 통과시킨다 (확인 자체는 test_slot_material 에서). 칸 뽑기는 정해 둔다
+        monkeypatch.setattr(slot_material, "grounded", lambda piece, question, vector: (True, None))
+        monkeypatch.setattr(question_compose, "materialRandom", random.Random(0))
+        slot_material._vectorCache.clear()
         monkeypatch.setattr(company, "relatedProjects", lambda db, vector, count: company.listProjects(db)[:count])
         monkeypatch.setattr(tech_blog, "relatedPosts", lambda db, vector, count, excludeIds=frozenset():
                             [p for p in tech_blog.listPosts(db) if p.id not in excludeIds][:count])
@@ -385,14 +390,18 @@ def test_embedDownMidwaySendsRestToBankQuickly(sessionFactory, world, monkeypatc
 
     async def flaky(texts, timeoutSec=10):
         calls["n"] += 1
-        if calls["n"] > 2:
+        if calls["n"] > 3:  # 1번째 이력서 조각 (C-30), 2·3번째는 첫 자리
             raise rag.EmbedUnavailable("down")
         return await realEmbed(texts)
     monkeypatch.setattr(rag, "embed", flaky)
+
+    async def noPieces(pieces, timeoutSec=30):  # 자리 자료 항목 임베딩은 자료 수만큼 나눠 보내 호출 수가 달라진다 — 여기서는 세지 않는다
+        return None
+    monkeypatch.setattr(slot_material, "embedPieces", noPieces)
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)
-    assert rows[0].source == "generated" and calls["n"] == 3  # 한 번 실패한 뒤로는 임베딩을 다시 부르지 않음
+    assert rows[0].source == "generated" and calls["n"] == 4  # 한 번 실패한 뒤로는 임베딩을 다시 부르지 않음
     assert all(r.substituted for r in rows[1:])
 
 
@@ -657,14 +666,14 @@ def test_jobQuestionMayUseCompanyName():
     assert question_compose.checkGenerated("job", out, "") is None
 
 
-def test_companySlotsTakeDifferentAngles(sessionFactory, world):
-    """실측 2026-11-18: 면접의 회사 질문 2개가 모두 '사용자 중심'으로 쏠림 → 자리마다 지원 동기·회사 이해·조직 문화 중 다른 초점."""
+def test_companySlotsTakeDifferentFields(sessionFactory, world):
+    """실측 2026-11-18·20: 회사 질문이 모두 '사용자 중심'으로 쏠림 → 자리마다 회사 자료 칸 하나, 두 자리는 다른 칸 (C-31)."""
     fake = world()
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     prompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
-    angles = [a for p in prompts for a in question_compose.COMPANY_ANGLES if f"초점: {a} —" in p]
-    assert len(prompts) == 2 and len(angles) == 2 and angles[0] != angles[1]
+    fields = [p.split("<회사>\n")[1].split("\n")[1] for p in prompts]
+    assert len(prompts) == 2 and all(f.startswith("칸: ") for f in fields) and fields[0] != fields[1]
 
 
 def test_personalitySlotsTakeDifferentAngles(sessionFactory, world):

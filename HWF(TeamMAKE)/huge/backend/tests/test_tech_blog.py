@@ -1,11 +1,10 @@
 """회사 기술 블로그 최신 글과 회사 정보 새 칸 (2026-11-17 사용자 결정, CONFLICTS C-22)."""
 
 import asyncio
-import re
 from datetime import timedelta
 
 from app.models import AuditLog, CompanyTechPost
-from app.services import company, question_compose, tech_blog
+from app.services import company, slot_material, tech_blog
 from app.timeutil import now
 from tests.test_question_rag import composed, makeApplication, world  # noqa: F401 — world 는 pytest fixture
 
@@ -105,35 +104,30 @@ def test_adminEditsNewFieldsAndFeedMustBeHttps(adminClient):
     assert adminClient.put("/admin/company", json={"tech_feed_url": "file:///etc/passwd"}).status_code == 422
 
 
-def test_companyQuestionGetsTechPostsAndNewFields(sessionFactory, world):  # noqa: F811
-    fake = world()
+def test_companyPiecesHaveTechPostAsCompanyAndNoStack(sessionFactory):
+    """회사 자리 자료 칸 (C-31): 기술 글은 우리 회사 이름으로, 기술 스택은 회사 자리에 넣지 않는다 (직무 자리 칸)."""
     with sessionFactory() as db:
         db.add(CompanyTechPost(title="네이버 GPU 노드를 VM으로 격리하기", url="https://d2.naver.com/helloworld/9",
                                summary="NAVER 의 Kubernetes GPU 노드", published_at=now()))
         db.commit()
-    appId = makeApplication(sessionFactory)
-    asyncio.run(question_compose.compose(appId))
-    assert len(composed(sessionFactory, appId)) == 10
-    prompt = next(p for p in fake.prompts if p.startswith("[만들 질문] 회사"))
-    assert "회사가 요즘 다루는 기술 (지원자는 모를 수 있음):\n- AIIT GPU 노드를 VM으로 격리하기: AIIT 의 Kubernetes GPU 노드" in prompt
-    assert "네이버" not in prompt and "NAVER" not in prompt
-    assert "경영 이념: 미션:" in prompt and "인재상과 일하는 방식: 인재상" in prompt
-    assert "사내 기술 스택" not in prompt  # 기술 스택은 공고 초안에만
+        pieces = slot_material.companyPieces(db)
+    assert "AIIT GPU 노드를 VM으로 격리하기: AIIT 의 Kubernetes GPU 노드" in [p.text for p in pieces if p.field == "post"]
+    assert not any("네이버" in p.text or "NAVER" in p.text for p in pieces)
+    assert {"intro", "mission", "talent", "post"} <= {p.field for p in pieces} and "tech_stack" not in {p.field for p in pieces}
 
 
-def test_eachCompanyQuestionGetsDifferentPost(sessionFactory, world):  # noqa: F811
-    """질문마다 다른 기술 글 (2026-11-17 사용자 요청: 한 글로 쏠림)."""
-    fake = world()
+def test_eachCompanyQuestionGetsDifferentPost(sessionFactory):
+    """질문마다 다른 기술 글 (2026-11-17 사용자 요청: 한 글로 쏠림) — 쓴 항목은 같은 면접에서 다시 고르지 않는다 (C-31)."""
     with sessionFactory() as db:
         for i in range(3):
             db.add(CompanyTechPost(title=f"기술 글 {i}", url=f"https://d2.naver.com/helloworld/{i}", summary="", published_at=now()))
         db.commit()
-    appId = makeApplication(sessionFactory)
-    asyncio.run(question_compose.compose(appId))
-    prompts = [p for p in fake.prompts if p.startswith("[만들 질문] 회사")]
-    picked = [re.findall(r"- (기술 글 \d)", p.split("(지원자는 모를 수 있음):")[1].split("</회사>")[0]) for p in prompts]
-    assert len(prompts) >= 2 and all(len(x) == tech_blog.CONTEXT_POST_COUNT for x in picked)
-    assert picked[0] != picked[1]
+        pieces = [p for p in slot_material.companyPieces(db) if p.field == "post"]
+    picker = slot_material.MaterialPicker(pieces, [])
+    first = picker.pick("company", ["post"], 0)
+    picker.markUsed(first)
+    second = picker.pick("company", ["post"], 0)
+    assert first.text != second.text
 
 
 def test_relatedPostsSkipsUsedThenReuses(sessionFactory):
