@@ -1,0 +1,105 @@
+{"id": "1-p1-1", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 구체적 실패 경험 적용. 개선 방향 판단"}, "sec": 1.58, "prompt_tokens": 3047, "completion_tokens": 48}
+{"id": "1-p1-2", "got": {"b": [], "q1": 1, "q2": 1, "q3": 2, "why": "누구에게나 묻는 포부. 회사 이름만"}, "sec": 1.09, "prompt_tokens": 3031, "completion_tokens": 45}
+{"id": "1-p1-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "서류에 있는 구체 프로젝트. 역할과 개선 과정 설명"}, "sec": 1.2, "prompt_tokens": 3035, "completion_tokens": 51}
+{"id": "1-p1-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류 프로젝트 구체적 내용. 도구 선택 이유 묻고 있음"}, "sec": 1.16, "prompt_tokens": 3031, "completion_tokens": 51}
+{"id": "1-p1-5", "got": {"b": [], "q1": 2, "q2": 2, "q3": 1, "why": "AI 모델 추론 일반 지식. 회사/업무 구체성 없음"}, "sec": 1.24, "prompt_tokens": 3044, "completion_tokens": 50}
+{"id": "1-p1-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "Python 일반 지식. 회사 업무와 연결 없음"}, "sec": 1.0, "prompt_tokens": 3028, "completion_tokens": 45}
+{"id": "1-p1-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 서비스 개발 주제. 기준·장단점 = 지식 질문"}, "sec": 1.22, "prompt_tokens": 3043, "completion_tokens": 49}
+{"id": "1-p1-9", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "과거 경험에서 피드백 반영. 회사 상황과 연결 없음"}, "sec": 1.16, "prompt_tokens": 3029, "completion_tokens": 49}
+{"id": "1-p1-10", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "회사 문화(작은 셀, 실험)에 맞춤. 본인 경험 적용"}, "sec": 1.27, "prompt_tokens": 3038, "completion_tokens": 53}
+{"id": "1-p2-1", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "서류에 있는 경험을 적용. 가장 중요한 점 판단"}, "sec": 3.17, "prompt_tokens": 3052, "completion_tokens": 44}
+{"id": "1-p2-2", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "사용자 중심·일하는 방식과 본인 경험 연결. 기여 방식을 구체적으로 제시"}, "sec": 1.29, "prompt_tokens": 3035, "completion_tokens": 56}
+{"id": "1-p2-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "서류에 있는 구체 사례(문의 분류, 40% 감소, 정확도 90%)"}, "sec": 1.3, "prompt_tokens": 3028, "completion_tokens": 59}
+{"id": "1-p2-4", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "이력서 기술(자동 분류)을 구체적 경험으로 연결"}, "sec": 1.07, "prompt_tokens": 3032, "completion_tokens": 48}
+{"id": "1-p2-5", "got": {"b": [], "q1": 4, "q2": 3, "q3": 3, "why": "LLM 서비스 운영 경험. 지표 활용 경험 있음"}, "sec": 1.06, "prompt_tokens": 3037, "completion_tokens": 43}
+{"id": "1-p2-7", "got": {"b": [], "q1": 2, "q2": 3, "q3": 2, "why": "E2E 테스트는 공고 업무와 연결 없음"}, "sec": 1.24, "prompt_tokens": 3060, "completion_tokens": 47}
+{"id": "1-p2-8", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "분류 모델 평가의 한계를 구체적 경험으로 연결"}, "sec": 1.1, "prompt_tokens": 3033, "completion_tokens": 48}
+{"id": "1-p2-9", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "서류에 반복된 일(문의 분류)을 바꿨음. 회사 업무와 연결 부족"}, "sec": 1.34, "prompt_tokens": 3030, "completion_tokens": 58}
+{"id": "1-p2-10", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "누구에게나 묻는 포부. 회사 이름만"}, "sec": 0.98, "prompt_tokens": 3021, "completion_tokens": 45}
+{"id": "1-p3-1", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "이탈 예측 모델 프로젝트를 맡은 경험. 책임감 강조"}, "sec": 2.49, "prompt_tokens": 2936, "completion_tokens": 51}
+{"id": "1-p3-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기술로 연결·함께 성장)에 맞춤. 일하고 싶은 방식은 의견"}, "sec": 1.32, "prompt_tokens": 2938, "completion_tokens": 57}
+{"id": "1-p3-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "이력서 프로젝트와 공고 업무(이탈 예측→RAG 평가) 연결"}, "sec": 1.29, "prompt_tokens": 2939, "completion_tokens": 57}
+{"id": "1-p3-4", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "이력서에서 재구매율 7%p 상승을 기준으로 평가. RAG 평가와 연결"}, "sec": 1.25, "prompt_tokens": 2929, "completion_tokens": 59}
+{"id": "1-p3-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 원리 설명. 구체적 경험 없음"}, "sec": 1.05, "prompt_tokens": 2940, "completion_tokens": 43}
+{"id": "1-p3-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "파이썬 기본 지식. 회사 업무와 연결 없음"}, "sec": 1.01, "prompt_tokens": 2926, "completion_tokens": 47}
+{"id": "1-p3-7", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "프롬프트 인젝션은 일반 지식. 회사 업무와 연결 없음"}, "sec": 1.13, "prompt_tokens": 2931, "completion_tokens": 52}
+{"id": "1-p3-8", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 원리 설명. 구체적 업무(쇼핑 AI 에이전트)와 연결 없음"}, "sec": 1.32, "prompt_tokens": 2953, "completion_tokens": 56}
+{"id": "1-p3-9", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "누구에게나 묻는 일반적 대응. 회사 업무와 연결 없음"}, "sec": 1.21, "prompt_tokens": 2934, "completion_tokens": 52}
+{"id": "1-p3-10", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "회사 인재상과 연결. 모르는 것을 말하고 성장하는 경험 적용"}, "sec": 1.17, "prompt_tokens": 2946, "completion_tokens": 48}
+{"id": "1-p5-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "서류에 실제 사용자 행동 고려 실패 경험 있음"}, "sec": 2.35, "prompt_tokens": 2922, "completion_tokens": 45}
+{"id": "1-p5-2", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "사용자 문제 중심. 본인 연구 경험 적용"}, "sec": 1.06, "prompt_tokens": 2923, "completion_tokens": 42}
+{"id": "1-p5-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 구체적 프로젝트와 방법을 기반으로"}, "sec": 1.23, "prompt_tokens": 2930, "completion_tokens": 48}
+{"id": "1-p5-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 연구 경험을 기반으로 판단 변화"}, "sec": 1.05, "prompt_tokens": 2915, "completion_tokens": 43}
+{"id": "1-p5-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "Python 기본 지식. 회사 업무와 연결 없음"}, "sec": 1.11, "prompt_tokens": 2923, "completion_tokens": 45}
+{"id": "1-p5-6", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 Recall@10, 대조 학습, 정확도 측정 기준 반영"}, "sec": 1.24, "prompt_tokens": 2911, "completion_tokens": 57}
+{"id": "1-p5-7", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "Python 자동 테스트는 공고 우대 내용과 연결 없음"}, "sec": 1.22, "prompt_tokens": 2932, "completion_tokens": 47}
+{"id": "1-p5-8", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "사내 문서 검색 구체적 상황. 정보 기준 + 과거 연구 경험 적용"}, "sec": 1.21, "prompt_tokens": 2916, "completion_tokens": 52}
+{"id": "1-p5-9", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "책임감과 점검 경험 있음. 가장 중요한 점은 구체적 요소 없음"}, "sec": 1.37, "prompt_tokens": 2930, "completion_tokens": 54}
+{"id": "1-p5-10", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "회사 서비스 구조를 인식. AI 적용 장점은 일반 지식"}, "sec": 1.16, "prompt_tokens": 2919, "completion_tokens": 47}
+{"id": "1-p8-1", "got": {"b": ["B1"], "q1": 4, "q2": 3, "q3": 2, "why": "실패한 프로젝트 경험 없음. 서류에 장애 시 지표는 있지만 실패 사례 없음"}, "sec": 3.25, "prompt_tokens": 3021, "completion_tokens": 62}
+{"id": "1-p8-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사의 AI 가치(사용자 중심·효율성)를 다룸. 원리 이해 질문"}, "sec": 1.37, "prompt_tokens": 3012, "completion_tokens": 53}
+{"id": "1-p8-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "서류에 명시된 구체적 프로젝트와 이유"}, "sec": 1.15, "prompt_tokens": 2996, "completion_tokens": 46}
+{"id": "1-p8-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 명시된 구체적 경험과 지표 설정 배경"}, "sec": 1.13, "prompt_tokens": 3005, "completion_tokens": 47}
+{"id": "1-p8-5", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "서비스 출력 품질 측정. 실제 경험(비용 절감, 캐시, 지표) 적용"}, "sec": 1.35, "prompt_tokens": 2989, "completion_tokens": 59}
+{"id": "1-p8-7", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "LLM+벡터DB 연동. 관련성 저하 원인과 해결 방법 묻고, 실제 경험 기반"}, "sec": 1.43, "prompt_tokens": 3012, "completion_tokens": 57}
+{"id": "1-p8-8", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "Python 메모리 문제 일반 지식. 회사/업무 구체성 없음"}, "sec": 1.16, "prompt_tokens": 3001, "completion_tokens": 50}
+{"id": "1-p8-9", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "책임감 있게 마무리한 경험 있음. 구체적 조치는 없음"}, "sec": 1.17, "prompt_tokens": 2995, "completion_tokens": 51}
+{"id": "1-p8-10", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "회사의 언어 모델과 AX 업무를 기반으로 본인 경험 적용"}, "sec": 1.22, "prompt_tokens": 3001, "completion_tokens": 50}
+{"id": "1-p10-1", "got": {"b": [], "q1": 2, "q2": 3, "q3": 2, "why": "과거 경험 있음. 책임감 + 끝까지 마무리"}, "sec": 2.73, "prompt_tokens": 2992, "completion_tokens": 47}
+{"id": "1-p10-2", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "누구에게나 묻는 일반적 계기. 회사 업무와 연결 없음"}, "sec": 1.23, "prompt_tokens": 2985, "completion_tokens": 52}
+{"id": "1-p10-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "서류에 기반. 중복 걸기 기준 정한 이유"}, "sec": 1.22, "prompt_tokens": 3004, "completion_tokens": 46}
+{"id": "1-p10-4", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "서류에 OpenAI 사용 기록 없음"}, "sec": 0.92, "prompt_tokens": 2984, "completion_tokens": 41}
+{"id": "1-p10-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 테스트 케이스 도구와 무관한 일반 지식"}, "sec": 1.16, "prompt_tokens": 2980, "completion_tokens": 50}
+{"id": "1-p10-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 원리 지식. 구체적 업무 연결 없음"}, "sec": 1.12, "prompt_tokens": 2986, "completion_tokens": 47}
+{"id": "1-p10-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 서비스 주제. 원리·차이 = 지식 질문"}, "sec": 1.04, "prompt_tokens": 2982, "completion_tokens": 46}
+{"id": "1-p10-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "LLM 환각 문제. 공고 우대(LLM)와 연결됨"}, "sec": 1.11, "prompt_tokens": 2983, "completion_tokens": 49}
+{"id": "1-p10-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 1, "why": "누구에게나 묻는 일반적인 협업 문제"}, "sec": 1.08, "prompt_tokens": 2982, "completion_tokens": 44}
+{"id": "2-p1-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "서류에 있는 구체적 실패 경험을 적용. 성장 배움"}, "sec": 3.28, "prompt_tokens": 3055, "completion_tokens": 48}
+{"id": "2-p1-2", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "회사 RAG 서비스 방식과 지원자 경험 직접 연결"}, "sec": 1.18, "prompt_tokens": 3051, "completion_tokens": 43}
+{"id": "2-p1-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류 프로젝트 구체적 요소. 선택 이유 + 조합 기준"}, "sec": 1.3, "prompt_tokens": 3050, "completion_tokens": 50}
+{"id": "2-p1-5", "got": {"b": [], "q1": 4, "q2": 3, "q3": 3, "why": "LLM 서비스 설계. 사용자 행동 데이터 분석을 위한 방법을 경험 기반으로 묻음"}, "sec": 1.36, "prompt_tokens": 3047, "completion_tokens": 54}
+{"id": "2-p1-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "AI 모델 학습 파이프라인은 공고에서 언급되지 않음"}, "sec": 1.34, "prompt_tokens": 3058, "completion_tokens": 51}
+{"id": "2-p1-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LangChain 원리 묻는 지식 질문. 구체적 경험 없음"}, "sec": 1.18, "prompt_tokens": 3043, "completion_tokens": 48}
+{"id": "2-p1-10", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "사용자 중심 문화 반영. 본인 경험 적용"}, "sec": 1.07, "prompt_tokens": 3033, "completion_tokens": 44}
+{"id": "2-p2-2", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "지원자 경험과 회사 가치(문제에서 시작) 연결"}, "sec": 3.21, "prompt_tokens": 3048, "completion_tokens": 45}
+{"id": "2-p2-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 명시된 구체적 경험과 기준"}, "sec": 1.19, "prompt_tokens": 3055, "completion_tokens": 44}
+{"id": "2-p2-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 기재된 구체적 경험. 틀린 분류 모아 고치는 이유"}, "sec": 1.39, "prompt_tokens": 3053, "completion_tokens": 54}
+{"id": "2-p2-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 서비스 설계 주제. 기준·장단점 = 지식 질문"}, "sec": 1.15, "prompt_tokens": 3036, "completion_tokens": 49}
+{"id": "2-p2-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "함수 래퍼는 공고와 무관한 일반 지식"}, "sec": 1.06, "prompt_tokens": 3031, "completion_tokens": 47}
+{"id": "2-p2-7", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "LLM 서비스 설계 관련. 측정 방법 일반형"}, "sec": 1.09, "prompt_tokens": 3039, "completion_tokens": 45}
+{"id": "2-p2-8", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 RAG 분할 경험을 기반으로 구체적 기준과 품질 차이 묻음"}, "sec": 1.4, "prompt_tokens": 3049, "completion_tokens": 59}
+{"id": "2-p2-9", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "과거 프로젝트 경험을 기반으로 절차를 묻음. 회사 업무와 연결 부족"}, "sec": 1.44, "prompt_tokens": 3039, "completion_tokens": 59}
+{"id": "2-p2-10", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "회사 가치(근거 중심 응답)와 지원자 경험 연결"}, "sec": 1.27, "prompt_tokens": 3061, "completion_tokens": 46}
+{"id": "2-p3-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "팀 프로젝트 경험. 책임감 수행은 일반적"}, "sec": 2.57, "prompt_tokens": 2956, "completion_tokens": 44}
+{"id": "2-p3-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(사용자 중심)와 지원자 관심 연결"}, "sec": 1.06, "prompt_tokens": 2935, "completion_tokens": 44}
+{"id": "2-p3-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "서류에 있는 구체 프로젝트. XGBoost 사용 이유(경험 기반)"}, "sec": 1.26, "prompt_tokens": 2935, "completion_tokens": 53}
+{"id": "2-p3-4", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "서류에 명시된 구체적 프로젝트와 기준"}, "sec": 1.11, "prompt_tokens": 2954, "completion_tokens": 47}
+{"id": "2-p3-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 서비스 설계 주제. 원리·차이 = 지식"}, "sec": 1.12, "prompt_tokens": 2938, "completion_tokens": 47}
+{"id": "2-p3-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "데이터 처리 오류 일반 지식. 회사 업무와 연결 없음"}, "sec": 1.18, "prompt_tokens": 2941, "completion_tokens": 49}
+{"id": "2-p3-7", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "LLM 서비스 설계. LangChain·벡터 DB 우대 내용 반영"}, "sec": 1.13, "prompt_tokens": 2943, "completion_tokens": 48}
+{"id": "2-p3-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 파이프라인 관련. 장단점 = 원리 지식"}, "sec": 1.17, "prompt_tokens": 2950, "completion_tokens": 48}
+{"id": "2-p3-9", "got": {"b": ["B1"], "q1": 4, "q2": 3, "q3": 2, "why": "서류에 LLM 실패 경험 없음. 가정한 실패"}, "sec": 1.22, "prompt_tokens": 2947, "completion_tokens": 50}
+{"id": "2-p3-10", "got": {"b": [], "q1": 5, "q2": 1, "q3": 3, "why": "회사의 핵심 가치 구조를 직접 묻고, 지원자 서류와 연결"}, "sec": 1.42, "prompt_tokens": 2969, "completion_tokens": 51}
+{"id": "2-p5-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거 프로젝트 경험을 기반으로. 책임 있는 업무는 공고와 연결되지 않음"}, "sec": 2.62, "prompt_tokens": 2926, "completion_tokens": 56}
+{"id": "2-p5-2", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "사용자 중심 문제 해결과 일하는 방식을 회사 가치와 연결. 본인 경험 반영"}, "sec": 1.3, "prompt_tokens": 2914, "completion_tokens": 54}
+{"id": "2-p5-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 3, "why": "서류에 명시된 구체적 연구 내용 적용"}, "sec": 1.1, "prompt_tokens": 2913, "completion_tokens": 43}
+{"id": "2-p5-5", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 한국어 법률 문서 문제와 Recall@10 향상 경험 적용"}, "sec": 1.34, "prompt_tokens": 2929, "completion_tokens": 51}
+{"id": "2-p5-6", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "Python 기반 모델 파이프라인. 과거 연구 경험 적용"}, "sec": 1.19, "prompt_tokens": 2918, "completion_tokens": 48}
+{"id": "2-p5-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "우대 조건( LangChain·벡터 DB) 반영. 장단점 = 원리 지식"}, "sec": 1.33, "prompt_tokens": 2918, "completion_tokens": 54}
+{"id": "2-p5-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 파이프라인 원리. 지식 질문. 구체적 경험 없음"}, "sec": 1.27, "prompt_tokens": 2920, "completion_tokens": 51}
+{"id": "2-p5-10", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "사용자 문제 기반. 연구 경험을 적용한 구체적 연결"}, "sec": 1.23, "prompt_tokens": 2921, "completion_tokens": 47}
+{"id": "2-p10-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "책임 수행 경험 있음. 팀 프로젝트 상황 구체성 부족"}, "sec": 2.92, "prompt_tokens": 2993, "completion_tokens": 51}
+{"id": "2-p10-2", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "회사의 AI 도입 관심과 개인 경험 연결"}, "sec": 1.16, "prompt_tokens": 3000, "completion_tokens": 41}
+{"id": "2-p10-3", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "서류에 기반한 구체적 기준. 테스트 케이스 초안 생성기 프로젝트"}, "sec": 1.5, "prompt_tokens": 3000, "completion_tokens": 59}
+{"id": "2-p10-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 원리 설명. 구체적 업무 상황 없음"}, "sec": 1.17, "prompt_tokens": 2988, "completion_tokens": 47}
+{"id": "2-p10-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "품질 검사 코드 관련. 측정 방법 일반형. 회사 업무와 연결 부족"}, "sec": 1.28, "prompt_tokens": 2989, "completion_tokens": 55}
+{"id": "2-p10-7", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "공고 우대 기술(벡터 DB, RAG)에 맞춤. 구체적 기준 제시"}, "sec": 1.23, "prompt_tokens": 2984, "completion_tokens": 56}
+{"id": "2-p10-8", "got": {"b": [], "q1": 4, "q2": 3, "q3": 3, "why": "RAG 파이프라인 상황. 관련성 저하 원인과 해결 방법을 경험 기반으로 묻음"}, "sec": 1.35, "prompt_tokens": 2995, "completion_tokens": 58}
+{"id": "2-p10-9", "got": {"b": ["B1"], "q1": 4, "q2": 3, "q3": 2, "why": "실수 경험 없음. 서류에 실패 없이 성공만 기재"}, "sec": 1.34, "prompt_tokens": 3000, "completion_tokens": 52}
+{"id": "S1", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류 내 구체적 프로젝트와 수치 기반 판단"}, "sec": 3.28, "prompt_tokens": 3063, "completion_tokens": 47}
+{"id": "S2", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "공고 업무(사내 문서 검색 비서)와 구체적 경험 연결. 방법 선택 + 적용 순서"}, "sec": 1.47, "prompt_tokens": 3057, "completion_tokens": 58}
+{"id": "S5", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "서류에 있는 이탈 예측 모델 경험을 RAG 평가에 적용"}, "sec": 2.74, "prompt_tokens": 2961, "completion_tokens": 50}
+{"id": "S6", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 있는 구체적 실험 결과와 판단 기준"}, "sec": 2.53, "prompt_tokens": 2930, "completion_tokens": 46}
+{"id": "S8", "got": {"b": [], "q1": 5, "q2": 4, "q3": 4, "why": "쇼핑 AI 에이전트 상황. 원인 찾는 절차 구체화"}, "sec": 3.07, "prompt_tokens": 3006, "completion_tokens": 51}
+{"id": "S9", "got": {"b": ["B2"], "q1": 1, "q2": 1, "q3": 1, "why": "결혼 상태 사생활 묻음"}, "sec": 2.51, "prompt_tokens": 2936, "completion_tokens": 42}
+{"id": "S10", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "서류에 기준값 설정 및 놓친 케이스 있음. RAG/임베딩 관련 구체적 요소"}, "sec": 3.28, "prompt_tokens": 3005, "completion_tokens": 63}

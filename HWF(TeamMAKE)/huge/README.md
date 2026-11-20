@@ -65,8 +65,8 @@ docker exec huge-app-api-1 python -m app.devtools decrypt "<칸 값>"           
 ```sh
 cd backend && python -m pytest && python -m ruff check .
 cd frontend && npx tsc --noEmit && npm run lint
-cd e2e && npm test               # 브라우저 E2E 빠른 묶음 (스택이 떠 있어야 함, 약 5분) — e2e/README.md
-cd e2e && npm run test:full      # 끝까지 응시·코딩·채점·결과 공개 포함 (약 25분)
+cd e2e && npm test               # 브라우저 E2E 빠른 묶음 (스택이 떠 있어야 함, 약 45분) — e2e/README.md
+cd e2e && npm run test:full      # 끝까지 응시·코딩·채점·결과 공개 포함 (약 1시간 10분, 2026-11-20 실측)
 ```
 
 ## 범위

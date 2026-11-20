@@ -1,7 +1,7 @@
 # E2E 테스트 (Playwright)
 
 실제로 떠 있는 Docker 스택(`sh scripts/up.sh`)에 브라우저로 붙어 사용자 흐름을 끝까지 확인합니다.
-AI(LLM·STT·TTS·임베딩)도 진짜로 돌기 때문에 빠른 묶음은 약 5분, 끝까지 응시까지 포함한 전체는 약 25분 걸립니다. 앱 코드는 바꾸지 않습니다.
+AI(LLM·STT·TTS·임베딩)도 진짜로 돌기 때문에 빠른 묶음은 약 45분, 끝까지 응시까지 포함한 전체는 약 1시간 10분 걸립니다(2026-11-20 실측: 전체 28개 66분, 그중 끝까지 응시 23분·마감 11분. 질문 만들기를 한 사람씩 하면서(C-28) 늘었습니다). 앱 코드는 바꾸지 않습니다.
 
 ## 실행
 
@@ -9,8 +9,8 @@ AI(LLM·STT·TTS·임베딩)도 진짜로 돌기 때문에 빠른 묶음은 약 
 cd e2e
 npm install
 npx playwright install chromium   # 처음 한 번
-npm test                          # 빠른 묶음 (약 5분, @slow 제외)
-npm run test:full                 # 전체: 끝까지 응시·코딩테스트·채점·결과 공개 포함 (약 25분)
+npm test                          # 빠른 묶음 (약 45분, @slow 제외)
+npm run test:full                 # 전체: 끝까지 응시·코딩테스트·채점·결과 공개 포함 (약 1시간 10분)
 npm run test:headed               # 빠른 묶음을 브라우저 창을 띄워 눈으로 보기
 npx playwright test tests/full.spec.ts --headed   # 끝까지 응시만 눈으로 보기
 npm run report                    # 실패했을 때 화면·영상·trace 보기

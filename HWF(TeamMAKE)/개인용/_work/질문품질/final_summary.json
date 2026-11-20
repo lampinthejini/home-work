@@ -1,0 +1,33 @@
+{
+ "n": 105,
+ "q1": {
+  "exact": 0.771,
+  "within1": 0.876
+ },
+ "q2": {
+  "exact": 0.79,
+  "within1": 0.952
+ },
+ "q3": {
+  "exact": 0.762,
+  "within1": 0.914
+ },
+ "all3_within1": 0.752,
+ "bad_total": 12,
+ "bad_missed": [
+  "1-p5-1",
+  "2-p1-6",
+  "2-p3-9",
+  "2-p10-7",
+  "2-p10-9"
+ ],
+ "false_bad": [
+  "2-p3-5",
+  "S10"
+ ],
+ "sec_avg": 2.06,
+ "sec_p90": 3.44,
+ "prompt_tokens_max": 3227,
+ "wall_sec": 216.5,
+ "parallel": 1
+}

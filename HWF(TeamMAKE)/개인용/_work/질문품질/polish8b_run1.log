@@ -1,0 +1,141 @@
+{"id": "1-p1-1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.72}
+{"id": "1-p1-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.97}
+{"id": "1-p1-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.17}
+{"id": "1-p1-4", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.16}
+{"id": "1-p1-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.57}
+{"id": "1-p1-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.04}
+{"id": "1-p1-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.01}
+{"id": "1-p1-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.17}
+{"id": "1-p1-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.43}
+{"id": "1-p1-10", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 13.22}
+{"id": "1-p2-1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": true, "sec": 15.04}
+{"id": "1-p2-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.21}
+{"id": "1-p2-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 8.68}
+{"id": "1-p2-4", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 11.61}
+{"id": "1-p2-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.6}
+{"id": "1-p2-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.06}
+{"id": "1-p2-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 15.51}
+{"id": "1-p2-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.27}
+{"id": "1-p2-9", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 11.04}
+{"id": "1-p2-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 7.67}
+{"id": "1-p3-1", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.6}
+{"id": "1-p3-2", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 12.68}
+{"id": "1-p3-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.06}
+{"id": "1-p3-4", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 8.59}
+{"id": "1-p3-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.2}
+{"id": "1-p3-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 8.32}
+{"id": "1-p3-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.64}
+{"id": "1-p3-8", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 16.05}
+{"id": "1-p3-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.02}
+{"id": "1-p3-10", "truth_b4": true, "ok": false, "meaning_clear": true, "changed": false, "sec": 13.82}
+{"id": "1-p5-1", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": true, "sec": 14.57}
+{"id": "1-p5-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.22}
+{"id": "1-p5-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.92}
+{"id": "1-p5-4", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 12.71}
+{"id": "1-p5-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.1}
+{"id": "1-p5-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.93}
+{"id": "1-p5-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 14.49}
+{"id": "1-p5-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.28}
+{"id": "1-p5-9", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": true, "sec": 15.38}
+{"id": "1-p5-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 16.59}
+{"id": "1-p8-1", "truth_b4": true, "ok": false, "meaning_clear": true, "changed": true, "sec": 17.96}
+{"id": "1-p8-2", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.73}
+{"id": "1-p8-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.71}
+{"id": "1-p8-4", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 13.6}
+{"id": "1-p8-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.6}
+{"id": "1-p8-6", "truth_b4": true, "ok": false, "meaning_clear": true, "changed": false, "sec": 13.96}
+{"id": "1-p8-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": true, "sec": 14.13}
+{"id": "1-p8-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.78}
+{"id": "1-p8-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.46}
+{"id": "1-p8-10", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 14.07}
+{"id": "1-p10-1", "truth_b4": false, "ok": false, "meaning_clear": false, "changed": false, "sec": 13.72}
+{"id": "1-p10-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.53}
+{"id": "1-p10-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.72}
+{"id": "1-p10-4", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.37}
+{"id": "1-p10-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.3}
+{"id": "1-p10-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.64}
+{"id": "1-p10-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.85}
+{"id": "1-p10-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.33}
+{"id": "1-p10-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.87}
+{"id": "1-p10-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 14.33}
+{"id": "2-p1-1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 16.46}
+{"id": "2-p1-2", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.29}
+{"id": "2-p1-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.85}
+{"id": "2-p1-4", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 14.69}
+{"id": "2-p1-5", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 18.99}
+{"id": "2-p1-6", "truth_b4": true, "ok": true, "meaning_clear": true, "changed": false, "sec": 15.09}
+{"id": "2-p1-7", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 13.54}
+{"id": "2-p1-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.44}
+{"id": "2-p1-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.72}
+{"id": "2-p1-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.25}
+{"id": "2-p2-1", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.19}
+{"id": "2-p2-2", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.98}
+{"id": "2-p2-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.99}
+{"id": "2-p2-4", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.07}
+{"id": "2-p2-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.55}
+{"id": "2-p2-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.41}
+{"id": "2-p2-7", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 12.58}
+{"id": "2-p2-8", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 14.7}
+{"id": "2-p2-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.85}
+{"id": "2-p2-10", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 17.31}
+{"id": "2-p3-1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.76}
+{"id": "2-p3-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.66}
+{"id": "2-p3-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.6}
+{"id": "2-p3-4", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.03}
+{"id": "2-p3-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.15}
+{"id": "2-p3-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.77}
+{"id": "2-p3-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": true, "sec": 11.16}
+{"id": "2-p3-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.62}
+{"id": "2-p3-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 17.76}
+{"id": "2-p3-10", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 19.61}
+{"id": "2-p5-1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.6}
+{"id": "2-p5-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.72}
+{"id": "2-p5-3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.47}
+{"id": "2-p5-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.55}
+{"id": "2-p5-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.95}
+{"id": "2-p5-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.65}
+{"id": "2-p5-8", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.61}
+{"id": "2-p5-9", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.87}
+{"id": "2-p5-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.95}
+{"id": "2-p10-1", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.0}
+{"id": "2-p10-2", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 13.49}
+{"id": "2-p10-3", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.15}
+{"id": "2-p10-5", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.05}
+{"id": "2-p10-6", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 11.29}
+{"id": "2-p10-7", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 10.07}
+{"id": "2-p10-8", "truth_b4": true, "ok": true, "meaning_clear": true, "changed": false, "sec": 12.46}
+{"id": "2-p10-9", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 15.68}
+{"id": "2-p10-10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 9.69}
+{"id": "S1", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 17.59}
+{"id": "S2", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 16.89}
+{"id": "S3", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": true, "sec": 20.29}
+{"id": "S4", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": true, "sec": 11.53}
+{"id": "S5", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 17.05}
+{"id": "S6", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": true, "sec": 14.8}
+{"id": "S7", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 11.87}
+{"id": "S8", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": false, "sec": 19.44}
+{"id": "S9", "truth_b4": false, "ok": false, "meaning_clear": true, "changed": true, "sec": 13.9}
+{"id": "S10", "truth_b4": false, "ok": true, "meaning_clear": true, "changed": false, "sec": 21.85}
+{
+ "n": 118,
+ "wall_sec": 1497.5,
+ "sec_avg": 12.69,
+ "sec_p90": 16.46,
+ "b4_total": 5,
+ "b4_caught": [
+  "1-p3-10",
+  "1-p8-1",
+  "1-p8-6"
+ ],
+ "clean_changed": [
+  "1-p2-1",
+  "1-p5-1",
+  "1-p5-9",
+  "1-p8-7",
+  "2-p3-7",
+  "S3",
+  "S4",
+  "S6",
+  "S9"
+ ]
+}
