@@ -44,6 +44,7 @@ PICK_TOP = 3  # 칸 안에서 이력서와 가까운 위 몇 개 가운데 무�
 NEWS_TECH_WORDS = ("LLM", "sLLM", "에이전트", "NPU", "GPU", "추론", "파인튜닝", "미세 조정", "임베딩", "멀티모달", "언어 모델", "RAG", "벡터")
 # 'A와 B(의|간의|사이의) 차이' — 같은 자료 줄에 A·B 가 함께 있으면 서로 다른 것처럼 비교한 틀린 전제
 DIFFERENCE = re.compile(r"(\S+?)\s*(?:와|과)\s+(.+?)\s*(?:간의|사이의|의)?\s*(?:개념적\s*)?차이")
+DIFFERENCE_REVERSED = re.compile(r"(\S+?)(?:\s*기술)?(?:이|가|은|는)\s+(.+?)(?:와|과)\s*(?:의\s*)?차이")
 DIFFERENCE_TAIL = re.compile(r"\s*(기술|방식|방법|개념|모델)$")
 DIFFERENCE_PARTICLE = re.compile(r"(을|를|이|가|은|는|의|에서|으로|로)$")
 EMBED_TIMEOUT_SEC = 30
@@ -233,18 +234,22 @@ def grounded(piece: Piece, question: str, questionVector: list[float] | None) ->
 
 def pairedDifference(pieces: list[Piece], question: str) -> bool:
     """질문이 자료 한 줄에 함께 나온 두 말을 'A와 B의 차이'로 묻나 (실측 2026-11-20: 'RAG와 사내 문서 검색 기술의 차이' 4번, 불량 B1).
-    받은 자료 줄만이 아니라 모든 자료 줄과 비교한다 (c31b: 소식 '추론' 을 받은 자리가 AI/AX 줄의 두 말을 비교해 빠져나감)."""
-    match = DIFFERENCE.search(question)
-    if not match:
-        return False
-    first = match.group(1).lower()
+    받은 자료 줄만이 아니라 모든 자료 줄과 비교한다 (c31b: 소식 '추론' 을 받은 자리가 AI/AX 줄의 두 말을 비교해 빠져나감).
+    'A이 B과 차이' 꼴도 본다 (c31c: 'RAG 기술이 사내 문서 검색과 차이를 가지는 이유')."""
+    found = [m.group(1, 2) for pattern in (DIFFERENCE, DIFFERENCE_REVERSED) for m in [pattern.search(question)] if m]
+    return any(pairedInPieces(pieces, first, second) for first, second in found)
+
+
+def pairedInPieces(pieces: list[Piece], first: str, second: str) -> bool:
+    first = first.lower()
     # 'B' 뒤에 말이 더 붙으면('사내 문서 검색을 사용할 때 … 방식') 끝에서 한 낱말씩 줄여 가며 자료에 있는지 본다
-    words = DIFFERENCE_TAIL.sub("", match.group(2).strip()).lower().split()
+    words = DIFFERENCE_TAIL.sub("", second.strip()).lower().split()
     seconds = [DIFFERENCE_PARTICLE.sub("", " ".join(words[:n])) for n in range(len(words), 0, -1)]
     seconds = [s for s in seconds if len(s) >= 2]
     if not first or not seconds:
         return False
-    # 자료에서 두 말이 '와·과·및·가운뎃점'으로 붙어 있을 때만 ('RAG와 사내 문서 검색으로'). 쉼표로 늘어놓은 팀 이름처럼
-    # 서로 다른 것의 차이를 묻는 질문은 막지 않는다 (c31b: 'AIIT-X 모델팀과 AX 추진팀의 역할 차이')
-    joined = [re.compile(f"{re.escape(a)}\\s*(?:와|과|및|·)\\s*{re.escape(b)}") for s in seconds for a, b in ((first, s), (s, first))]
+    # 자료에서 두 말이 'A와 B(으)로' 처럼 함께 쓰는 한 수단으로 나올 때만 ('RAG와 사내 문서 검색으로 … 줄인다').
+    # 쉼표·가운뎃점으로 늘어놓은 것, '정답률과 근거 일치율' 처럼 나란히 둔 서로 다른 것의 차이는 막지 않는다
+    # (c31b: 'AIIT-X 모델팀, …, AX 추진팀', c31c: '정답률·근거 일치율' 과 회사 프로젝트 줄의 '정답률과 근거 일치율')
+    joined = [re.compile(rf"{re.escape(a)}\s*(?:와|과)\s+{re.escape(b)}\s*(?:으로|로)") for s in seconds for a, b in ((first, s), (s, first))]
     return any(j.search(p.text.lower()) for p in pieces for j in joined)

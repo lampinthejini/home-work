@@ -1,0 +1,210 @@
+{"id": "c31c-r1-p1-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "프로젝트명(규정 문서 검색 챗봇)+구체 요소(답변 틀릴 때 평가 데이터 수정, 재학습 반복)+과거 경험+책임감 있게 이끌어간 방식"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 22.76, "prompt_tokens": 3234}
+{"id": "c31c-r1-p1-2", "got": {"b": [], "q1": 3, "q2": 3, "q3": 5, "why": "회사 문화(기록·검토·개선). '어떤 과정' = 경험 적용"}, "premise": null, "sec": 1.47, "prompt_tokens": 3217}
+{"id": "c31c-r1-p1-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트명(사내 규정 검색 챗봇)+구체 요소(문단 단위 분할)+이유(방식 선택)"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다. 문단 단위로 다시 나누고 키워드 검색을 섞어 정답 문서가 상위 3개 안에 드는 비율", "in_docs": true}, "sec": 3.38, "prompt_tokens": 3208}
+{"id": "c31c-r1-p1-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(사내 규정 검색 챗봇)+구체 요소(문단 단위 분할, 정답 문서 상위 3개 포함 비율 높아짐). '판단 기준' = 과거 경험"}, "premise": {"premise": "문단 단위 분할을 적용한 이후 정답 문서가 상위 3개에 포함되는 비율이 높아졌음", "in_docs": true}, "sec": 3.24, "prompt_tokens": 3226}
+{"id": "c31c-r1-p1-5", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "데이터 품질 문제 + 예방 절차 = 일반형 방법. 공고 업무(파이프라인)와 연결"}, "premise": null, "sec": 1.62, "prompt_tokens": 3211}
+{"id": "c31c-r1-p1-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 3, "why": "직무 일반. PyTorch, 학습 전략, 서빙 아키텍처 = 일반 지식"}, "premise": null, "sec": 1.32, "prompt_tokens": 3207}
+{"id": "c31c-r1-p1-7", "got": {"b": [], "q1": 3, "q2": 4, "q3": 3, "why": "벡터 DB(FAISS) 사용 경험. 정확도와 속도 = 기준"}, "premise": null, "sec": 1.19, "prompt_tokens": 3204}
+{"id": "c31c-r1-p1-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "기술 원리 묻는 지식 질문. 벡터 DB = 공고 우대 기술"}, "premise": null, "sec": 1.12, "prompt_tokens": 3187}
+{"id": "c31c-r1-p1-9", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "의견('어떻게 생각', '대응해야 한다고')"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.83, "prompt_tokens": 3192}
+{"id": "c31c-r1-p1-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(문서 찾는 것이 없으면 만들어짐) + RAG 서비스 개발 적용. 의견"}, "premise": null, "sec": 1.56, "prompt_tokens": 3227}
+{"id": "c31c-r1-p2-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "협업 경험. '조율하고 협업을 이끌었나요' = 과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.46, "prompt_tokens": 3195}
+{"id": "c31c-r1-p2-2", "got": {"b": [], "q1": 3, "q2": 3, "q3": 5, "why": "회사 인재상(모르면 모른다고 답함) 적용 + 과거 경험(분석·개선) + 의견"}, "premise": null, "sec": 1.57, "prompt_tokens": 3214}
+{"id": "c31c-r1-p2-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 문의 자동 분류)+정확도 향상(78%→90%)+판단 기준"}, "premise": {"premise": "정확도 78%→90%로 끌어올렸다", "in_docs": true}, "sec": 2.79, "prompt_tokens": 3214}
+{"id": "c31c-r1-p2-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "프로젝트 이름(고객 문의 자동 분류)+구체 요소(매주 틀린 예시 분석·수정). '이유' = 과거 경험 기반 판단"}, "premise": {"premise": "틀린 분류를 매주 모아 유형 정의와 예시를 고쳐 90%까지 올렸다", "in_docs": true}, "sec": 3.22, "prompt_tokens": 3218}
+{"id": "c31c-r1-p2-5", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "AI 에이전트는 공고 업무(검색·쇼핑·고객 상담 챗봇)와는 다름. 설계 방식 = 일반형 방법"}, "premise": null, "sec": 1.71, "prompt_tokens": 3205}
+{"id": "c31c-r1-p2-6", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 서비스 설계 = 공고 업무. 장단점 = 지식"}, "premise": null, "sec": 1.11, "prompt_tokens": 3195}
+{"id": "c31c-r1-p2-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "Spring 기술 지식. 의존성 주입 = 원리. 지식 질문"}, "premise": null, "sec": 1.11, "prompt_tokens": 3193}
+{"id": "c31c-r1-p2-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "RAG/검증 과정 = 공고 업무. '품질적으로 측정하나요' = 일반형 방법"}, "premise": null, "sec": 1.4, "prompt_tokens": 3201}
+{"id": "c31c-r1-p2-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('맡은 프로젝트', '완성', '책임감'). 책임감 = 태도"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.23, "prompt_tokens": 3211}
+{"id": "c31c-r1-p2-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 업무(사용자 행동 학습 모델). '어떤 가치를 느꼈나요' = 의견"}, "premise": null, "sec": 1.46, "prompt_tokens": 3201}
+{"id": "c31c-r1-p3-1", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "팀 프로젝트 + 책임감 + 과거 경험(경험을 묻는 구체적 사례)"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.18, "prompt_tokens": 3210}
+{"id": "c31c-r1-p3-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "공고 내용(자율 그래프 주도 개발). '끌리는 점' = 의견"}, "premise": null, "sec": 1.3, "prompt_tokens": 3197}
+{"id": "c31c-r1-p3-3", "got": {"b": [], "q1": 5, "q2": 1, "q3": 1, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(XGBoost)"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.91, "prompt_tokens": 3193}
+{"id": "c31c-r1-p3-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(상위 10%, 재구매율, 고객 특성 기준)"}, "premise": {"premise": "상위 10% 대상 캠페인의 재구매율을 7%p 올렸다", "in_docs": true}, "sec": 2.8, "prompt_tokens": 3218}
+{"id": "c31c-r1-p3-5", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(출력 품질 측정). '어떻게 확인하거나 측정하나요' = 일반형 방법"}, "premise": null, "sec": 1.57, "prompt_tokens": 3195}
+{"id": "c31c-r1-p3-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "지식(정의·차이). 정답률 vs 응답 시간 = 원리"}, "premise": null, "sec": 1.1, "prompt_tokens": 3187}
+{"id": "c31c-r1-p3-7", "got": {"b": [], "q1": 3, "q2": 4, "q3": 3, "why": "RAG 시스템 문제 + 개선 기준 = 지식 + 개선 방법"}, "premise": null, "sec": 1.2, "prompt_tokens": 3207}
+{"id": "c31c-r1-p3-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "직무 업무(데이터 파이프라인 설계). '어떻게 설계하시나요' = 일반형 방법"}, "premise": null, "sec": 1.5, "prompt_tokens": 3217}
+{"id": "c31c-r1-p3-9", "got": {"b": ["B1"], "q1": 2, "q2": 3, "q3": 2, "why": "LLM 일반. '문제를 파악하고 개선 방향' = 과거 경험 적용"}, "premise": {"premise": "LLM 모델의 출력이 예상보다 부정확한 경우를 겪었을 때", "in_docs": false}, "sec": 2.47, "prompt_tokens": 3207}
+{"id": "c31c-r1-p3-10", "got": {"b": [], "q1": 1, "q2": 1, "q3": 2, "why": "누구에게나(AI 비전). '해보고 싶은 일' = 의견"}, "premise": null, "sec": 1.31, "prompt_tokens": 3202}
+{"id": "c31c-r1-p4-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거형 경험('대처하시고', '배웠나요'). 문제 상황 + 경험 적용"}, "premise": {"premise": "사용자가 날짜를 빼먹으면 엉뚱한 일정이 나와 되묻는 단계를 넣었더니 만족도가 올랐습니다", "in_docs": true}, "sec": 3.67, "prompt_tokens": 3203}
+{"id": "c31c-r1-p4-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(찾는 것이 없으면 만들어지게 한다). 의견(어떤 업무에서 적용될 수 있음)"}, "premise": null, "sec": 1.52, "prompt_tokens": 3219}
+{"id": "c31c-r1-p4-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(여행 일정 추천 챗봇)+구체 요소(사용자가 날짜를 빼먹을 경우)+방식 효과"}, "premise": {"premise": "사용자가 날짜를 빼먹을 경우 되묻는 단계를 도입했음", "in_docs": true}, "sec": 3.02, "prompt_tokens": 3225}
+{"id": "c31c-r1-p4-4", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "프로젝트 이름(여행 일정 추천 챗봇)+구체 요소(사용자 입력 부족 감지 기준)"}, "premise": {"premise": "사용자가 날짜를 빼먹으면 엉뚱한 일정이 나와 되묻는 단계를 넣었더니 만족도가 올랐습니다", "in_docs": true}, "sec": 2.94, "prompt_tokens": 3212}
+{"id": "c31c-r1-p4-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 과정의 원리. '원리' = 지식. 공고 업무와 연결됨"}, "premise": null, "sec": 1.54, "prompt_tokens": 3216}
+{"id": "c31c-r1-p4-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "직무 일반. '정확하게 동작' = 일반 업무. 측정 방법 = 일반형"}, "premise": null, "sec": 1.25, "prompt_tokens": 3194}
+{"id": "c31c-r1-p4-7", "got": {"b": ["B1"], "q1": 2, "q2": 1, "q3": 1, "why": "Git 관리 지식. 차이 = 지식. 브랜치와 커밋 메시지 = 같은 갈래"}, "premise": null, "sec": 1.37, "prompt_tokens": 3195}
+{"id": "c31c-r1-p4-8", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "LLM 기반 서비스 + 의료기 허가(공고 외 상황). 원인·방법 = 지식"}, "premise": null, "sec": 1.49, "prompt_tokens": 3221}
+{"id": "c31c-r1-p4-9", "got": {"b": [], "q1": 1, "q2": 2, "q3": 2, "why": "협업 상황. '조율하시나요' 현재형 일반 방법"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.88, "prompt_tokens": 3198}
+{"id": "c31c-r1-p4-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(아는 것을 기록하고 동료 검토). '성장하고 싶은 방향' = 의견"}, "premise": null, "sec": 1.53, "prompt_tokens": 3208}
+{"id": "c31c-r1-p5-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('끝까지 이끌고', '성공적으로 완료'). 책임과 성공 = 본인 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.02, "prompt_tokens": 3206}
+{"id": "c31c-r1-p5-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(사람의 결정 존중). '기여하고 싶으신가요' = 의견"}, "premise": null, "sec": 1.39, "prompt_tokens": 3204}
+{"id": "c31c-r1-p5-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(법률 문서 검색기)+구체 요소(대조 학습)+이유(정확도 높이기)"}, "premise": {"premise": "영어로 학습된 모델이 법률 용어를 잘 못 찾아서, 판례 문장 쌍을 모아 대조 학습으로 다시 학습했고 Recall@10 을 0.79 까지 올렸다", "in_docs": true}, "sec": 3.38, "prompt_tokens": 3213}
+{"id": "c31c-r1-p5-4", "got": {"b": [], "q1": 3, "q2": 4, "q3": 1, "why": "프로젝트 결과 평가 기준 = 지식. '어떤 기준' = 판단 기준"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.97, "prompt_tokens": 3187}
+{"id": "c31c-r1-p5-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "지식 질문. 프로세스와 스레드 차이 = 원리·정의"}, "premise": null, "sec": 1.23, "prompt_tokens": 3187}
+{"id": "c31c-r1-p5-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "직무 상황(React 서비스). 원인·예방 = 일반형 방법"}, "premise": null, "sec": 1.19, "prompt_tokens": 3206}
+{"id": "c31c-r1-p5-7", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "RAG(공고 업무). '방법' = 일반형 방법. 정보 추출·통합 = 공고 업무 활동"}, "premise": null, "sec": 1.43, "prompt_tokens": 3198}
+{"id": "c31c-r1-p5-8", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "지식 질문(장단점). 정답률 평가 = 일반 지식"}, "premise": null, "sec": 1.16, "prompt_tokens": 3198}
+{"id": "c31c-r1-p5-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험. '배우고 성장했나요' = 과거 경험 적용"}, "premise": {"premise": "Recall@10 을 0.62→0.79 로 올렸다", "in_docs": true}, "sec": 2.39, "prompt_tokens": 3203}
+{"id": "c31c-r1-p5-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 인재상(사용자의 문제에서 시작). '왜' = 의견"}, "premise": null, "sec": 1.23, "prompt_tokens": 3198}
+{"id": "c31c-r1-p8-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('성장했나요'). 팀 내 실패 = 본인 경험 적용"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.23, "prompt_tokens": 3198}
+{"id": "c31c-r1-p8-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(사용자 중심). '어떤 문제' = 의견"}, "premise": null, "sec": 1.2, "prompt_tokens": 3196}
+{"id": "c31c-r1-p8-3", "got": {"b": ["B1"], "q1": 5, "q2": 4, "q3": 3, "why": "프로젝트 이름(사내 LLM 게이트웨이)+구체 요소(캐시 도입, 캐시 키 설계). 기준 = 과거 경험"}, "premise": {"premise": "캐시를 도입했을 때 어떤 기준으로 캐시 키를 설계하셨나요", "in_docs": false}, "sec": 2.92, "prompt_tokens": 3211}
+{"id": "c31c-r1-p8-4", "got": {"b": ["B1"], "q1": 5, "q2": 3, "q3": 3, "why": "프로젝트 이름(사내 LLM 게이트웨이)+구체 요소(요청 제한 설정). '기준으로 설정' = 과거 경험"}, "premise": {"premise": "요청 제한을 도입했을 때 어떤 기준으로 설정하셨나요", "in_docs": false}, "sec": 2.54, "prompt_tokens": 3202}
+{"id": "c31c-r1-p8-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 기반 서비스 일반. 원리 = 지식"}, "premise": null, "sec": 1.11, "prompt_tokens": 3187}
+{"id": "c31c-r1-p8-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "AI/AX 엔지니어 업무. '어떻게 확인하거나 측정하나요' = 일반형 방법"}, "premise": null, "sec": 1.34, "prompt_tokens": 3192}
+{"id": "c31c-r1-p8-7", "got": {"b": ["B1"], "q1": 3, "q2": 1, "q3": 1, "why": "AIIT-X와 사내 문서 시스템 = 같은 갈래가 아닌 두 가지 비교. 차이 = 지식"}, "premise": null, "sec": 1.41, "prompt_tokens": 3208}
+{"id": "c31c-r1-p8-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 1, "why": "LLM 기반 서비스. 문제 원인 + 접근 방식 = 지식 + 일반형 방법"}, "premise": null, "sec": 1.31, "prompt_tokens": 3214}
+{"id": "c31c-r1-p8-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "협업. 과거형 경험. '조율하고 함께 진행했나요' = 과거 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.0, "prompt_tokens": 3191}
+{"id": "c31c-r1-p8-10", "got": {"b": [], "q1": 3, "q2": 4, "q3": 5, "why": "회사 기술 방식(AIIT-X 기능별 정의). '기준으로 선택하고 싶으신가요' = 판단 기준"}, "premise": null, "sec": 1.65, "prompt_tokens": 3215}
+{"id": "c31c-r1-p10-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거형 경험('완성하고 운영', '관리하셨던 경험이 있나요') + 품질 관리 = 본인 경험 적용"}, "premise": {"premise": "LLM 답이 틀릴 수 있다는 것을 전제로 사람이 확인하기 쉬운 형태로 내놓는 것이 중요하다고 배웠습니다.", "in_docs": true}, "sec": 4.33, "prompt_tokens": 3222}
+{"id": "c31c-r1-p10-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 기술 방식(AIIT-X 모델 선택). '어떤 기준이 중요할 것 같으신가요' = 의견"}, "premise": null, "sec": 1.61, "prompt_tokens": 3218}
+{"id": "c31c-r1-p10-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트(테스트 케이스 초안 생성기)+구체 요소(임베딩 유사도, 중복 케이스, 기준)"}, "premise": {"premise": "임베딩 유사도로 중복 케이스를 걸렀다", "in_docs": true}, "sec": 2.84, "prompt_tokens": 3217}
+{"id": "c31c-r1-p10-4", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "팀 프로젝트 + 본인 판단. 과거 경험을 묻는 질문"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.96, "prompt_tokens": 3198}
+{"id": "c31c-r1-p10-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "테스트 도구(pytest) 원리 = 지식. 일반 업무 상황"}, "premise": null, "sec": 1.23, "prompt_tokens": 3188}
+{"id": "c31c-r1-p10-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(검색 요약·고객 상담 챗봇). '품질 측정' = 일반형 방법"}, "premise": null, "sec": 1.43, "prompt_tokens": 3198}
+{"id": "c31c-r1-p10-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "직무 관련. 차이 = 지식. AI 에이전트 = 공고 업무"}, "premise": null, "sec": 1.18, "prompt_tokens": 3195}
+{"id": "c31c-r1-p10-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "지식(원리·원인·방법). 학습 데이터 편향 = 지식"}, "premise": null, "sec": 1.3, "prompt_tokens": 3206}
+{"id": "c31c-r1-p10-9", "got": {"b": [], "q1": 2, "q2": 3, "q3": 2, "why": "LLM 일반. '문제를 파악하고 개선 방향' = 과거 경험 적용"}, "premise": {"premise": "LLM 모델의 출력이 예상보다 부정확한 경우를 겪었을 때", "in_docs": true}, "sec": 2.5, "prompt_tokens": 3207}
+{"id": "c31c-r1-p10-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 일하는 방식(작은 셀, 목표 정하고 결과 공개). '기여하고 싶은지' = 의견"}, "premise": null, "sec": 1.54, "prompt_tokens": 3205}
+{"id": "c31c-r2-p1-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "프로젝트명(규정 문서 검색 챗봇)+구체 경험(잘못된 답변 반복, 데이터 검토, 개선 반복)"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 4.52, "prompt_tokens": 3221}
+{"id": "c31c-r2-p1-2", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "관심을 갖게 된 계기 = 의견"}, "premise": null, "sec": 1.12, "prompt_tokens": 3196}
+{"id": "c31c-r2-p1-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(사내 규정 검색 챗봇)+구체 요소(문단 단위 분할)+이유(왜 적용했는가)"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 2.67, "prompt_tokens": 3200}
+{"id": "c31c-r2-p1-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "프로젝트(사내 규정 검색 챗봇)+구체 요소(정답 문서 상위 3개 포함 비율 84%, 문단 단위 분할). 이유 = 과거 경험 기반 판단"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 3.11, "prompt_tokens": 3222}
+{"id": "c31c-r2-p1-5", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "응답 시간과 정답률의 관계 = 지식. 원인 및 조치 = 일반형 방법"}, "premise": null, "sec": 1.48, "prompt_tokens": 3209}
+{"id": "c31c-r2-p1-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "직무(React 서비스 개발). '성능 안정' = 일반형 방법"}, "premise": null, "sec": 1.2, "prompt_tokens": 3210}
+{"id": "c31c-r2-p1-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "RAG(공고 업무). '핵심 기준', '장단점' = 지식. 공고 업무와 관련된 구체적 요소"}, "premise": null, "sec": 1.63, "prompt_tokens": 3220}
+{"id": "c31c-r2-p1-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "벡터 DB(FAISS) 원리. 지식 질문. 공고 우대 기술"}, "premise": null, "sec": 1.2, "prompt_tokens": 3198}
+{"id": "c31c-r2-p1-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "본인 경험을 묻는 과거형. 회사 일상 변화 = 연결 없음"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 2.39, "prompt_tokens": 3200}
+{"id": "c31c-r2-p1-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(분기 목표 공개). '관심을 갖게 된 계기' = 의견"}, "premise": null, "sec": 1.4, "prompt_tokens": 3204}
+{"id": "c31c-r2-p2-1", "got": {"b": [], "q1": 1, "q2": 2, "q3": 2, "why": "협업. '조율하시나요' 현재형 일반 방법"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.3, "prompt_tokens": 3186}
+{"id": "c31c-r2-p2-2", "got": {"b": [], "q1": 3, "q2": 4, "q3": 3, "why": "회사 업무(고객사 문제 해결) + 본인의 동기(왜 적용하고 싶은가)"}, "premise": null, "sec": 1.45, "prompt_tokens": 3199}
+{"id": "c31c-r2-p2-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트명(고객 문의 자동 분류)+구체 요소(틀린 분류 모아서 매주 수정)+가장 중요한 판단 기준"}, "premise": {"premise": "틀린 분류를 모아 프롬프트를 매주 수정했음", "in_docs": true}, "sec": 2.78, "prompt_tokens": 3218}
+{"id": "c31c-r2-p2-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 문의 자동 분류)+구체 요소(틀린 분류 모아서 매주 수정). '이유를 어떻게 정했나요' = 과거 경험 기반 판단"}, "premise": {"premise": "틀린 분류를 모아 프롬프트를 매주 수정했다", "in_docs": true}, "sec": 2.73, "prompt_tokens": 3211}
+{"id": "c31c-r2-p2-5", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "RAG(공고 업무). '정확성과 관련된 질의' = 구체적 문제. 질의 구분 = 방법"}, "premise": null, "sec": 1.56, "prompt_tokens": 3204}
+{"id": "c31c-r2-p2-6", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "정답률 = 지식. 측정 기준 = 일반형 방법"}, "premise": null, "sec": 1.09, "prompt_tokens": 3191}
+{"id": "c31c-r2-p2-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 기반 서비스. '원리' = 지식. AI 에이전트 = 공고 업무"}, "premise": null, "sec": 1.3, "prompt_tokens": 3200}
+{"id": "c31c-r2-p2-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(검색·검증 구조). '타당성 확인' = 품질 측정. OpenAI API = 일반 LLM"}, "premise": null, "sec": 1.53, "prompt_tokens": 3199}
+{"id": "c31c-r2-p2-9", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거형 경험('맡은 프로젝트', '조치', '책임감'). 책임감 = 태도"}, "premise": {"premise": "정확도가 떨어졌을 때 틀린 분류를 모아 프롬프트와 예시를 매주 고쳤다", "in_docs": true}, "sec": 2.79, "prompt_tokens": 3210}
+{"id": "c31c-r2-p2-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 업무(사용자 행동 학습 추천 모델). '흥미로운 점' = 의견"}, "premise": null, "sec": 1.55, "prompt_tokens": 3209}
+{"id": "c31c-r2-p3-1", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "팀 프로젝트 + 책임감 + 중심으로 이어갔나요 = 과거 경험 적용"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.32, "prompt_tokens": 3218}
+{"id": "c31c-r2-p3-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 서비스 구조(문서 찾고, 근거 고르고, 근거로만 답함). '관심을 끌었나요' = 의견"}, "premise": null, "sec": 1.74, "prompt_tokens": 3213}
+{"id": "c31c-r2-p3-3", "got": {"b": [], "q1": 5, "q2": 1, "q3": 1, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(XGBoost)"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.92, "prompt_tokens": 3193}
+{"id": "c31c-r2-p3-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(상위 10% 캠페인). '기준' = 과거 판단"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.43, "prompt_tokens": 3212}
+{"id": "c31c-r2-p3-5", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(벡터 DB). '어떻게 측정하나요' 일반형 방법"}, "premise": null, "sec": 1.33, "prompt_tokens": 3188}
+{"id": "c31c-r2-p3-6", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "지식 질문. 결정트리와 XGBoost의 차이 = 원리·정의"}, "premise": null, "sec": 1.16, "prompt_tokens": 3189}
+{"id": "c31c-r2-p3-7", "got": {"b": [], "q1": 3, "q2": 3, "q3": 1, "why": "LLM 기반 서비스에서 응답 시간과 정답률의 관계 = 지식. 원인과 접근 방식 = 지식+의견"}, "premise": null, "sec": 1.48, "prompt_tokens": 3209}
+{"id": "c31c-r2-p3-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "직무 업무(데이터 파이프라인). '어떤 방법을 쓰시나요' = 일반형 방법"}, "premise": null, "sec": 1.39, "prompt_tokens": 3204}
+{"id": "c31c-r2-p3-9", "got": {"b": ["B1"], "q1": 3, "q2": 3, "q3": 2, "why": "과거형 경험('기대치에 못 미친 적'). 성능 문제 = 본인 경험 적용"}, "premise": {"premise": "모델 성능이 기대치에 못 미친 적이 있었다", "in_docs": false}, "sec": 2.29, "prompt_tokens": 3202}
+{"id": "c31c-r2-p3-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기록·검토) + 성장 = 의견"}, "premise": null, "sec": 1.24, "prompt_tokens": 3204}
+{"id": "c31c-r2-p4-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거 경험(잘못 작동) + 배움 = 과거형 본인 경험"}, "premise": {"premise": "사용자가 날짜를 빼먹으면 엉뚱한 일정이 나와 되묻는 단계를 넣었더니 만족도가 올랐습니다", "in_docs": true}, "sec": 3.73, "prompt_tokens": 3210}
+{"id": "c31c-r2-p4-2", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거 경험을 묻는 일반형 질문. '영향을 받았나요' = 과거 경험 적용"}, "premise": null, "sec": 1.53, "prompt_tokens": 3218}
+{"id": "c31c-r2-p4-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(여행 일정 추천 챗봇)+구체 요소(사용자가 날짜를 빼먹을 경우)+판단 기준"}, "premise": {"premise": "사용자가 날짜를 빼먹을 경우 되묻는 단계를 도입했음", "in_docs": true}, "sec": 2.86, "prompt_tokens": 3213}
+{"id": "c31c-r2-p4-4", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "무엇인지 알 수 없음. '사례'만 있음. 이력서에 적은 기술"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.95, "prompt_tokens": 3189}
+{"id": "c31c-r2-p4-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 구조 원리. 지식 질문. AIIT 서비스 구조와 연결됨"}, "premise": null, "sec": 1.3, "prompt_tokens": 3201}
+{"id": "c31c-r2-p4-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(의료 관련 LLM 정확성). '품질 확인하거나 측정하나요' = 일반형 방법"}, "premise": null, "sec": 1.43, "prompt_tokens": 3197}
+{"id": "c31c-r2-p4-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "직무 관련 지식. 차이 = 지식"}, "premise": null, "sec": 0.95, "prompt_tokens": 3184}
+{"id": "c31c-r2-p4-8", "got": {"b": [], "q1": 2, "q2": 2, "q3": 1, "why": "직무 일반. 상태 관리 불안정 = 지식. 원인과 예방 = 일반형 방법"}, "premise": null, "sec": 1.26, "prompt_tokens": 3201}
+{"id": "c31c-r2-p4-9", "got": {"b": [], "q1": 1, "q2": 2, "q3": 2, "why": "협업 경험. '조율하시나요' 현재형 일반 방법"}, "premise": {"premise": "", "in_docs": true}, "sec": 1.82, "prompt_tokens": 3196}
+{"id": "c31c-r2-p4-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(사용자 중심)+개인 경험 적용. 공감·적용 = 의견"}, "premise": null, "sec": 1.4, "prompt_tokens": 3208}
+{"id": "c31c-r2-p5-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "팀 프로젝트 + 책임감. 과거형 경험. 본인 경험을 묻는 질문"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.95, "prompt_tokens": 3200}
+{"id": "c31c-r2-p5-2", "got": {"b": [], "q1": 3, "q2": 4, "q3": 3, "why": "회사 가치(사용자 중심). '어떤 서비스의 문제' = 경험 기준 적용. 의견"}, "premise": null, "sec": 1.43, "prompt_tokens": 3208}
+{"id": "c31c-r2-p5-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(법률 문서 검색기)+구체 요소(대조 학습)+이유(정확도 높이기)"}, "premise": {"premise": "영어로 학습된 모델이 법률 용어를 잘 못 찾아서, 판례 문장 쌍을 모아 대조 학습으로 다시 학습했고 Recall@10 을 0.79 까지 올렸다", "in_docs": true}, "sec": 3.37, "prompt_tokens": 3213}
+{"id": "c31c-r2-p5-4", "got": {"b": [], "q1": 2, "q2": 3, "q3": 2, "why": "프로젝트 일반. '무엇을' 신경 쓰셨나요 = 경험 기반 판단"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.03, "prompt_tokens": 3196}
+{"id": "c31c-r2-p5-5", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "직무(데이터 파이프라인, AI 모델 출력) + 구체 요소(정합성, 품질, 사내 지침). 기준 = 판단 기준"}, "premise": null, "sec": 1.92, "prompt_tokens": 3226}
+{"id": "c31c-r2-p5-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "직무 일반. '원인'과 '예방 방법' = 일반형 방법"}, "premise": null, "sec": 1.17, "prompt_tokens": 3203}
+{"id": "c31c-r2-p5-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "React 일반. 원리 = 지식. 상태 관리 = 지식 질문"}, "premise": null, "sec": 1.09, "prompt_tokens": 3196}
+{"id": "c31c-r2-p5-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 기술과 관련된 지식. 균형 = 지식. 경험 없음"}, "premise": null, "sec": 1.21, "prompt_tokens": 3204}
+{"id": "c31c-r2-p5-9", "got": {"b": ["B1"], "q1": 3, "q2": 3, "q3": 5, "why": "사용자 경험 기반 프로젝트 + 실패 경험 + 반성·성장 = 본인 과거 경험 적용"}, "premise": {"premise": "실제 사용자 경험을 고려한 검색 정확도 개선 프로젝트에서 실패한 점을 겪었을 때", "in_docs": false}, "sec": 2.78, "prompt_tokens": 3210}
+{"id": "c31c-r2-p5-10", "got": {"b": [], "q1": 3, "q2": 3, "q3": 4, "why": "회사 업무(기술 블로그 언급) + 실제 서비스 적용 = 회사 상황 적용"}, "premise": null, "sec": 1.39, "prompt_tokens": 3206}
+{"id": "c31c-r2-p8-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "사내 LLM 게이트웨이 = 구체 프로젝트. 비용 증가 = 문제 상황. 과정·배움 = 과거 경험"}, "premise": {"premise": "비용이 과도하게 증가했던 상황", "in_docs": true}, "sec": 4.0, "prompt_tokens": 3213}
+{"id": "c31c-r2-p8-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(공유·피드백). '공유하고 싶으신가요' = 의견"}, "premise": null, "sec": 1.41, "prompt_tokens": 3201}
+{"id": "c31c-r2-p8-3", "got": {"b": ["B1"], "q1": 5, "q2": 4, "q3": 2, "why": "사내 LLM 게이트웨이(프로젝트명)+캐시 도입+반복 요청 줄이기(구체 요소)+기준 설정(과거 경험)"}, "premise": {"premise": "캐시를 도입하면서 같은 질문에 대해 반복 요청을 줄이는 데 어떤 기준을 세우셨나요", "in_docs": false}, "sec": 2.96, "prompt_tokens": 3211}
+{"id": "c31c-r2-p8-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "프로젝트 이름(사내 LLM 게이트웨이)+구체 요소(캐시 도입). 이유 = 판단 기준"}, "premise": {"premise": "캐시를 도입했다", "in_docs": true}, "sec": 2.29, "prompt_tokens": 3199}
+{"id": "c31c-r2-p8-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "데이터 파이프라인 + 근거 일치율 = 공고 업무. 원리 = 지식"}, "premise": null, "sec": 1.41, "prompt_tokens": 3197}
+{"id": "c31c-r2-p8-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "RAG(공고 업무). '어떻게 측정하시나요' 일반형 방법. 검색 품질 측정 = 공고 업무 활동"}, "premise": null, "sec": 1.65, "prompt_tokens": 3197}
+{"id": "c31c-r2-p8-7", "got": {"b": ["B1"], "q1": 3, "q2": 1, "q3": 1, "why": "직무 관련. 자동화 에이전트와 기존 스크립트 = 차이·구분"}, "premise": null, "sec": 1.32, "prompt_tokens": 3193}
+{"id": "c31c-r2-p8-8", "got": {"b": [], "q1": 3, "q2": 3, "q3": 3, "why": "RAG 업무. 원인과 개선 = 지식+방법. 벡터 DB = 우대 조건"}, "premise": null, "sec": 1.35, "prompt_tokens": 3197}
+{"id": "c31c-r2-p8-9", "got": {"b": [], "q1": 1, "q2": 2, "q3": 2, "why": "협업·의견 충돌. '조율하고 함께 해결하시나요' = 현재형 일반 방법"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.07, "prompt_tokens": 3202}
+{"id": "c31c-r2-p8-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "과거 경험을 회사 가치와 연결. '어떤 가치' = 의견"}, "premise": null, "sec": 1.46, "prompt_tokens": 3230}
+{"id": "c31c-r2-p10-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "과거 경험(테스트 케이스 도구 완성)+책임감+완벽하게 끝낸 경험 = 과거형 본인 경험"}, "premise": {"premise": "LLM 답이 틀릴 수 있다는 것을 전제로 사람이 확인하기 쉬운 형태로 내놓는 것이 중요하다고 배웠습니다.", "in_docs": true}, "sec": 4.42, "prompt_tokens": 3226}
+{"id": "c31c-r2-p10-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기록·검토)와 본인 역할 연결. 의견"}, "premise": null, "sec": 1.3, "prompt_tokens": 3205}
+{"id": "c31c-r2-p10-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트(테스트 케이스 초안 생성기)+구체 요소(임베딩 유사도로 중복 걸음)+기준 선택 이유"}, "premise": {"premise": "임베딩 유사도로 중복을 걸렀다", "in_docs": true}, "sec": 2.67, "prompt_tokens": 3212}
+{"id": "c31c-r2-p10-4", "got": {"b": ["B1"], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트(테스트 케이스 초안 생성기)+구체 요소(중복 걸기, 유사도 기준)"}, "premise": {"premise": "중복을 걸렀을 때, 유사도 기준을 설정한 방법", "in_docs": false}, "sec": 2.48, "prompt_tokens": 3206}
+{"id": "c31c-r2-p10-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 기반 서비스 일반. 원리 = 지식"}, "premise": null, "sec": 1.09, "prompt_tokens": 3187}
+{"id": "c31c-r2-p10-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "Spring 일반. '어떻게 측정하거나 확인하시나요' 일반형 방법"}, "premise": null, "sec": 1.15, "prompt_tokens": 3189}
+{"id": "c31c-r2-p10-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "지식 질문. 차이 = 정의. 벡터 DB = 공고 우대"}, "premise": null, "sec": 1.09, "prompt_tokens": 3186}
+{"id": "c31c-r2-p10-8", "got": {"b": [], "q1": 4, "q2": 4, "q3": 3, "why": "RAG와 사내 문서 검색 차이 = 지식. 반복 업무 속도 = 역할 적용. 공고 업무와 연결"}, "premise": null, "sec": 1.59, "prompt_tokens": 3225}
+{"id": "c31c-r2-p10-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거 경험(틀린 결과) + 성장 = 과거형 본인 경험"}, "premise": {"premise": "LLM을 사용해 테스트 케이스 초안을 생성했을 때 틀린 결과가 나왔던 경험", "in_docs": true}, "sec": 2.64, "prompt_tokens": 3213}
+{"id": "c31c-r2-p10-10", "got": {"b": [], "q1": 3, "q2": 4, "q3": 5, "why": "회사 기술 방식(AIIT-X 기반 모델 선택). '어떤 기준' = 판단 기준"}, "premise": null, "sec": 1.52, "prompt_tokens": 3217}
+{"id": "c31c-r3-p1-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "프로젝트명(규정 문서 검색 챗봇)+불확실한 상황+해결 절차=과거 경험 적용"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 4.38, "prompt_tokens": 3219}
+{"id": "c31c-r3-p1-2", "got": {"b": ["B3"], "q1": 1, "q2": 1, "q3": 3, "why": "회사 글을 읽었는지 묻는 것. 흥미 = 의견"}, "premise": null, "sec": 1.45, "prompt_tokens": 3207}
+{"id": "c31c-r3-p1-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트(사내 규정 검색 챗봇)+구체 요소(문단 단위 분할)+도입 이유=본인 판단 기준"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다.", "in_docs": true}, "sec": 2.64, "prompt_tokens": 3197}
+{"id": "c31c-r3-p1-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트(사내 규정 검색 챗봇)+구체 요소(문단 단위 분할, 정답 문서 포함률)+과거 경험(설정함)"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다. 문단 단위로 다시 나누고 키워드 검색을 섞어 정답 문서가 상위 3개 안에 드는 비율", "in_docs": true}, "sec": 3.33, "prompt_tokens": 3210}
+{"id": "c31c-r3-p1-5", "got": {"b": [], "q1": 2, "q2": 3, "q3": 2, "why": "직무 일반. 품질 저하 원인 + 예방 = 일반형 방법"}, "premise": null, "sec": 1.32, "prompt_tokens": 3203}
+{"id": "c31c-r3-p1-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "벡터 DB(우대 조건). '정확도를 높이기 위한 방법' = 일반형 방법"}, "premise": null, "sec": 1.32, "prompt_tokens": 3203}
+{"id": "c31c-r3-p1-7", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "AI 에이전트 보안 문제. 회사 상황 아님. 일반형 의견"}, "premise": null, "sec": 1.23, "prompt_tokens": 3206}
+{"id": "c31c-r3-p1-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 원리 = 지식. 공고 업무와 관련 있음"}, "premise": null, "sec": 1.06, "prompt_tokens": 3188}
+{"id": "c31c-r3-p1-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험. 성장 = 본인 경험 적용"}, "premise": {"premise": "처음에는 질문과 상관없는 문단이 자주 나와 답이 틀렸습니다", "in_docs": true}, "sec": 2.2, "prompt_tokens": 3198}
+{"id": "c31c-r3-p1-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기록·검토) + 성장 = 의견"}, "premise": null, "sec": 1.24, "prompt_tokens": 3201}
+{"id": "c31c-r3-p2-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "협업 경험. '조율하고 협업을 이끌었나요' = 과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.45, "prompt_tokens": 3197}
+{"id": "c31c-r3-p2-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기록·검토)와 본인 역할 연결. 의견"}, "premise": null, "sec": 1.29, "prompt_tokens": 3202}
+{"id": "c31c-r3-p2-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 5, "why": "프로젝트명(고객 문의 자동 분류)+구체 요소(정확도 78%→90%, 매주 오류 분석, 프롬프트 수정). 이유 = 과거 경험 기반 판단"}, "premise": {"premise": "틀린 분류를 매주 모아 유형 정의와 예시를 고쳐 90%까지 올렸다", "in_docs": true}, "sec": 3.4, "prompt_tokens": 3226}
+{"id": "c31c-r3-p2-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 문의 자동 분류)+구체 요소(틀린 분류 매주 모아, 기준 수정). '정한 이유' = 판단 기준"}, "premise": {"premise": "틀린 분류를 매주 모아 분류 기준을 수정했음", "in_docs": true}, "sec": 2.77, "prompt_tokens": 3215}
+{"id": "c31c-r3-p2-5", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "공고 업무(의료기기 안전성 평가). '어떤 설계 방법' = 일반형 방법"}, "premise": null, "sec": 1.49, "prompt_tokens": 3203}
+{"id": "c31c-r3-p2-6", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "지식 질문(장단점). 데이터 파이프라인 = 직무. 편향 탐지 기법 = 지식"}, "premise": null, "sec": 1.43, "prompt_tokens": 3212}
+{"id": "c31c-r3-p2-7", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "Python 일반. 원리 = 지식"}, "premise": null, "sec": 0.92, "prompt_tokens": 3191}
+{"id": "c31c-r3-p2-8", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "회사 서비스(검색·쇼핑·고객 상담 챗봇) + 정확도 측정 = 공고 업무 활동"}, "premise": null, "sec": 1.43, "prompt_tokens": 3190}
+{"id": "c31c-r3-p2-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "본인 경험(결과 미달)+책임 지고 해결=과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.09, "prompt_tokens": 3207}
+{"id": "c31c-r3-p2-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 가치(사람이 결정한다)와 의견 연결. 인간 판단 중요성 = 의견"}, "premise": null, "sec": 1.39, "prompt_tokens": 3210}
+{"id": "c31c-r3-p3-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('맡아 추진', '과정에서'). 가장 중요하게 생각 = 경험 기반 판단"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.13, "prompt_tokens": 3208}
+{"id": "c31c-r3-p3-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(측정하고 조정). '기여할 수 있을까요' = 의견"}, "premise": null, "sec": 1.39, "prompt_tokens": 3207}
+{"id": "c31c-r3-p3-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 1, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(XGBoost 선택). 선택 이유 = 판단 기준"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.08, "prompt_tokens": 3193}
+{"id": "c31c-r3-p3-4", "got": {"b": ["B1"], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(고객 이탈 예측)+구체 요소(XGBoost, 데이터 불균형)+판단 기준"}, "premise": {"premise": "데이터의 불균형을 고려한 판단 기준은 무엇이었나요", "in_docs": false}, "sec": 2.47, "prompt_tokens": 3205}
+{"id": "c31c-r3-p3-5", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "LLM 기반 서비스. LoRA = 우대 기술. '어떻게 측정하나요' = 일반형 방법"}, "premise": null, "sec": 1.48, "prompt_tokens": 3194}
+{"id": "c31c-r3-p3-6", "got": {"b": [], "q1": 4, "q2": 1, "q3": 3, "why": "RAG/품질 평가(공고 업무). '차이' = 지식. 근거 일치율 = 구체 요소"}, "premise": null, "sec": 1.58, "prompt_tokens": 3215}
+{"id": "c31c-r3-p3-7", "got": {"b": [], "q1": 3, "q2": 3, "q3": 1, "why": "LLM 서비스에서 일관성 문제 = 지식. 원인과 개선 방식 = 지식+개선 방법"}, "premise": null, "sec": 1.35, "prompt_tokens": 3208}
+{"id": "c31c-r3-p3-8", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "데이터 분류 모델 = 일반 업무. '어떤 방법을 쓰나요' = 일반형 방법"}, "premise": null, "sec": 1.29, "prompt_tokens": 3195}
+{"id": "c31c-r3-p3-9", "got": {"b": ["B1"], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('대처하셨고', '배웠나요'). 성능 문제 경험 → 과거 경험 적용"}, "premise": {"premise": "모델 성능이 예상보다 떨어졌을 때 어떻게 대처했고, 그 경험에서 무엇을 배웠나요", "in_docs": false}, "sec": 2.6, "prompt_tokens": 3200}
+{"id": "c31c-r3-p3-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 서비스(쇼핑 AI) + 관심 계기 = 의견"}, "premise": null, "sec": 1.29, "prompt_tokens": 3221}
+{"id": "c31c-r3-p4-1", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "프로젝트(여행 일정 챗봇)+구체 상황(사용자 정보 놓침)+대처 방법"}, "premise": {"premise": "사용자가 날짜를 빼먹으면 엉뚱한 일정이 나와 되묻는 단계를 넣었더니 만족도가 올랐습니다", "in_docs": true}, "sec": 3.87, "prompt_tokens": 3205}
+{"id": "c31c-r3-p4-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 업무(사용자 행동 학습 모델). '관심을 갖게 된 계기' = 의견"}, "premise": null, "sec": 1.46, "prompt_tokens": 3199}
+{"id": "c31c-r3-p4-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(여행 일정 추천 챗봇)+구체 요소(프롬프트 설계, 사용자 정보 놓치는 경우). '이유' = 판단 기준"}, "premise": {"premise": "사용자가 날짜를 빼먹으면 엉뚱한 일정이 나와 되묻는 단계를 넣었더니 만족도가 올랐습니다", "in_docs": true}, "sec": 3.3, "prompt_tokens": 3214}
+{"id": "c31c-r3-p4-4", "got": {"b": [], "q1": 5, "q2": 3, "q3": 2, "why": "프로젝트 이름(여행 일정 추천 챗봇)+구체 요소(사용자 날짜 빼먹기 예방)"}, "premise": {"premise": "사용자가 날짜를 빼먹을 경우를 예방하기 위해 어떤 방법을 적용하셨나요", "in_docs": true}, "sec": 2.75, "prompt_tokens": 3220}
+{"id": "c31c-r3-p4-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 기반 서비스. '원리' = 지식. 에이전트 원리 = 기술 원리"}, "premise": null, "sec": 1.39, "prompt_tokens": 3196}
+{"id": "c31c-r3-p4-6", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "Python 일반. '안정성과 성능' = 일반 업무. 측정 방법 = 일반형"}, "premise": null, "sec": 1.25, "prompt_tokens": 3195}
+{"id": "c31c-r3-p4-7", "got": {"b": [], "q1": 4, "q2": 1, "q3": 1, "why": "직무 내 구체 요소(근거 검증, 데이터 파이프라인, 품질 점검). 차이 = 지식"}, "premise": null, "sec": 1.56, "prompt_tokens": 3216}
+{"id": "c31c-r3-p4-8", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "직무 상황(Streamlit 도구). '원인은 무엇이고 어떻게 줄일 수 있나요' = 원인·방법"}, "premise": null, "sec": 1.42, "prompt_tokens": 3203}
+{"id": "c31c-r3-p4-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "협업 경험. '조율하고 함께 목표를 달성했나요' = 과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.1, "prompt_tokens": 3204}
+{"id": "c31c-r3-p4-10", "got": {"b": [], "q1": 3, "q2": 4, "q3": 5, "why": "회사 업무(평가 기반 배포)+실패 상황+고객 반영+개선 원하는 부분"}, "premise": null, "sec": 1.66, "prompt_tokens": 3228}
+{"id": "c31c-r3-p5-1", "got": {"b": [], "q1": 4, "q2": 3, "q3": 2, "why": "팀 프로젝트 + 책임 + 진행 방식. 과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.82, "prompt_tokens": 3206}
+{"id": "c31c-r3-p5-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 문화(기록·검토) + 본인 발전 방식 = 의견"}, "premise": null, "sec": 1.3, "prompt_tokens": 3205}
+{"id": "c31c-r3-p5-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(한국어 질의응답 검색기)+구체 요소(대조 학습 적용). 이유 = 판단 기준"}, "premise": {"premise": "영어로 학습된 모델이 법률 용어를 잘 못 찾아서, 판례 문장 쌍을 모아 대조 학습으로 다시 학습했고 Recall@10 을 0.79 까지 올렸다", "in_docs": true}, "sec": 3.18, "prompt_tokens": 3196}
+{"id": "c31c-r3-p5-4", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "이력서. '경험과 직무 연결' = 경험을 옮겨 쓰게 함. 경험 기반"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.09, "prompt_tokens": 3197}
+{"id": "c31c-r3-p5-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "직무 관련 지식. 차이 = 지식"}, "premise": null, "sec": 1.06, "prompt_tokens": 3184}
+{"id": "c31c-r3-p5-6", "got": {"b": [], "q1": 3, "q2": 3, "q3": 4, "why": "RAG(공고 업무). '원인'과 '개선' = 과거형 경험 적용. 정확성 저하 원인 = 지식"}, "premise": null, "sec": 1.61, "prompt_tokens": 3218}
+{"id": "c31c-r3-p5-7", "got": {"b": [], "q1": 1, "q2": 1, "q3": 1, "why": "공고 업무(의료기기 개발)에 해당하지 않음. 의료기기 = 특정 프로젝트 없음"}, "premise": null, "sec": 1.41, "prompt_tokens": 3204}
+{"id": "c31c-r3-p5-8", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "기술의 장단점. 지식 질문. 공고 업무(검색 증강)와 관련 있음"}, "premise": null, "sec": 1.27, "prompt_tokens": 3190}
+{"id": "c31c-r3-p5-9", "got": {"b": ["B1"], "q1": 3, "q2": 3, "q3": 2, "why": "본인 과거 경험(검색기 개발 실패)+실패 회고+성장. 경험 기반"}, "premise": {"premise": "실제 사용자 피드백을 반영하지 못한 검색기 개발 경험에서 실패를 경험했을 때", "in_docs": false}, "sec": 2.76, "prompt_tokens": 3211}
+{"id": "c31c-r3-p5-10", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "회사 가치(윤리 원칙) + 공정한 결과 도출 = 지식 + 의견"}, "premise": null, "sec": 1.4, "prompt_tokens": 3207}
+{"id": "c31c-r3-p8-1", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거 경험. '배운 점' = 과거 경험 적용"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.05, "prompt_tokens": 3188}
+{"id": "c31c-r3-p8-2", "got": {"b": [], "q1": 3, "q2": 1, "q3": 3, "why": "회사 비전(모든 업무에 AI 들어가기). '공감하시나요' = 의견"}, "premise": null, "sec": 1.33, "prompt_tokens": 3190}
+{"id": "c31c-r3-p8-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "프로젝트 이름(사내 LLM 게이트웨이)+구체 요소(캐시 도입). 이유 = 판단 기준"}, "premise": {"premise": "캐시를 도입했다", "in_docs": true}, "sec": 2.33, "prompt_tokens": 3199}
+{"id": "c31c-r3-p8-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 3, "why": "사내 LLM 게이트웨이(프로젝트명)+구체 요소(여러 모델 통합)+기준(선택 기준)"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.27, "prompt_tokens": 3204}
+{"id": "c31c-r3-p8-5", "got": {"b": [], "q1": 2, "q2": 1, "q3": 1, "why": "에이전트가 해커 탐지 = AI/AX 엔지니어 업무와 관련 없음. 원리 = 지식"}, "premise": null, "sec": 1.56, "prompt_tokens": 3199}
+{"id": "c31c-r3-p8-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 3, "why": "RAG/검색 품질 측정. '어떻게 측정하시나요' = 일반형 방법"}, "premise": null, "sec": 1.34, "prompt_tokens": 3191}
+{"id": "c31c-r3-p8-7", "got": {"b": ["B1"], "q1": 3, "q2": 1, "q3": 1, "why": "RAG 파이프라인 구축 관련. '차이' = 지식. 같은 갈래가 아닌 두 가지 비교"}, "premise": null, "sec": 1.41, "prompt_tokens": 3199}
+{"id": "c31c-r3-p8-8", "got": {"b": [], "q1": 2, "q2": 2, "q3": 2, "why": "응답 시간 = 일반 업무. '원인'과 '접근 방식' = 일반형 방법"}, "premise": null, "sec": 1.28, "prompt_tokens": 3204}
+{"id": "c31c-r3-p8-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "협업 경험 + 태도 묻는 일반 질문. '어떤 태도를 보였나요' = 과거 경험 적용"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.21, "prompt_tokens": 3204}
+{"id": "c31c-r3-p8-10", "got": {"b": [], "q1": 5, "q2": 3, "q3": 5, "why": "사내 문서 검색 비서(공고 업무)+구체 수치(47분)+본인 경험 적용"}, "premise": null, "sec": 1.56, "prompt_tokens": 3216}
+{"id": "c31c-r3-p10-1", "got": {"b": [], "q1": 3, "q2": 3, "q3": 2, "why": "맡은 업무 경험. '어떤 절차'와 '책임감' = 과거형 경험"}, "premise": {"premise": "", "in_docs": true}, "sec": 3.33, "prompt_tokens": 3205}
+{"id": "c31c-r3-p10-2", "got": {"b": [], "q1": 3, "q2": 4, "q3": 3, "why": "회사 가치(사용자 중심). '어떤 기능을 먼저' = 판단 기준. 경험 없음"}, "premise": null, "sec": 1.48, "prompt_tokens": 3208}
+{"id": "c31c-r3-p10-3", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "프로젝트 이름(테스트 케이스 초안 생성기)+구체 요소(임베딩 유사도, 중복 케이스 걸음). '기준' = 판단 기준"}, "premise": {"premise": "임베딩 유사도를 활용해 중복 케이스를 걸렀다", "in_docs": true}, "sec": 3.05, "prompt_tokens": 3218}
+{"id": "c31c-r3-p10-4", "got": {"b": [], "q1": 5, "q2": 4, "q3": 2, "why": "이력서 프로젝트(테스트 케이스 초안 생성기)+구체 요소(OpenAI API 사용 이유)"}, "premise": {"premise": "", "in_docs": true}, "sec": 2.11, "prompt_tokens": 3196}
+{"id": "c31c-r3-p10-5", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "LLM 성능 향상 원리 = 지식. 공고 업무와 관련 있음"}, "premise": null, "sec": 1.36, "prompt_tokens": 3197}
+{"id": "c31c-r3-p10-6", "got": {"b": [], "q1": 3, "q2": 2, "q3": 2, "why": "React(공고 업무). '어떻게 측정하고' = 일반형 방법. 렌더링 = 개발 상황"}, "premise": null, "sec": 1.49, "prompt_tokens": 3212}
+{"id": "c31c-r3-p10-7", "got": {"b": [], "q1": 3, "q2": 1, "q3": 1, "why": "직무 관련. 차이 = 지식. AI 에이전트 = 공고 업무"}, "premise": null, "sec": 1.17, "prompt_tokens": 3194}
+{"id": "c31c-r3-p10-8", "got": {"b": [], "q1": 3, "q2": 3, "q3": 1, "why": "LLM 서비스에서 지연 원인과 설계 접근 = 지식 + 원인·방법"}, "premise": null, "sec": 1.26, "prompt_tokens": 3209}
+{"id": "c31c-r3-p10-9", "got": {"b": [], "q1": 1, "q2": 3, "q3": 2, "why": "과거형 경험('경험했을 때', '반성하고', '개선 방향'). 테스트 케이스 = 일반 업무"}, "premise": {"premise": "LLM 답이 틀릴 수 있다는 것을 전제로 사람이 확인하기 쉬운 형태로 내놓는 것이 중요하다고 배웠습니다.", "in_docs": true}, "sec": 2.78, "prompt_tokens": 3201}
+{"id": "c31c-r3-p10-10", "got": {"b": [], "q1": 5, "q2": 1, "q3": 5, "why": "회사 업무(사내 문서 검색 비서)+구체 요소(신뢰성, 재순위화). '어떻게 생각하시나요' = 의견"}, "premise": null, "sec": 1.76, "prompt_tokens": 3216}

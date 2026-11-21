@@ -23,6 +23,7 @@ import logging
 import random
 import re
 import time
+from dataclasses import dataclass
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -221,6 +222,10 @@ SAME_KIND_CHECKED = ("job", "company", "personality")
 RESUME_EVIDENCE_MIN = 6  # 근거 구절 앞부분이 이력서와 이만큼 이상 같아야 한다 (띄어쓰기·문장부호 뺀 글자 수)
 ANCHOR_MIN = 4  # 질문이 짚어야 하는 프로젝트·회사 이름 조각 (예: '사내 문서 RAG 챗봇' → 'RAG 챗봇')
 EXPERIENCE_PREFIXES = ("경력:", "프로젝트:", "자기소개:")
+# 이력서 두 자리 (C-32): 둘째 자리는 프로젝트가 아닌 경력·자기소개 글이 아래만큼 있어야 쓴다. 두 질문이 이만큼 비슷하면 마지막 시도에도 받지 않는다
+# (c31c 실측 bge-m3: 같은 일을 다시 물은 짝 0.82~0.88, 같은 프로젝트의 다른 면 0.63~0.75)
+RESUME_APART_MIN_CHARS = 15  # 앞 이름표('경력: 회사 —')를 뺀 내용 글자 수 (사람 2: '주문·정산 API 개발.')
+RESUME_SAME_SIMILARITY = 0.8
 KIND_LABEL = {"personality": "인성", "company": "회사 관련", "resume": "이력서 기반 경험", "job": "직무 기술"}
 
 
@@ -342,6 +347,94 @@ def experienceAnchors(resume: dict) -> list[str]:
     return [n.strip() for n in names if n and n.strip()]
 
 
+@dataclass
+class ResumeFocus:
+    """이력서 자리 하나의 재료 (C-32). project: 이 자리가 묻는 프로젝트 이름(첫 자리), apart: 앞 자리 프로젝트를 피하는 자리인가."""
+    experience: str
+    anchors: list[str]
+    focus: str
+    project: str | None = None
+    apart: bool = False
+
+
+COMMON_WORDS = {"으로", "에서", "하는", "있는", "했다", "했습니다", "만들었다", "만들었습니다", "사용", "기술", "프로젝트", "사용자", "위해"}
+NUMBER = re.compile(r"\d+(?:\.\d+)?%?")
+RESUME_SHARED_WORDS = 2  # 첫 자리 프로젝트 줄과 이만큼 낱말이 겹치는 문장은 그 프로젝트 이야기로 본다 (C-32)
+
+
+def sentenceWords(text: str) -> set[str]:
+    return {w for w in re.findall(r"[0-9A-Za-z가-힣@]+", text or "") if len(w) >= 2 and w not in COMMON_WORDS}
+
+
+def splitSentences(text: str) -> list[str]:
+    return [s.strip() for s in re.split(r"(?<=[다.!?])\s+", text or "") if s.strip()]
+
+
+def resumeFocus(resume: dict, slot: int, firstProject: str | None, rng: random.Random) -> ResumeFocus:
+    """이력서 두 자리 나누기 (사용자 2026-11-21: '프로젝트 관련 하나, 프로젝트와 관련 없는 하나'). c31c 에서 두 자리가 같은 재료(경험 전체)를 받아
+    21쌍 중 8쌍이 같은 프로젝트의 같은 일(유사도 0.82~0.88).
+    첫 자리: 프로젝트 하나(여러 개면 무작위), 없으면 경력. 둘째 자리: 경력 → 자기소개서에서 첫 자리 프로젝트 이름이 나온 문장을 뺀 것,
+    그것도 없으면 다른 프로젝트, 그것도 없으면 같은 프로젝트의 다른 면."""
+    projects = [p for p in resume.get("projects", []) if (p.get("name") or "").strip()]
+    careers = [c for c in resume.get("career", []) if (c.get("company") or "").strip()]
+
+    def projectLine(p: dict) -> str:
+        return experienceText({"projects": [p]}, "")
+
+    def careerLine(c: dict) -> str:
+        return experienceText({"career": [c]}, "")
+
+    if slot == 0:
+        if projects:
+            p = rng.choice(projects)
+            return ResumeFocus(projectLine(p), [p["name"].strip()], f"프로젝트 '{p['name'].strip()}' 하나만 묻는다.", project=p["name"].strip())
+        if careers:
+            return ResumeFocus("\n".join(careerLine(c) for c in careers), [c["company"].strip() for c in careers],
+                               "경력에 적힌 일 하나를 묻는다.")
+        return ResumeFocus(experienceText(resume, resume.get("cover_letter") or ""), [], "자기소개에 적힌 경험 하나를 묻는다.")
+
+    first = next((p for p in projects if p["name"].strip() == firstProject), None)
+    firstWords = sentenceWords(projectLine(first)) if first else set()
+    firstNumbers = set(NUMBER.findall(projectLine(first))) if first else set()
+
+    def aboutFirst(sentence: str, byWords: bool) -> bool:
+        """첫 자리 프로젝트 이야기인가: 이름이 나오거나, 그 줄의 숫자('84%')가 나오거나, (자기소개는) 그 줄의 낱말이 둘 이상 겹친다
+        (c31c 자기소개: '처음 정확도는 78%였는데 …' 처럼 이름 없이 같은 프로젝트를 다시 말한다). 경력 줄은 다른 일이라 낱말로는 빼지 않는다
+        ('웹 서비스 테스트 자동화(Playwright, pytest)' 가 '테스트 케이스 초안 생성기' 와 낱말이 겹쳐 빠졌다)."""
+        if not first:
+            return False
+        return (mentionsAnchor(sentence, [firstProject]) or bool(firstNumbers & set(NUMBER.findall(sentence)))
+                or (byWords and len(firstWords & sentenceWords(sentence)) >= RESUME_SHARED_WORDS))
+
+    def withoutFirst(text: str, byWords: bool) -> str:
+        return " ".join(s for s in splitSentences(text) if not aboutFirst(s, byWords))
+
+    lines, anchors, content = [], [], 0
+    for c in careers if projects else []:  # 프로젝트가 없으면 첫 자리가 경력을 썼으니 자기소개만
+        desc = withoutFirst(c.get("description") or "", byWords=False)
+        if desc:
+            content += len(desc)
+            lines.append(f"경력: {c['company'].strip()} {c.get('role', '')} — {desc}".strip())
+            anchors.append(c["company"].strip())
+    cover = withoutFirst(" ".join((resume.get("cover_letter") or "").split()), byWords=True)[:COVER_CHARS]
+    if cover:
+        content += len(cover)
+        lines.append("자기소개: " + cover)
+        anchors = []  # 자기소개 경험에는 이름이 없다 — 회사 이름을 꼭 넣으라 하면 자기소개 질문이 다 떨어진다 (c32: 예비 질문 9개 중 6개)
+    avoid = f" 앞 이력서 질문의 프로젝트('{firstProject}')는 묻지 않는다." if firstProject else ""
+    if content >= RESUME_APART_MIN_CHARS:
+        return ResumeFocus("\n".join(lines), anchors, "프로젝트가 아닌 경력·자기소개에 적힌 다른 경험 하나를 묻는다. "
+                           "'자기소개에서'·'자기소개에 적은' 같은 말은 쓰지 않고 그 경험을 바로 묻는다." + avoid,
+                           apart=bool(firstProject))
+    others = [p for p in projects if p["name"].strip() != firstProject]
+    if others:
+        p = rng.choice(others)
+        return ResumeFocus(projectLine(p), [p["name"].strip()], f"프로젝트 '{p['name'].strip()}' 하나만 묻는다." + avoid,
+                           apart=bool(firstProject))
+    return ResumeFocus(experienceText(resume, resume.get("cover_letter") or ""), experienceAnchors(resume),
+                       "앞 이력서 질문과 다른 면(다른 결정·어려움·결과)을 묻는다.")
+
+
 def mentionsAnchor(question: str, anchors: list[str]) -> bool:
     """질문에 이름 하나가 (조각이라도) 들어 있나. 이름이 없으면(자기소개만) 보지 않는다."""
     if not anchors:
@@ -461,7 +554,7 @@ def ragPrompt(kind: str, company: str, resume: str, examples: list[rag.Example],
     avoidLines = "\n".join(f"- {t}" for t in avoid)
     return (
         f"[만들 질문] {KIND_GUIDE[kind]}\n"
-        + (f"이번 질문의 초점: {topic} — 이 초점만 묻는다.\n" if topic and kind in ("company", "personality")
+        + (f"이번 질문의 초점: {topic} — 이 초점만 묻는다.\n" if topic and kind in ("company", "personality", "resume")
            else f"이번 질문의 기술 주제: {topic} — 이 주제만 묻고, 다른 기술 주제로 넘어가지 마라.\n" if topic else "")
         + f"질문은 물음표로 끝나는 질문 하나로, {question_text.QUESTION_MAX_CHARS}자 안쪽으로 쓰고, 요구하는 일은 {MAX_TASKS_PER_ANSWER}개 이하로 한다 — "
         + (f"이번 질문의 분야: {JOB_AREAS[jobForm]} — 이미 낸 직무 질문과 다른 분야·다른 내용을 묻는다. " if jobForm in JOB_AREAS and kind == "job" else "")
@@ -561,6 +654,8 @@ PROBLEM_TEXT = {
     "too_long": f"질문이 너무 김 — {question_text.QUESTION_MAX_CHARS}자 안쪽으로",
     "job_asks_experience": "직무 질문이 지원자가 겪은 일을 물음 — 개념·기준·방법 같은 지식을 물을 것",
     "resume_not_anchored": "질문에 이력서의 프로젝트 이름이나 회사 이름이 없음",
+    "resume_same_project": "앞 이력서 질문의 프로젝트를 다시 물음 — 이번에 주는 경력·자기소개에 적힌 다른 경험을 물을 것",
+    "similar_resume": "앞 이력서 질문과 같은 일을 다시 물음 — 다른 경험, 같은 경험이라면 다른 결정·어려움·결과를 물을 것",
     "awkward_ending": "말끝이 어색함('~는가요'·'~싶은가요') — '~하시나요?', '~느끼셨나요?', '~생각하시나요?'처럼 쓸 것",
     "same_ending": "앞의 같은 종류 질문과 말끝이 같음 — 다른 물음(역할·어려움·결과·배운 점 등)과 다른 말끝으로 쓸 것"
                    " (예: '어떻게 정하셨나요?', '어떤 어려움이 있었나요?', '결과는 어땠나요?')",
@@ -636,7 +731,9 @@ class SlotState(TypedDict, total=False):
     materialOrder: list     # 이 자리가 칸을 써 볼 차례 (다시 만들 때 다음 칸)
     jobForm: str | None     # 직무 자리마다 정한 질문 꼴 (JOB_FORMS)
     resume: str             # 이 자리에 넣는 이력서 요약 (자기소개서는 자리 주제와 가까운 문단, CoverIndex)
-    experience: str         # 이력서 자리에 넣는 경험 줄 (위와 같음)
+    experience: str         # 이력서 자리에 넣는 경험 줄 (위와 같음, 이력서 자리는 ResumeFocus)
+    anchors: list           # 이력서 자리 질문이 짚어야 할 이름 (C-32: 자리 재료에 있는 이름만)
+    resumeApart: str | None  # 이력서 둘째 자리가 피해야 할 첫 자리 프로젝트 이름 (C-32)
     attempt: int
     problem: str | None       # 다시 만들 때 프롬프트에 넣는 문장
     llmError: str | None
@@ -709,6 +806,13 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             ctx["jobSlot"] += 1
         slot = {"topic": topic, "examples": [], "jobForm": jobForm, "materialOrder": order,
                 "piece": material.get("piece"), "companyInfo": material.get("companyInfo", "")}
+        if kind == "resume":  # 첫 자리는 프로젝트 하나, 둘째 자리는 프로젝트가 아닌 경력·자기소개 (C-32)
+            resumeSlot = sum(c.get("qtype") == "resume" for c in state["chosen"])
+            focus = resumeFocus(app.resume_snapshot or {}, resumeSlot, ctx.get("resumeFirstProject"), materialRandom)
+            if resumeSlot == 0:
+                ctx["resumeFirstProject"] = focus.project
+            slot.update(topic=focus.focus, experience=fence(focus.experience), anchors=focus.anchors,
+                        resumeApart=ctx.get("resumeFirstProject") if focus.apart else None)
         if remaining() <= 1:
             record["substitute_reason"] = "budget"
             return slot
@@ -737,8 +841,9 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         slot["examples"] = found
         if usesCover:
             cover = ctx["cover"].pick(vectors[-1])
-            slot.update(resume=fence(resumeText(app.resume_snapshot or {}, cover)),
-                        experience=fence(experienceText(app.resume_snapshot or {}, cover)))
+            slot.update(resume=fence(resumeText(app.resume_snapshot or {}, cover)))
+            if kind != "resume":  # 이력서 자리 경험 글은 ResumeFocus 가 정한다 (C-32)
+                slot.update(experience=fence(experienceText(app.resume_snapshot or {}, cover)))
         return slot
 
     async def generate(state: SlotState) -> dict:
@@ -789,7 +894,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         if problem is None:
             out = state["candidate"]
             # 근거는 자기소개서 전체에서 찾는다 (자리에 넣은 문단만이 아니라 지원자가 낸 글 어디든 근거다)
-            problem = checkGenerated(kind, out, ctx["experienceGround"], ctx["anchors"],
+            problem = checkGenerated(kind, out, ctx["experienceGround"], state.get("anchors", ctx["anchors"]),
                                      [c["text"] for c in state["chosen"] if c.get("qtype") == kind], [c["text"] for c in state["chosen"]],
                                      lastTry=attempt + 1 >= regenLimit)
             text = question_text.cleanQuestion(out.question)
@@ -811,6 +916,11 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                             vector, chosenVectors([c for c in state["chosen"] if c.get("qtype") == kind])) >= SAME_KIND_SIMILARITY:
                         # 말끝이 같은 것은 괜찮고, 내용이 비슷한 것만 막는다 (2026-11-18 사용자 결정)
                         problem = "similar_company" if kind == "company" else "similar_same_kind"
+                    elif kind == "resume" and state.get("resumeApart") and mentionsAnchor(text, [state["resumeApart"]]):
+                        problem = "resume_same_project"  # 둘째 자리가 첫 자리 프로젝트를 다시 물음 (C-32, 마지막 시도에도 받지 않음)
+                    elif kind == "resume" and sameKindVectors(state, kind) and rag.maxSimilarity(
+                            vector, sameKindVectors(state, kind)) >= RESUME_SAME_SIMILARITY:
+                        problem = "similar_resume"  # 앞 이력서 질문과 같은 일을 다시 물음 (C-32, 마지막 시도에도 받지 않음)
                     elif slot_material.pairedDifference(ctx["picker"].pieces, text):
                         problem = "paired_difference"  # 틀린 전제라 마지막 시도에도 받지 않는다
                     elif materialUnused(state, text, vector, lastTry=attempt + 1 >= regenLimit):
@@ -868,7 +978,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             fixedOut = RagQuestion(question=fixed, evidence=out.evidence, task_count=out.task_count)
             chosenTexts = [c["text"] for c in state["chosen"]]
             if not fixed or sameText(fixed, text) or checkGenerated(
-                    kind, fixedOut, ctx["experienceGround"], ctx["anchors"],
+                    kind, fixedOut, ctx["experienceGround"], state.get("anchors", ctx["anchors"]),
                     [c["text"] for c in state["chosen"] if c.get("qtype") == kind], chosenTexts,
                     lastTry=state["attempt"] + 1 >= regenLimit) or isRepeat(fixed, state["chosen"]):
                 log.info("slot %s review: awkward, fix unusable (%s) app=%s", kind, result.reason, app.id)

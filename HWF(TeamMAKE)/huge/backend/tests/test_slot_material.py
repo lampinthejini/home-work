@@ -216,10 +216,23 @@ def test_pairedDifferenceLooksAtEveryPieceNotOnlyTheGivenOne():
 
 
 def test_pairedDifferenceAllowsListedDifferentThings():
-    """c31b: 쉼표로 늘어놓은 서로 다른 팀의 역할 차이는 틀린 전제가 아니다. 두 말이 '와·과·및·가운뎃점'으로 붙은 것만 막는다."""
-    pieces = [Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "AI/AX 본부: AIIT-X 모델팀, 생성형 서비스팀, AX 추진팀, MLOps·플랫폼팀.")]
+    """쉼표·가운뎃점으로 늘어놓은 서로 다른 것의 차이는 틀린 전제가 아니다 (c31b 팀 이름, c31c '정답률·근거 일치율' 2번 잘못 막음).
+    두 말이 '와·과'로 붙은 것만 막는다."""
+    pieces = [Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "AI/AX 본부: AIIT-X 모델팀, 생성형 서비스팀, AX 추진팀, MLOps·플랫폼팀."),
+              Piece("job", "jobs_intro", "직무 소개", "AI/AX 엔지니어: 정답률·근거 일치율·응답 시간으로 말한다.")]
     assert not slot_material.pairedDifference(pieces, "AIIT-X 모델팀과 AX 추진팀의 역할 차이를 어떻게 생각하시나요?")
-    assert slot_material.pairedDifference(pieces, "MLOps와 플랫폼의 차이는 무엇인가요?")
+    assert not slot_material.pairedDifference(pieces, "MLOps와 플랫폼의 차이는 무엇인가요?")
+    assert not slot_material.pairedDifference(pieces, "정답률과 근거 일치율의 차이를 어떻게 이해하시나요?")
+    listed = [Piece("company", "project", "회사 프로젝트", "품질은 기능별 평가 데이터셋의 정답률과 근거 일치율, 안전성은 편향 질문 800개로 잰다.")]
+    assert not slot_material.pairedDifference(listed, "정답률과 근거 일치율의 차이는 무엇인가요?")  # 나란히 둔 서로 다른 지표
+
+
+def test_pairedDifferenceCatchesReversedForm():
+    """c31c: 'RAG 기술이 사내 문서 검색과 차이를 가지는 이유' 처럼 'A이 B과 차이' 꼴이 검사를 빠져나감."""
+    pieces = [Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "RAG와 사내 문서 검색으로 임직원의 반복 업무를 줄인다.")]
+    assert slot_material.pairedDifference(pieces, "RAG 기술이 사내 문서 검색과 차이를 가지는 이유는 무엇인가요?")
+    assert slot_material.pairedDifference(pieces, "RAG가 사내 문서 검색과의 차이는 무엇인가요?")
+    assert not slot_material.pairedDifference(pieces, "RAG가 미세 조정과 차이를 가지는 이유는 무엇인가요?")
 
 
 def test_pairedDifferenceIsRetriedNotKept(sessionFactory, world, monkeypatch):  # noqa: F811
