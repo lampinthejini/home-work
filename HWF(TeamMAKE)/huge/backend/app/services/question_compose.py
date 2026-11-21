@@ -23,7 +23,7 @@ import logging
 import random
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -172,7 +172,7 @@ KIND_FORMS = {
     "job": "꼴 예: '…와 …의 차이는 무엇인가요?', '…가 생기는 원인은 무엇인가요?', '…할 때 어떤 방법을 쓰나요?'",
 }
 # 직무 자리마다 꼴 하나 (실측 2026-11-18: 꼴 예를 한꺼번에 주니 6개 중 5개가 '…핵심 기준은 무엇인가요?'로 끝남)
-JOB_FORMS = (
+KNOWLEDGE_FORMS = (
     "'…와 …의 차이는 무엇인가요?'",
     "'…가 생기는 원인은 무엇이고, 어떻게 줄일 수 있나요?'",
     "'…할 때 어떤 방법을 쓰나요?'",
@@ -180,10 +180,21 @@ JOB_FORMS = (
     "'…가 동작하는 원리를 설명해 주시겠어요?'",
     "'…를 어떻게 확인하거나 측정하나요?'",
 )
+# 상황형 (사용자 2026-11-21: 직무 질문에 상황형 2개 정도). 지식 질문은 공부만 해도 답해 실무 깊이를 못 가린다 (c33 4B Q2 1.72)
+SITUATION_FORMS = (
+    "'…에서 …가 떨어졌다면 무엇부터 확인하시겠어요?'",
+    "'…를 맡게 된다면 어떤 순서로 진행하시겠어요?'",
+    "'…라는 요청을 받았는데 …라면 어떻게 하시겠어요?'",
+)
+JOB_FORMS = KNOWLEDGE_FORMS + SITUATION_FORMS
+SITUATION_NOTE = ("이번은 상황 질문이다 — 회사 업무에서 생길 법한 구체적인 상황 하나(증상·수치·조건)를 주고, "
+                  "앞으로 어떻게 하겠는지를 묻는다. 지원자가 겪은 일로 묻지 않는다. ")
 
 
 def jobFormFor(index: int) -> str:
-    return JOB_FORMS[index % len(JOB_FORMS)]
+    """직무 자리 꼴: 지식형과 상황형을 번갈아 (한 면접 직무 4자리 → 상황형 2개)."""
+    forms = SITUATION_FORMS if index % 2 else KNOWLEDGE_FORMS
+    return forms[(index // 2) % len(forms)]
 
 
 # 직무 자리마다 다른 분야 — 꼴과 짝 (2026-11-18 사용자: "질문분야를 여러개로 나눠서 그에 대한 내용이 하나씩").
@@ -195,6 +206,9 @@ JOB_AREAS = {
     JOB_FORMS[3]: "기술 선택과 장단점",
     JOB_FORMS[4]: "동작 원리",
     JOB_FORMS[5]: "품질 확인·측정",
+    SITUATION_FORMS[0]: "장애·품질 저하 상황 판단",
+    SITUATION_FORMS[1]: "새 업무 진행 순서",
+    SITUATION_FORMS[2]: "요구·제약 조정",
 }
 
 # 한 면접에 자주 나오면 같은 틀로 보이는 말 (실측 2026-11-18: 이력서 질문 6개 중 4개가 '가장 먼저')
@@ -225,6 +239,7 @@ EXPERIENCE_PREFIXES = ("경력:", "프로젝트:", "자기소개:")
 # 이력서 두 자리 (C-32): 둘째 자리는 프로젝트가 아닌 경력·자기소개 글이 아래만큼 있어야 쓴다. 두 질문이 이만큼 비슷하면 마지막 시도에도 받지 않는다
 # (c31c 실측 bge-m3: 같은 일을 다시 물은 짝 0.82~0.88, 같은 프로젝트의 다른 면 0.63~0.75)
 RESUME_APART_MIN_CHARS = 15  # 앞 이름표('경력: 회사 —')를 뺀 내용 글자 수 (사람 2: '주문·정산 API 개발.')
+NEWS_FIT_EXPERIENCE_CHARS = 600  # 소식 고르기에 넣는 이력서 경험 길이 (4B 한 번, 실측 2.5~4초)
 RESUME_SAME_SIMILARITY = 0.8
 KIND_LABEL = {"personality": "인성", "company": "회사 관련", "resume": "이력서 기반 경험", "job": "직무 기술"}
 
@@ -355,6 +370,24 @@ class ResumeFocus:
     focus: str
     project: str | None = None
     apart: bool = False
+    wishes: list[str] = field(default_factory=list)  # 자기소개의 바람 문장 (해 본 일이 아님)
+    others: list[str] = field(default_factory=list)  # 재료의 나머지 문장 (해 본 일)
+
+
+WISH = re.compile(r"(싶습니다|싶다|싶어요|겠습니다|하고자 합니다)[.!]?$")
+PAST_ASK = re.compile(r"(셨|었|았|했|였)(나요|습니까|는지|는가요)")
+HYPOTHETICAL = re.compile(r"(다면|라면|게 되면|맡으면|한다고 하면)")
+
+
+def wishAsDone(question: str, wishes: list[str], others: list[str]) -> bool:
+    """자기소개의 바람 문장을 해 본 일처럼 묻나 (c33: '…AI 를 안정적으로 올리는 일을 하고 싶습니다' → '어떤 지표로 파악하셨나요').
+    바람 문장과 낱말이 둘 이상 겹치고(다른 문장보다 더), 과거형으로 묻고, '~한다면' 같은 가정이 없을 때."""
+    if not wishes or HYPOTHETICAL.search(question) or not PAST_ASK.search(question):
+        return False
+    words = sentenceWords(question)
+    wish = max(len(words & sentenceWords(w)) for w in wishes)
+    done = max((len(words & sentenceWords(o)) for o in others), default=0)
+    return wish >= RESUME_SHARED_WORDS and wish > done
 
 
 COMMON_WORDS = {"으로", "에서", "하는", "있는", "했다", "했습니다", "만들었다", "만들었습니다", "사용", "기술", "프로젝트", "사용자", "위해"}
@@ -367,7 +400,8 @@ def sentenceWords(text: str) -> set[str]:
 
 
 def splitSentences(text: str) -> list[str]:
-    return [s.strip() for s in re.split(r"(?<=[다.!?])\s+", text or "") if s.strip()]
+    # 문장부호에서만 나눈다 ('다' 뒤에서 나누면 '고객사마다 다른 …' 이 문장 중간에서 끊긴다)
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text or "") if s.strip()]
 
 
 def resumeFocus(resume: dict, slot: int, firstProject: str | None, rng: random.Random) -> ResumeFocus:
@@ -423,9 +457,13 @@ def resumeFocus(resume: dict, slot: int, firstProject: str | None, rng: random.R
         anchors = []  # 자기소개 경험에는 이름이 없다 — 회사 이름을 꼭 넣으라 하면 자기소개 질문이 다 떨어진다 (c32: 예비 질문 9개 중 6개)
     avoid = f" 앞 이력서 질문의 프로젝트('{firstProject}')는 묻지 않는다." if firstProject else ""
     if content >= RESUME_APART_MIN_CHARS:
-        return ResumeFocus("\n".join(lines), anchors, "프로젝트가 아닌 경력·자기소개에 적힌 다른 경험 하나를 묻는다. "
-                           "'자기소개에서'·'자기소개에 적은' 같은 말은 쓰지 않고 그 경험을 바로 묻는다." + avoid,
-                           apart=bool(firstProject))
+        # 자기소개의 바람 문장('~하고 싶습니다')은 해 본 일이 아니다 → 가정으로 묻게 한다 (c33: 사람 5·8·10, 사용자 2026-11-21)
+        wishes = [s for s in splitSentences(cover) if WISH.search(s)]
+        wishNote = (" 다음 문장은 해 본 일이 아니라 지원자의 바람이다: " + " / ".join(f"'{w}'" for w in wishes)
+                    + ". 이 바람으로 물을 때는 '그 일을 하게 된다면'처럼 가정으로 묻고, 해 본 일처럼('~하셨나요') 묻지 않는다.") if wishes else ""
+        return ResumeFocus("\n".join(lines), anchors, "프로젝트가 아닌 경력·자기소개에 적힌 다른 경험 하나를 묻는다." + wishNote + avoid,
+                           apart=bool(firstProject), wishes=wishes,
+                           others=[s for s in splitSentences(cover) if s not in wishes] + [line.split(" — ", 1)[-1] for line in lines[:-1 if cover else None]])
     others = [p for p in projects if p["name"].strip() != firstProject]
     if others:
         p = rng.choice(others)
@@ -558,6 +596,7 @@ def ragPrompt(kind: str, company: str, resume: str, examples: list[rag.Example],
            else f"이번 질문의 기술 주제: {topic} — 이 주제만 묻고, 다른 기술 주제로 넘어가지 마라.\n" if topic else "")
         + f"질문은 물음표로 끝나는 질문 하나로, {question_text.QUESTION_MAX_CHARS}자 안쪽으로 쓰고, 요구하는 일은 {MAX_TASKS_PER_ANSWER}개 이하로 한다 — "
         + (f"이번 질문의 분야: {JOB_AREAS[jobForm]} — 이미 낸 직무 질문과 다른 분야·다른 내용을 묻는다. " if jobForm in JOB_AREAS and kind == "job" else "")
+        + (SITUATION_NOTE if jobForm in SITUATION_FORMS and kind == "job" else "")
         + (f"이번 질문은 되도록 이 꼴로 쓴다: {jobForm} — 꼴의 말은 주제에 맞게 바꿔 쓰고, 주제와 맞지 않아 뜻이 약해지면 "
            "꼴을 버리고 주제에 맞는 다른 물음으로 쓴다(앞 질문과 말끝은 겹치지 않게). " if jobForm and kind == "job"
            else f"{KIND_FORMS[kind]} 이런 꼴을 참고하되, 꼴의 말을 그대로 옮기지 말고 상황에 맞게 바꿔 쓴다. ")
@@ -648,6 +687,7 @@ PROBLEM_TEXT = {
     "job_asks_experience": "직무 질문이 지원자가 겪은 일을 물음 — 개념·기준·방법 같은 지식을 물을 것",
     "resume_not_anchored": "질문에 이력서의 프로젝트 이름이나 회사 이름이 없음",
     "resume_same_project": "앞 이력서 질문의 프로젝트를 다시 물음 — 이번에 주는 경력·자기소개에 적힌 다른 경험을 물을 것",
+    "wish_as_done": "지원자의 바람('~하고 싶습니다')을 해 본 일처럼 물음 — '그 일을 하게 된다면'처럼 가정으로 물을 것",
     "similar_resume": "앞 이력서 질문과 같은 일을 다시 물음 — 다른 경험, 같은 경험이라면 다른 결정·어려움·결과를 물을 것",
     "awkward_ending": "말끝이 어색함('~는가요'·'~싶은가요') — '~하시나요?', '~느끼셨나요?', '~생각하시나요?'처럼 쓸 것",
     "repeated_connective": "한 문장에 '~할 때'·'~에서' 같은 연결 말이 두 번 나옴 — 한 번만 쓰고 짧게 줄일 것",
@@ -725,6 +765,8 @@ class SlotState(TypedDict, total=False):
     experience: str         # 이력서 자리에 넣는 경험 줄 (위와 같음, 이력서 자리는 ResumeFocus)
     anchors: list           # 이력서 자리 질문이 짚어야 할 이름 (C-32: 자리 재료에 있는 이름만)
     resumeApart: str | None  # 이력서 둘째 자리가 피해야 할 첫 자리 프로젝트 이름 (C-32)
+    resumeWishes: list      # 이력서 둘째 자리 자기소개의 바람 문장 (가정으로 물어야 함)
+    resumeDone: list        # 이력서 둘째 자리 재료의 나머지 문장
     attempt: int
     problem: str | None       # 다시 만들 때 프롬프트에 넣는 문장
     llmError: str | None
@@ -803,7 +845,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             if resumeSlot == 0:
                 ctx["resumeFirstProject"] = focus.project
             slot.update(topic=focus.focus, experience=fence(focus.experience), anchors=focus.anchors,
-                        resumeApart=ctx.get("resumeFirstProject") if focus.apart else None)
+                        resumeApart=ctx.get("resumeFirstProject") if focus.apart else None,
+                        resumeWishes=focus.wishes, resumeDone=focus.others)
         if remaining() <= 1:
             record["substitute_reason"] = "budget"
             return slot
@@ -911,6 +954,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                     elif kind == "resume" and sameKindVectors(state, kind) and rag.maxSimilarity(
                             vector, sameKindVectors(state, kind)) >= RESUME_SAME_SIMILARITY:
                         problem = "similar_resume"  # 앞 이력서 질문과 같은 일을 다시 물음 (C-32, 마지막 시도에도 받지 않음)
+                    elif kind == "resume" and wishAsDone(text, state.get("resumeWishes") or [], state.get("resumeDone") or []):
+                        problem = "wish_as_done"  # 바람을 해 본 일처럼 물음 — 틀린 전제라 마지막 시도에도 받지 않음
                     elif slot_material.pairedDifference(ctx["picker"].pieces, text):
                         problem = "paired_difference"  # 틀린 전제라 마지막 시도에도 받지 않는다
                     elif materialUnused(state, text, vector, lastTry=attempt + 1 >= regenLimit):
@@ -1231,6 +1276,11 @@ async def composeNow(applicationId: str, budgetSec: float | None = None) -> bool
             deadline += time.monotonic() - resumeStarted
         newsSec = min(job_news.JOB_NEWS_TIMEOUT_SEC, deadline - time.monotonic() - 1)
         ctx["jobNews"] = await job_news.collect(app.posting.job_code, newsSec) if ragOn else []
+        if ctx["jobNews"]:  # 공고·이력서와 같은 일을 다루지 않는 소식은 지운다 (사용자 2026-11-21, c33: 의료기 허가·해커 침투·TIDE)
+            postingText = "\n".join(filter(None, [app.posting.title, app.posting.duties, app.posting.requirements, app.posting.preferred]))
+            ctx["jobNews"][:] = await job_news.keepRelated(  # 같은 목록을 바꿔 끝난 뒤 지우기(clear)가 그대로 듣게
+                ctx["jobNews"], postingText[:1500], experienceText(app.resume_snapshot or {}, "")[:NEWS_FIT_EXPERIENCE_CHARS],
+                min(job_news.FIT_TIMEOUT_SEC, deadline - time.monotonic() - 1))
         # 회사·직무 자리 자료 칸 (C-31). 항목 임베딩도 예산에서 빼지 않는다 (회사 자료는 앱이 켜 있는 동안 한 번만)
         pieces = slot_material.companyPieces(db) + slot_material.jobPieces(db, ctx["jobTopics"], ctx["jobNews"], app.posting.title)
         if ragOn:

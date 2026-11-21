@@ -11,7 +11,7 @@ from datetime import timedelta
 import pytest
 
 from app.models import Application, InterviewQuestion, JobPosting, Question, User
-from app.services import company, llm, question_compose, rag, slot_material, tech_blog
+from app.services import company, job_news, llm, question_compose, rag, slot_material, tech_blog
 from app.settings_store import setSetting
 from app.timeutil import now
 
@@ -41,6 +41,7 @@ class FakeWorld:
         self.prompts: list[str] = []
         self.keyPointPrompts: list[str] = []
         self.reviewPrompts: list[str] = []
+        self.newsFitPrompts: list[str] = []
         self.reviewAnswer = None  # 다시 보기 답을 정하는 함수 (없으면 모두 통과)
         self.counter = 0
 
@@ -73,6 +74,10 @@ class FakeWorld:
         if schema is question_compose.QuestionReview:  # 만든 질문 다시 보기 — 질문 만들기 호출 수에 넣지 않는다
             self.reviewPrompts.append(user)
             return self.reviewAnswer(user) if self.reviewAnswer else schema(natural=True, accurate=True)
+        if schema is job_news.NewsFit:  # 소식 고르기 — 질문 만들기 호출 수에 넣지 않는다. '의료기' 소식만 상관없다고 본다
+            self.newsFitPrompts.append(user)
+            listing = user.split("<소식>")[1].split("</소식>")[0].strip().splitlines()
+            return schema(related=[i + 1 for i, line in enumerate(listing) if "의료기" not in line])
         assert schema is question_compose.RagQuestion
         self.prompts.append(user)
         self.counter += 1
@@ -726,7 +731,8 @@ def test_jobSlotsGetDifferentForms():
     """직무 자리마다 꼴 하나를 정해 준다 (꼴 예 여러 개를 한꺼번에 주면 '기준은 무엇인가요'로 쏠림)."""
     prompts = [question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=question_compose.jobFormFor(i))
                for i in range(len(question_compose.JOB_FORMS))]
-    assert all(f"이번 질문은 되도록 이 꼴로 쓴다: {form}" in p for form, p in zip(question_compose.JOB_FORMS, prompts, strict=True))
+    forms = [question_compose.jobFormFor(i) for i in range(len(question_compose.JOB_FORMS))]
+    assert all(f"이번 질문은 되도록 이 꼴로 쓴다: {form}" in p for form, p in zip(forms, prompts, strict=True))
     assert len(set(question_compose.JOB_FORMS)) == len(question_compose.JOB_FORMS) >= 4
     assert not any("기준은 무엇인가요" in form for form in question_compose.JOB_FORMS)
 
@@ -938,3 +944,14 @@ def test_bankFallbackPrefersReserveNotSimilarToSameKind(sessionFactory, world, m
         # 모두 비슷하면 그래도 하나는 쓴다 (중복 0.9 아래)
         monkeypatch.setattr(rag, "vectorsFor", lambda _db, ids: {i: [0.75, math.sqrt(1 - 0.75 ** 2)] for i in ids})
         assert question_compose.bankFallback(db, app, "company", chosen, ctx).id == first.id
+
+
+def test_jobFormsAlternateKnowledgeAndSituation():
+    """사용자 2026-11-21: 직무 질문에 상황형 2개 정도. 직무 4자리는 어디서 시작해도 상황형이 2개."""
+    for start in range(len(question_compose.JOB_FORMS)):
+        forms = [question_compose.jobFormFor(start + i) for i in range(4)]
+        assert sum(f in question_compose.SITUATION_FORMS for f in forms) == 2
+    situation = question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=question_compose.SITUATION_FORMS[0])
+    knowledge = question_compose.ragPrompt("job", "회사", "", [], [], None, "RAG", jobForm=question_compose.KNOWLEDGE_FORMS[0])
+    assert "상황 질문이다" in situation and "상황 질문이다" not in knowledge
+    assert not question_compose.JOB_EXPERIENCE.search("검색 정확도가 떨어졌다면 무엇부터 확인하시겠어요?")

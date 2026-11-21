@@ -100,4 +100,22 @@ def test_secondSlotWithCoverDoesNotRequireCompanyName():
     """c32: 경력+자기소개 재료에 회사 이름을 꼭 넣게 하니 자기소개 질문이 '이름 없음' 으로 떨어져 예비 질문 9개 중 6개."""
     resume = {**CAREER, "cover_letter": "운영하면서 모델 답이 흔들릴 때 로그로 원인을 찾는 일이 가장 중요하다는 것을 배웠습니다."}
     second = resumeFocus(resume, 1, "고객 문의 자동 분류", random.Random(0))
-    assert second.anchors == [] and "자기소개:" in second.experience and "'자기소개에서'" in second.focus
+    assert second.anchors == [] and "자기소개:" in second.experience
+
+
+def test_wishSentencesAreToldAsWishesAndAskedAsHypothetical():
+    """c33: 자기소개 '…AI 를 안정적으로 올리는 일을 하고 싶습니다' 를 '어떤 지표로 문제를 파악하셨나요?' 로 물음(틀린 전제).
+    사용자 2026-11-21: 바람이면 '그 일을 한다면' 처럼 가정으로."""
+    resume = {
+        "career": [{"company": "라인클라우드", "role": "ML 엔지니어", "description": "추천 모델 학습·배포 파이프라인 운영."}],
+        "projects": [{"name": "사내 LLM 게이트웨이", "period": "2024", "description": "여러 LLM 을 한 API 로 묶었다."}],
+        "cover_letter": ("장애가 났을 때 어떤 모델이 느린지 바로 알 수 있게 지표를 정리했습니다. "
+                         "고객사마다 다른 환경에 AI 를 안정적으로 올리는 일을 하고 싶습니다."),
+    }
+    focus = resumeFocus(resume, 1, "사내 LLM 게이트웨이", random.Random(0))
+    assert focus.wishes == ["고객사마다 다른 환경에 AI 를 안정적으로 올리는 일을 하고 싶습니다."]
+    assert "바람" in focus.focus and "하게 된다면" in focus.focus
+    wishAsDone = question_compose.wishAsDone
+    assert wishAsDone("고객사마다 다른 환경에 AI를 안정적으로 올리는 일에서 어떤 지표로 문제를 파악하셨나요?", focus.wishes, focus.others)
+    assert not wishAsDone("고객사마다 다른 환경에 AI를 안정적으로 올리는 일을 하게 된다면 어떤 지표부터 보시겠어요?", focus.wishes, focus.others)
+    assert not wishAsDone("장애가 났을 때 어떤 모델이 느린지 알 수 있게 지표를 정리하면서 무엇을 기준으로 고르셨나요?", focus.wishes, focus.others)

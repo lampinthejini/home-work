@@ -7,7 +7,7 @@
 import asyncio
 from datetime import timedelta
 
-from app.services import job_news, question_compose, rag, slot_material
+from app.services import job_news, llm, question_compose, rag, slot_material
 from app.timeutil import now
 from tests.test_question_rag import composed, fakeVector, makeApplication, world  # noqa: F401 — world 는 pytest fixture
 
@@ -114,3 +114,27 @@ def test_parseRssSplitsPublisherAndSkipsBadLinks():
     items = job_news.parseRss(xml)
     assert [(i["title"], i["publisher"]) for i in items] == [("AI 에이전트 공개", "전자신문"), ("날짜 없음", "")]
     assert items[0]["published_at"].year == 2026 and items[1]["published_at"] is None
+
+
+def test_unrelatedNewsAreDroppedBeforeJobPrompts(sessionFactory, world, monkeypatch):  # noqa: F811
+    """사용자 2026-11-21: 최근 소식을 공고·이력서와 비교해 둘 다와 상관없으면 지운다 (c33: 'LLM 의료기 허가' 가 직무 주제 21번)."""
+    fake = world()
+
+    async def collect(jobCode, timeoutSec=30):
+        return [job_news.JobNews('"LLM 의료기 허가, 정해진 임상 공식 없다"', fakeVector("모델")),
+                job_news.JobNews("기업용 AI를 위한 관리형 RAG 가이드 발표", fakeVector("검색"))]
+    monkeypatch.setattr(job_news, "collect", collect)
+    appId = makeApplication(sessionFactory)
+    asyncio.run(question_compose.compose(appId))
+    assert len(fake.newsFitPrompts) == 1  # 한 사람에 한 번
+    assert "<공고>" in fake.newsFitPrompts[0] and "<경험>" in fake.newsFitPrompts[0]
+    assert not any("의료기" in p for p in fake.prompts) and len(composed(sessionFactory, appId)) == 10
+
+
+def test_newsFitFailureDropsAllNews(monkeypatch):
+    async def structured(*args, **kwargs):
+        raise llm.LlmError("timeout")
+    monkeypatch.setattr(llm, "structured", structured)
+    news = [job_news.JobNews("기업용 AI를 위한 관리형 RAG 가이드 발표")]
+    assert asyncio.run(job_news.keepRelated(news, "RAG 파이프라인 구축", "", 5)) == []  # 고르지 못하면 쓰지 않는다
+    assert asyncio.run(job_news.keepRelated(news, "RAG", "", 0.5)) == []  # 시간이 없으면 부르지 않는다
