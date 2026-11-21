@@ -86,7 +86,7 @@ class FakeWorld:
                     else "RAG 챗봇을 만들 때 본인이 맡은 역할은 무엇이었나요?")
             return schema(question=text, evidence=evidence, task_count=1)
         kind = user.split("[만들 질문] ")[1].split(" ")[0]
-        # 말끝까지 다르게 (같은 직무 말끝은 same_ending 으로 다시 만든다, 2026-11-18)
+        # 말끝까지 다르게 (11-18 같은 직무 말끝 검사를 위해 넣음, 11-21 검사는 뺌)
         return schema(question=f"{kind} 관점에서 새로 만든 질문은 {self.counter}번째인가요?", task_count=1)
 
 
@@ -709,25 +709,17 @@ def test_similarCompanyQuestionIsRemade(sessionFactory, world):
     assert any("앞 회사 질문과 내용이 비슷함" in p for p in fake.prompts)
 
 
-def test_resumeQuestionWithSameEndingAsEarlierIsRejected():
-    """실측 2026-11-18: 이력서 질문 2개가 '…Airflow를 활용한 이유는 무엇인가요?' · '…Kubernetes를 활용한 이유는 무엇인가요?'."""
+def test_sameEndingWithDifferentContentIsKept():
+    """사용자 2026-11-21: 내용이 다르면 말끝이 같아도 괜찮다 → 말끝 검사(same_ending, 11-18) 뺌. 같은 일을 다시 묻는 것은 유사도로 막는다."""
     resume = "프로젝트: 추천 모델 재학습 파이프라인 (2023) 주간 재학습과 A/B 검증을 자동화"
     first = "추천 모델 재학습 파이프라인에서 Airflow를 활용한 이유는 무엇인가요?"
     out = question_compose.RagQuestion(question="추천 모델 재학습 파이프라인에서 Kubernetes를 활용한 이유는 무엇인가요?",
                                        evidence="주간 재학습과 A/B 검증을 자동화", task_count=1)
     anchors = ["재학습 파이프라인"]
-    assert question_compose.checkGenerated("resume", out, resume, anchors, [first]) == "same_ending"
-    out.question = "추천 모델 재학습 파이프라인에서 A/B 검증을 자동화할 때 가장 어려웠던 점은 무엇이었나요?"
-    assert question_compose.checkGenerated("resume", out, resume, anchors, [first]) is None
-
-
-def test_jobQuestionWithSameEndingAsEarlierIsRejected():
-    """실측 2026-11-18: 직무 질문 6개 중 5개가 '…핵심 기준은 무엇인가요?'로 끝남 → 앞 직무 질문과 말끝이 같으면 다시 만든다."""
+    assert question_compose.checkGenerated("resume", out, resume, anchors, previous=[first]) is None
     earlier = ["RAG 검색에서 정보의 정확성과 관련된 핵심 기준은 무엇인가요?"]
     same = question_compose.RagQuestion(question="모델 경량화 뒤 배포할 때 고려할 중요한 기준은 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("job", same, "", sameKind=earlier) == "same_ending"
-    other = question_compose.RagQuestion(question="모델 경량화에서 양자화와 지식 증류의 차이는 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("job", other, "", sameKind=earlier) is None
+    assert question_compose.checkGenerated("job", same, "", previous=earlier) is None
 
 
 def test_jobSlotsGetDifferentForms():
@@ -923,12 +915,8 @@ def test_repeatedConnectiveIsDetected(text, repeated):
     assert question_compose.repeatedConnective(text) is repeated
 
 
-def test_sameEndingAndRepeatedConnectivePassOnLastTry():
-    """말끝이 같거나 연결 말이 겹치는 것은 큰 흠이 아니라, 마지막 시도에서는 받는다 (2026-11-19 사용자 결정)."""
-    earlier = ["RAG 검색에서 정보의 정확성과 관련된 핵심 기준은 무엇인가요?"]
-    same = question_compose.RagQuestion(question="모델 경량화 뒤 배포할 때 고려할 중요한 기준은 무엇인가요?", task_count=1)
-    assert question_compose.checkGenerated("job", same, "", sameKind=earlier) == "same_ending"
-    assert question_compose.checkGenerated("job", same, "", sameKind=earlier, lastTry=True) is None
+def test_repeatedConnectivePassesOnLastTry():
+    """연결 말이 겹치는 것은 큰 흠이 아니라, 마지막 시도에서는 받는다 (2026-11-19 사용자 결정)."""
     doubled = question_compose.RagQuestion(question="Python에서 데이터 처리 과정에서 오류가 생기는 원인은 무엇인가요?", task_count=1)
     assert question_compose.checkGenerated("job", doubled, "") == "repeated_connective"
     assert question_compose.checkGenerated("job", doubled, "", lastTry=True) is None
