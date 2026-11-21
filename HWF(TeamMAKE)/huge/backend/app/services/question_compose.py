@@ -811,7 +811,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                             vector, chosenVectors([c for c in state["chosen"] if c.get("qtype") == kind])) >= SAME_KIND_SIMILARITY:
                         # 말끝이 같은 것은 괜찮고, 내용이 비슷한 것만 막는다 (2026-11-18 사용자 결정)
                         problem = "similar_company" if kind == "company" else "similar_same_kind"
-                    elif slot_material.pairedDifference(state.get("piece"), text):
+                    elif slot_material.pairedDifference(ctx["picker"].pieces, text):
                         problem = "paired_difference"  # 틀린 전제라 마지막 시도에도 받지 않는다
                     elif materialUnused(state, text, vector, lastTry=attempt + 1 >= regenLimit):
                         problem = "material_unused"

@@ -83,7 +83,8 @@ def test_jobPromptTopicComesFromPieces(sessionFactory, world):  # noqa: F811
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     with sessionFactory() as db:
-        texts = [p.text for p in slot_material.jobPieces(db, question_compose.jobTopics(db.get(Application, appId).posting, RESUME), [])]
+        posting = db.get(Application, appId).posting
+        texts = [p.text for p in slot_material.jobPieces(db, question_compose.jobTopics(posting, RESUME), [], posting.title)]
     jobPrompts = [p for p in fake.prompts if p.startswith("[만들 질문] 직무")]
     topics = [p.split("이번 질문의 기술 주제: ")[1].split(" — 이 주제만")[0] for p in jobPrompts]
     assert len(topics) == 4 and len(set(topics)) == 4
@@ -164,6 +165,18 @@ def test_jobsIntroKeepsOnlyThePostingJobLine():
     assert len(slot_material.jobLines(intro, "마케터")) == 3  # 맞는 직무가 없으면 모두
 
 
+def test_jobsIntroLineIsSplitIntoSentences():
+    """실측 2026-11-20 c31b: 이 공고 직무 줄 하나가 직무 주제로 30번 → 문장·'~며,' 마디로 나누고 직무 이름을 붙인다."""
+    intro = ("- 서비스 개발: 검색·쇼핑 서비스의 백엔드를 만든다.\n"
+             "- AI/AX 엔지니어: AIIT-X를 비롯한 AI 기술로 사용자와 임직원의 문제를 푼다. 문제 정의 → 데이터 수집 → RAG·에이전트 설계 "
+             "순서로 일하며, 정답률·근거 일치율·응답 시간으로 말한다.")
+    assert slot_material.jobLines(intro, "AI/AX 엔지니어") == [
+        "AI/AX 엔지니어: AIIT-X를 비롯한 AI 기술로 사용자와 임직원의 문제를 푼다.",
+        "AI/AX 엔지니어: 문제 정의 → 데이터 수집 → RAG·에이전트 설계 순서로 일하며",
+        "AI/AX 엔지니어: 정답률·근거 일치율·응답 시간으로 말한다.",
+    ]
+
+
 def test_pickerPicksRandomlyAmongTopThreeClosest():
     """사용자 2026-11-20: 가장 가까운 것 하나만 고르니 지원자마다 같은 글(흩어진 행동을 연결하다 10번) → 가까운 위 3개 중 무작위."""
     items = [Piece("company", "post", "글", f"글 {i}", vector=[1.0, i / 10]) for i in range(6)]
@@ -185,19 +198,35 @@ def test_newsWithoutTechNameIsDropped(sessionFactory):
 
 def test_pairedDifferenceFromOneLineIsCaught():
     """실측 2026-11-20 불량 B1 4번: 'RAG와 사내 문서 검색으로 …' 한 줄의 두 말을 'RAG와 사내 문서 검색 기술의 차이' 로 물음."""
-    piece = Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "RAG와 사내 문서 검색으로 임직원의 반복 업무를 줄인다.")
-    assert slot_material.pairedDifference(piece, "RAG와 사내 문서 검색 기술의 차이는 무엇인가요?")
-    assert slot_material.pairedDifference(piece, "RAG 와 사내 문서 검색 간의 차이점을 설명해 주세요.")
-    assert not slot_material.pairedDifference(piece, "RAG와 미세 조정의 차이는 무엇인가요?")  # 자료에 없는 쪽과 비교는 괜찮음
-    assert not slot_material.pairedDifference(piece, "RAG로 사내 문서를 찾을 때 틀리는 원인은 무엇인가요?")
-    assert not slot_material.pairedDifference(None, "RAG와 사내 문서 검색의 차이는?")
+    pieces = [Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "RAG와 사내 문서 검색으로 임직원의 반복 업무를 줄인다."),
+              Piece("job", "news", "최근 소식", "국산 LLM과 NPU로 AI 추론 실증", term="추론")]
+    assert slot_material.pairedDifference(pieces, "RAG와 사내 문서 검색 기술의 차이는 무엇인가요?")
+    assert slot_material.pairedDifference(pieces, "RAG 와 사내 문서 검색 간의 차이점을 설명해 주세요.")
+    assert not slot_material.pairedDifference(pieces, "RAG와 미세 조정의 차이는 무엇인가요?")  # 자료에 없는 쪽과 비교는 괜찮음
+    assert not slot_material.pairedDifference(pieces, "RAG로 사내 문서를 찾을 때 틀리는 원인은 무엇인가요?")
+    assert not slot_material.pairedDifference([], "RAG와 사내 문서 검색의 차이는?")
+
+
+def test_pairedDifferenceLooksAtEveryPieceNotOnlyTheGivenOne():
+    """실측 2026-11-20 c31b: 소식 '추론' 을 받은 자리가 AI/AX 줄의 두 말을 비교해 빠져나감 → 모든 자료 줄과 비교."""
+    pieces = [Piece("job", "news", "최근 소식", "국산 LLM과 NPU로 AI 추론 실증", term="추론"),
+              Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "RAG와 사내 문서 검색으로 임직원의 반복 업무를 줄인다.")]
+    assert slot_material.pairedDifference(
+        pieces, "추론에서 RAG와 사내 문서 검색을 사용할 때 각각의 정보 활용 방식의 차이는 무엇인가요?")
+
+
+def test_pairedDifferenceAllowsListedDifferentThings():
+    """c31b: 쉼표로 늘어놓은 서로 다른 팀의 역할 차이는 틀린 전제가 아니다. 두 말이 '와·과·및·가운뎃점'으로 붙은 것만 막는다."""
+    pieces = [Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "AI/AX 본부: AIIT-X 모델팀, 생성형 서비스팀, AX 추진팀, MLOps·플랫폼팀.")]
+    assert not slot_material.pairedDifference(pieces, "AIIT-X 모델팀과 AX 추진팀의 역할 차이를 어떻게 생각하시나요?")
+    assert slot_material.pairedDifference(pieces, "MLOps와 플랫폼의 차이는 무엇인가요?")
 
 
 def test_pairedDifferenceIsRetriedNotKept(sessionFactory, world, monkeypatch):  # noqa: F811
     """한 줄 두 말 '차이' 질문은 틀린 전제라 마지막 시도에도 받지 않는다 (예비 질문으로)."""
     world()
-    monkeypatch.setattr(slot_material, "pairedDifference", lambda piece, question: piece is not None and piece.kind == "job")
+    monkeypatch.setattr(slot_material, "pairedDifference", lambda pieces, question: True)
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
-    rows = [r for r in composed(sessionFactory, appId) if r.qtype == "job"]
+    rows = [r for r in composed(sessionFactory, appId) if r.qtype in ("job", "company")]
     assert rows and all(r.source != "generated" for r in rows)

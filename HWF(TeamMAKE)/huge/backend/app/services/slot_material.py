@@ -45,6 +45,7 @@ NEWS_TECH_WORDS = ("LLM", "sLLM", "에이전트", "NPU", "GPU", "추론", "파�
 # 'A와 B(의|간의|사이의) 차이' — 같은 자료 줄에 A·B 가 함께 있으면 서로 다른 것처럼 비교한 틀린 전제
 DIFFERENCE = re.compile(r"(\S+?)\s*(?:와|과)\s+(.+?)\s*(?:간의|사이의|의)?\s*(?:개념적\s*)?차이")
 DIFFERENCE_TAIL = re.compile(r"\s*(기술|방식|방법|개념|모델)$")
+DIFFERENCE_PARTICLE = re.compile(r"(을|를|이|가|은|는|의|에서|으로|로)$")
 EMBED_TIMEOUT_SEC = 30
 EMBED_BATCH = 32  # embed 서버는 한 번에 64개까지 받는다 (rag.INDEX_BATCH 와 같은 크기로 나눠 보낸다)
 
@@ -113,7 +114,15 @@ def jobLines(jobsIntro: str, postingTitle: str) -> list[str]:
     """직무 소개 가운데 이 공고 직무의 줄만 ('AI/AX 엔지니어: …'). 맞는 줄이 없으면 모두 (실측 2026-11-20: 다른 직무 줄이 뽑힘)."""
     lines = splitPieces(jobsIntro)
     mine = [line for line in lines if ":" in line and line.split(":", 1)[0].strip() in (postingTitle or "")]
-    return mine or lines
+    if not mine:
+        return lines
+    # 한 줄뿐이면 지원자마다 같은 주제 (실측 2026-11-20 c31b: 30번) → 문장·'~며,' 마디로 나누고 앞에 직무 이름을 붙인다
+    split = []
+    for line in mine:
+        name, body = (part.strip() for part in line.split(":", 1))
+        parts = [part.strip() for part in re.split(r"(?<=다\.)\s+|(?<=며),\s*", body) if len(part.strip()) >= PIECE_MIN_CHARS]
+        split += [f"{name}: {part}" for part in parts] if len(parts) > 1 else [line]
+    return split
 
 
 def jobPieces(db: Session, postingTopics: list[str], news: list[job_news.JobNews], postingTitle: str = "") -> list[Piece]:
@@ -222,11 +231,20 @@ def grounded(piece: Piece, question: str, questionVector: list[float] | None) ->
     return similarity >= MATERIAL_MIN_SIMILARITY, similarity
 
 
-def pairedDifference(piece: Piece | None, question: str) -> bool:
-    """질문이 자료 한 줄에 함께 나온 두 말을 'A와 B의 차이'로 묻나 (실측 2026-11-20: 'RAG와 사내 문서 검색 기술의 차이' 4번, 불량 B1)."""
-    match = DIFFERENCE.search(question) if piece is not None else None
+def pairedDifference(pieces: list[Piece], question: str) -> bool:
+    """질문이 자료 한 줄에 함께 나온 두 말을 'A와 B의 차이'로 묻나 (실측 2026-11-20: 'RAG와 사내 문서 검색 기술의 차이' 4번, 불량 B1).
+    받은 자료 줄만이 아니라 모든 자료 줄과 비교한다 (c31b: 소식 '추론' 을 받은 자리가 AI/AX 줄의 두 말을 비교해 빠져나감)."""
+    match = DIFFERENCE.search(question)
     if not match:
         return False
-    text = piece.text.lower()
-    first, second = match.group(1).lower(), DIFFERENCE_TAIL.sub("", match.group(2).strip()).lower()
-    return bool(first and second) and first in text and second in text
+    first = match.group(1).lower()
+    # 'B' 뒤에 말이 더 붙으면('사내 문서 검색을 사용할 때 … 방식') 끝에서 한 낱말씩 줄여 가며 자료에 있는지 본다
+    words = DIFFERENCE_TAIL.sub("", match.group(2).strip()).lower().split()
+    seconds = [DIFFERENCE_PARTICLE.sub("", " ".join(words[:n])) for n in range(len(words), 0, -1)]
+    seconds = [s for s in seconds if len(s) >= 2]
+    if not first or not seconds:
+        return False
+    # 자료에서 두 말이 '와·과·및·가운뎃점'으로 붙어 있을 때만 ('RAG와 사내 문서 검색으로'). 쉼표로 늘어놓은 팀 이름처럼
+    # 서로 다른 것의 차이를 묻는 질문은 막지 않는다 (c31b: 'AIIT-X 모델팀과 AX 추진팀의 역할 차이')
+    joined = [re.compile(f"{re.escape(a)}\\s*(?:와|과|및|·)\\s*{re.escape(b)}") for s in seconds for a, b in ((first, s), (s, first))]
+    return any(j.search(p.text.lower()) for p in pieces for j in joined)
