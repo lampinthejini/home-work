@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import math
 import random
 
 import pytest
@@ -38,6 +39,37 @@ def test_groundedNeedsTermOrCloseMeaning():
     assert slot_material.grounded(talent, "질문", fakeVector("측정 판단"))[0]
     assert not slot_material.grounded(talent, "질문", fakeVector("전혀 다른 이야기 날씨"))[0]
     assert slot_material.grounded(Piece("company", "intro", "회사 소개", "글"), "질문", None)[0]  # 벡터가 없으면 확인하지 않음
+
+
+
+def test_jobMaterialAcceptsFromPointFour():
+    """2026-11-23 사용자: 직무 자료는 0.4 까지 받는다 (0.44 에도 괜찮은 질문이 있었다). 회사 자료는 0.5 그대로."""
+    near = [0.45, math.sqrt(1 - 0.45 ** 2)]  # 자료 [1, 0] 과 0.45
+    far = [0.35, math.sqrt(1 - 0.35 ** 2)]
+    job = Piece("job", "jobs_intro", "직무 소개", "사내 문서 검색 비서 개선", vector=[1.0, 0.0])
+    company = Piece("company", "intro", "회사 소개", "회사 글", vector=[1.0, 0.0])
+    assert slot_material.grounded(job, "질문", near)[0]
+    assert not slot_material.grounded(job, "질문", far)[0]
+    assert not slot_material.grounded(company, "질문", near)[0]
+
+
+def test_knowledgeJobSlotSkipsJobIntroWithoutTechName():
+    """2026-11-23 사용자: 기술 이름이 없는 직무 소개 줄은 지식형 직무 자리에 주지 않는다 (c37 '정답률이 어떻게 동작하는 원리').
+    앞의 직무 이름('AI/AX 엔지니어:')과 AI·AX 같은 낱말은 기술 이름으로 치지 않는다. 상황형 자리는 그대로 받는다."""
+    plain = Piece("job", "jobs_intro", "직무 소개", "AI/AX 엔지니어: 정답률·근거 일치율·응답 시간으로 말한다.", vector=[1.0, 0.0])
+    aiOnly = Piece("job", "jobs_intro", "직무 소개", "서비스 개발: AI 기능 화면에서는 AI 답이 늦을 때의 동작을 정한다.", vector=[1.0, 0.0])
+    named = Piece("job", "jobs_intro", "직무 소개", "AI/AX 엔지니어: 문제 정의 → RAG·에이전트 설계 → 배포 순서로 일한다.", vector=[0.0, 1.0])
+    other = Piece("job", "ai_ax_role", "AI/AX 가 하는 일", "AI 결과의 품질을 점검한다.", vector=[1.0, 0.0])
+    assert not slot_material.namesTech(plain) and not slot_material.namesTech(aiOnly)
+    assert slot_material.namesTech(named) and slot_material.namesTech(other)  # 직무 소개 칸만 본다
+    picker = MaterialPicker([plain, aiOnly, named], [[1.0, 0.0]], random.Random(0))
+    assert all(picker.pick("job", ["jobs_intro"], 0, needsTech=True) is named for _ in range(10))
+    assert picker.pick("job", ["jobs_intro"], 0) in (plain, aiOnly, named)
+    onlyPlain = MaterialPicker([plain, other], [[1.0, 0.0]], random.Random(0))
+    assert onlyPlain.pick("job", ["jobs_intro", "ai_ax_role"], 0, needsTech=True) is other  # 칸이 비면 다음 칸
+    assert question_compose.needsTechName("job", question_compose.KNOWLEDGE_FORMS[0])
+    assert not question_compose.needsTechName("job", question_compose.SITUATION_FORMS[0])
+    assert not question_compose.needsTechName("company", None)
 
 
 def pieces():

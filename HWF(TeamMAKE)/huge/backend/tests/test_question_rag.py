@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import logging
 import math
 import random
 from datetime import timedelta
@@ -989,6 +990,90 @@ def test_repeatedConnectiveIsFixedInReviewNotRegenerated(sessionFactory, world):
     assert rows[0].text == "팀 프로젝트에서 실패를 겪은 뒤 어떻게 대처하셨나요?" and rows[0].regen_count == 0  # 고친 글
     jobs = [r for r in rows if r.qtype == "job"]
     assert jobs[0].text == "Python에서 데이터 처리 과정에서 오류가 생기는 원인은 무엇인가요?" and jobs[0].regen_count == 0  # 그대로
+
+
+def test_awkwardIsToleratedFromSecondAttempt(sessionFactory, world, caplog):
+    """2026-11-23 사용자: AI 가 만든 글이라 어색함은 어느 정도 감수. 첫 시도는 다시 만들고, 둘째 시도부터는
+    고친 글을 못 써도 원래 질문을 받는다. 고친 글을 못 쓴 까닭은 로그에 남긴다."""
+    fake = world()
+    first = "팀 프로젝트의 교훈은 협업 방식에 무엇을 남기셨나요?"
+    second = "팀 프로젝트의 교훈을 다음 협업에 어떻게 쓰셨나요?"
+
+    def answer(user):
+        head = user.split("[문장]")[0]
+        if "교훈" in head:
+            return question_compose.QuestionReview(natural=False, fixed="", accurate=True, reason="앞뒤가 어색함")
+        return question_compose.QuestionReview(natural=True, accurate=True, key_points=["정확한 용어 하나", "정확한 용어 둘"])
+    fake.reviewAnswer = answer
+    personality = iter([first, second])
+    base = fake.structured
+
+    async def structured(schema, system, user, timeoutSec, **kwargs):
+        if schema is question_compose.RagQuestion and user.startswith("[만들 질문] 인성"):
+            text = next(personality, None)
+            if text:
+                return schema(question=text, task_count=1)
+        return await base(schema, system, user, timeoutSec, **kwargs)
+    llm.structured = structured
+    appId = makeApplication(sessionFactory)
+    with caplog.at_level(logging.INFO, logger="huge.compose"):
+        asyncio.run(question_compose.compose(appId))
+    rows = composed(sessionFactory, appId)
+    assert rows[0].text == second and rows[0].regen_count == 1
+    assert "awkward, fix unusable [empty]" in caplog.text
+    assert "awkward, kept original [empty]" in caplog.text
+
+
+def test_awkwardReviewReturningSameTextIsAccepted(sessionFactory, world, caplog):
+    """2026-11-23 사용자: 다시 보기가 어색하다면서 같은 글을 내면(고칠 곳을 못 찾음) 다시 만들지 않고 받는다 (c37 4번)."""
+    fake = world()
+    text = "팀 프로젝트의 교훈은 협업 방식에 무엇을 남기셨나요?"
+
+    def answer(user):
+        if "교훈" in user.split("[문장]")[0]:
+            return question_compose.QuestionReview(natural=False, fixed=text, accurate=True, reason="어색함")
+        return question_compose.QuestionReview(natural=True, accurate=True, key_points=["정확한 용어 하나", "정확한 용어 둘"])
+    fake.reviewAnswer = answer
+    personality = iter([text])
+    base = fake.structured
+
+    async def structured(schema, system, user, timeoutSec, **kwargs):
+        if schema is question_compose.RagQuestion and user.startswith("[만들 질문] 인성"):
+            nextText = next(personality, None)
+            if nextText:
+                return schema(question=nextText, task_count=1)
+        return await base(schema, system, user, timeoutSec, **kwargs)
+    llm.structured = structured
+    appId = makeApplication(sessionFactory)
+    with caplog.at_level(logging.INFO, logger="huge.compose"):
+        asyncio.run(question_compose.compose(appId))
+    rows = composed(sessionFactory, appId)
+    assert rows[0].text == text and rows[0].regen_count == 0
+    assert "awkward, same text kept" in caplog.text
+
+
+def test_situationPromptAsksForTopicOrRequiredSkillName():
+    """2026-11-23 사용자: 상황 안에 이름을 넣되 직무가 요구하는 기술 위주로 (기술 주제·지원자 기술도)."""
+    topic, situationForm = "AIIT-X 사내 문서 검색", question_compose.SITUATION_FORMS[0]
+    situation = question_compose.ragPrompt("job", "회사", "", [], [], None, topic, jobForm=situationForm, requiredSkills=["Python", "FastAPI"])
+    assert "기술 주제에 적힌 이름" in situation and "공고가 요구하는 기술(Python, FastAPI)" in situation
+    bare = question_compose.ragPrompt("job", "회사", "", [], [], None, topic, jobForm=situationForm)
+    assert "기술 주제에 적힌 이름" in bare and "공고가 요구하는 기술" not in bare
+    knowledge = question_compose.ragPrompt("job", "회사", "", [], [], None, topic, jobForm=question_compose.KNOWLEDGE_FORMS[0],
+                                           requiredSkills=["Python"])
+    assert "기술 주제에 적힌 이름" not in knowledge
+
+
+def test_requiredSkillsComeFromLatestCriteria():
+    class Criteria:
+        def __init__(self, skills):
+            self.screening_required_skills = skills
+
+    class Posting:
+        criteria = [Criteria(["Java"]), Criteria(["Python", " ", "FastAPI"])]
+    assert question_compose.requiredSkillsOf(Posting()) == ["Python", "FastAPI"]
+    Posting.criteria = []
+    assert question_compose.requiredSkillsOf(Posting()) == []
 
 
 def test_bankFallbackPrefersReserveNotSimilarToSameKind(sessionFactory, world, monkeypatch):

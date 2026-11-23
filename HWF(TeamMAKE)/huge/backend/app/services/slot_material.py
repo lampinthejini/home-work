@@ -40,6 +40,8 @@ PIECE_MIN_CHARS = 12  # 이보다 짧은 줄은 제목('인재상')으로 보고
 PIECE_MAX_CHARS = 200  # 이보다 긴 줄은 문장으로 나눈다
 # 질문과 자료의 뜻이 이만큼 가까워야 자료를 쓴 것으로 본다 (기술 이름이 없는 항목만). 실측으로 정한다
 MATERIAL_MIN_SIMILARITY = 0.5
+# 직무 자리는 더 낮게 (사용자 2026-11-23: c31b~c36 에서 0.44~0.49 로 반려된 RAG·AIIT-X 질문 상당수가 쓸 만했다)
+JOB_MATERIAL_MIN_SIMILARITY = 0.4
 # 앞에서 받은 같은 종류 질문과 이만큼 가까운 항목은 건너뛴다 (질문끼리 0.7 이상이면 다시 만들기라 그 전에 피한다)
 AVOID_SIMILARITY = 0.6
 PICK_TOP = 3  # 칸 안에서 이력서와 가까운 위 몇 개 가운데 무작위로 고른다
@@ -130,6 +132,20 @@ def jobLines(jobsIntro: str, postingTitle: str) -> list[str]:
     return split
 
 
+# 기술 이름으로 치지 않는 영문 낱말 (모든 줄에 나와 주제를 가르지 못한다)
+GENERIC_LATIN = {"ai", "ax", "it"}
+TECH_NAME = re.compile(r"[A-Za-z][A-Za-z0-9+#\-]*[A-Za-z0-9+#]")
+
+
+def namesTech(piece: Piece) -> bool:
+    """직무 소개 줄이 기술 이름을 담았나 (사용자 2026-11-23). 앞의 직무 이름('AI/AX 엔지니어:')은 빼고 본다.
+    c37: 'AI/AX 엔지니어: 정답률·근거 일치율·응답 시간으로 말한다' 를 지식형 자리가 받아 '정답률이 어떻게 동작하는 원리' 가 나왔다."""
+    if piece.term or piece.field != "jobs_intro":
+        return True
+    body = piece.text.split(": ", 1)[-1]
+    return any(word.lower() not in GENERIC_LATIN for word in TECH_NAME.findall(body))
+
+
 def jobPieces(db: Session, postingTopics: list[str], news: list[job_news.JobNews], postingTitle: str = "") -> list[Piece]:
     profile = company.getProfile(db)
     pieces = [Piece("job", *POSTING_FIELD, t) for t in postingTopics]
@@ -196,12 +212,13 @@ class MaterialPicker:
             return None
         return rag.chunkDistance(self.resumeVectors, piece.vector)
 
-    def pick(self, kind: str, order: list[str], attempt: int, avoid: list[list[float]] = ()) -> Piece | None:
+    def pick(self, kind: str, order: list[str], attempt: int, avoid: list[list[float]] = (), needsTech: bool = False) -> Piece | None:
         """attempt 번째 시도에 쓸 항목. 그 칸이 비었으면 다음 칸. 칸 안에서는 안 쓴 것 가운데 이력서와 가까운 위 PICK_TOP 개 중 무작위.
-        avoid(앞에서 받은 같은 종류 질문 벡터)와 가까운 항목은 건너뛴다 — 다 가까우면 그대로 고른다."""
+        avoid(앞에서 받은 같은 종류 질문 벡터)와 가까운 항목은 건너뛴다 — 다 가까우면 그대로 고른다.
+        needsTech: 지식형 직무 자리 — 기술 이름이 없는 직무 소개 줄은 고르지 않는다 (namesTech)."""
         for step in range(len(order)):
             fieldName = order[(attempt + step) % len(order)]
-            inField = [p for p in self.pieces if p.kind == kind and p.field == fieldName]
+            inField = [p for p in self.pieces if p.kind == kind and p.field == fieldName and (not needsTech or namesTech(p))]
             fresh = [p for p in inField if p.key not in self.usedKeys] or inField
             if not fresh:
                 continue
@@ -233,7 +250,7 @@ def grounded(piece: Piece, question: str, questionVector: list[float] | None) ->
         return any(name in question.lower() for name in termNames(piece.term)), similarity
     if similarity is None:
         return True, None
-    return similarity >= MATERIAL_MIN_SIMILARITY, similarity
+    return similarity >= (JOB_MATERIAL_MIN_SIMILARITY if piece.kind == "job" else MATERIAL_MIN_SIMILARITY), similarity
 
 
 def pairedDifference(pieces: list[Piece], question: str) -> bool:

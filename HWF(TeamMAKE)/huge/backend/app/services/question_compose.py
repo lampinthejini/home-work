@@ -193,6 +193,20 @@ SITUATION_NOTE = ("이번은 상황 질문이다 — 회사 업무에서 생길 
                   "앞으로 어떻게 하겠는지를 묻는다. 지원자가 겪은 일로 묻지 않는다. ")
 
 
+def situationNameNote(requiredSkills: list[str]) -> str:
+    """상황 안에 쓸 이름 (사용자 2026-11-23: 직무가 요구하는 기술 위주로, 기술 주제·지원자 기술도).
+    c35: '장애 상황에서 정답률이 떨어졌다면' 처럼 이름 없는 상황은 어느 시스템 이야기인지 흐렸다."""
+    required = f"공고가 요구하는 기술({', '.join(requiredSkills[:8])}) 가운데 상황에 맞는 것, " if requiredSkills else ""
+    return ("상황 안에 기술·제품 이름 하나를 넣는다 — 이번 기술 주제에 적힌 이름, " + required
+            + "지원자 기술 순으로 고른다. 이름 없이 '정답률이 떨어졌다면'처럼 쓰지 말고 "
+            "어느 시스템·기술에서 무엇이 어떻게 됐는지 보이게 쓴다. ")
+
+
+def needsTechName(kind: str, jobForm: str | None) -> bool:
+    """지식형 직무 자리는 기술 이름이 있는 자료만 받는다 (사용자 2026-11-23). 상황형은 '정답률이 떨어졌다면' 같은 상황 재료로 쓸 수 있다."""
+    return kind == "job" and jobForm in KNOWLEDGE_FORMS
+
+
 def jobFormFor(index: int) -> str:
     """직무 자리 꼴: 지식형과 상황형을 번갈아 (한 면접 직무 4자리 → 상황형 2개)."""
     forms = SITUATION_FORMS if index % 2 else KNOWLEDGE_FORMS
@@ -601,6 +615,12 @@ def candidates(db: Session, app: Application, kind: str, usedGroups: set[str], u
     return [q for q, _ in pool]
 
 
+def requiredSkillsOf(posting) -> list[str]:
+    """공고가 요구하는 기술: 서류 평가 필수 기술 (최신 평가 기준, 공고 글에서 자동으로 채운 값)."""
+    criteria = posting.criteria[-1] if posting.criteria else None
+    return [str(s).strip()[:40] for s in (criteria.screening_required_skills or []) if str(s).strip()] if criteria else []
+
+
 def skillsText(resume: dict) -> str:
     """직무 질문에 넣는 이력서: 기술만 (프로젝트 내용은 넣지 않아 직무 질문이 이력서 질문이 되지 않게)."""
     skills = list(resume.get("skills", []))
@@ -611,7 +631,7 @@ def skillsText(resume: dict) -> str:
 
 def ragPrompt(kind: str, company: str, resume: str, examples: list[rag.Example], avoid: list[str], problem: str | None,
               topic: str | None = None, companyInfo: str = "", jobNews: str = "", techPosts: str = "", jobForm: str | None = None,
-              singleMaterial: bool = False) -> str:
+              singleMaterial: bool = False, requiredSkills: list[str] | tuple = ()) -> str:
     """기존 질문(RAG 예시) · 이력서 · 회사의 상황을 함께 넣어 질문 1개를 만들게 한다 (TRD 7-4 ③-3)."""
     exampleLines = "\n".join(f"- {e.text}" for e in examples)
     avoidLines = "\n".join(f"- {t}" for t in avoid)
@@ -621,7 +641,7 @@ def ragPrompt(kind: str, company: str, resume: str, examples: list[rag.Example],
            else f"이번 질문의 기술 주제: {topic} — 이 주제만 묻고, 다른 기술 주제로 넘어가지 마라.\n" if topic else "")
         + f"질문은 물음표로 끝나는 질문 하나로, {question_text.QUESTION_MAX_CHARS}자 안쪽으로 쓰고, 요구하는 일은 {MAX_TASKS_PER_ANSWER}개 이하로 한다 — "
         + (f"이번 질문의 분야: {JOB_AREAS[jobForm]} — 이미 낸 직무 질문과 다른 분야·다른 내용을 묻는다. " if jobForm in JOB_AREAS and kind == "job" else "")
-        + (SITUATION_NOTE if jobForm in SITUATION_FORMS and kind == "job" else "")
+        + (SITUATION_NOTE + situationNameNote(list(requiredSkills)) if jobForm in SITUATION_FORMS and kind == "job" else "")
         + (f"이번 질문은 되도록 이 꼴로 쓴다: {jobForm} — 꼴의 말은 주제에 맞게 바꿔 쓰고, 주제와 맞지 않아 뜻이 약해지면 "
            "꼴을 버리고 주제에 맞는 다른 물음으로 쓴다(앞 질문과 말끝은 겹치지 않게). " if jobForm and kind == "job"
            else f"{KIND_FORMS[kind]} 이런 꼴을 참고하되, 꼴의 말을 그대로 옮기지 말고 상황에 맞게 바꿔 쓴다. ")
@@ -851,7 +871,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         topic, material, order = None, {}, []
         if kind in ("company", "job"):  # 자리마다 칸을 무작위로 뽑고, 칸 안에서 이력서와 가장 가까운 항목 (C-31)
             order = ctx["picker"].fieldOrder(kind)
-            material = slotMaterial(kind, ctx["picker"].pick(kind, order, 0, sameKindVectors(state, kind)))
+            material = slotMaterial(kind, ctx["picker"].pick(kind, order, 0, sameKindVectors(state, kind),
+                                                             needsTech=needsTechName(kind, jobFormFor(ctx["jobSlot"]))))
             topic = material["topic"]
         if kind == "personality":  # 인성 자리 2개는 PERSONALITY_ANGLES 에서 이어지는 두 초점을 맡는다 (지원마다 시작이 다름)
             topic = personalityAngleFor(ctx["personalitySlot"])
@@ -911,7 +932,8 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
         kind = state["kind"]
         material = {}  # 다시 만들 때는 다른 칸의 자료로 (C-31, 사용자 2026-11-20)
         if kind in ("company", "job") and state["attempt"] > 0 and state.get("materialOrder"):
-            material = slotMaterial(kind, ctx["picker"].pick(kind, state["materialOrder"], state["attempt"], sameKindVectors(state, kind)))
+            material = slotMaterial(kind, ctx["picker"].pick(kind, state["materialOrder"], state["attempt"], sameKindVectors(state, kind),
+                                                             needsTech=needsTechName(kind, state.get("jobForm"))))
         topic = material["topic"] if material else state["topic"]
         companyInfo = material["companyInfo"] if material else state.get("companyInfo", "")
         if remaining() <= 1:
@@ -934,7 +956,7 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                 out = await unlessHurried(app.id, llm.structured(
                     RagQuestion, SYSTEM, ragPrompt(kind, posting, resume, state["examples"], [c["text"] for c in state["chosen"]],
                                                    state["problem"], topic, companyInfo, jobForm=state.get("jobForm"),
-                                                   singleMaterial=kind == "company"),
+                                                   singleMaterial=kind == "company", requiredSkills=ctx.get("requiredSkills", ())),
                     min(settings["question_attempt_timeout_sec"], left), maxTokens=400, temperature=0.6))
             except asyncio.TimeoutError:  # 면접 시작이 재촉해 진행 중인 시도를 끊음 (TRD 7-4 ⑥)  # noqa: UP041
                 state["record"]["substitute_reason"] = "budget"
@@ -1013,6 +1035,30 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
                  f"{similarity:.2f}" if similarity is not None else "-", ok, app.id)
         return not ok and not lastTry
 
+    async def fixRejection(state: SlotState, kind: str, out: RagQuestion, text: str, vector: list[float], fixed: str):
+        """다시 보기가 고친 글을 쓸 수 없는 까닭 (로그용 짧은 말, 쓸 수 있으면 None)과 고친 글 벡터."""
+        if not fixed:
+            return "empty", None
+        if sameText(fixed, text):
+            return "same", None
+        fixedOut = RagQuestion(question=fixed, evidence=out.evidence, task_count=out.task_count)
+        code = checkGenerated(kind, fixedOut, ctx["experienceGround"], state.get("anchors", ctx["anchors"]),
+                              [c["text"] for c in state["chosen"]])
+        if code:
+            return f"check:{code}", None
+        if isRepeat(fixed, state["chosen"]):
+            return "repeat", None
+        if "질문" in fixed and "질문" not in text:
+            return "question_word", None
+        try:
+            fixedVector = (await rag.embed([fixed], timeoutSec=max(min(rag.EMBED_TIMEOUT_SEC, remaining()), 1)))[0]
+        except rag.EmbedUnavailable:
+            return None, None
+        similarity = rag.maxSimilarity(fixedVector, [vector])
+        if similarity < REVIEW_FIX_SIMILARITY:
+            return f"drifted {similarity:.2f}", None
+        return None, fixedVector
+
     async def review(state: SlotState, kind: str, out: RagQuestion, text: str, vector: list[float]):
         """④ 다시 보기 (4B): (문제 코드 또는 None, 쓸 글, 벡터). 시간이 없거나 호출이 실패하면 규칙 검사만으로 받는다."""
         if remaining() <= REVIEW_MIN_LEFT_SEC:
@@ -1039,24 +1085,19 @@ def buildComposeGraph(db: Session, app: Application, ctx: dict, deadline: float,
             fixed = question_text.cleanQuestion(result.fixed)
             if connective and (not fixed or sameText(fixed, text)):  # 연결 말만 걸렸고 고친 글이 없으면 그대로 받는다 (큰 흠이 아니다)
                 return None, text, vector
-            fixedOut = RagQuestion(question=fixed, evidence=out.evidence, task_count=out.task_count)
-            chosenTexts = [c["text"] for c in state["chosen"]]
-            if not fixed or sameText(fixed, text) or checkGenerated(
-                    kind, fixedOut, ctx["experienceGround"], state.get("anchors", ctx["anchors"]),
-                    chosenTexts) or isRepeat(fixed, state["chosen"]):
-                log.info("slot %s review: awkward, fix unusable (%s) app=%s", kind, result.reason, app.id)
+            unusable, fixedVector = await fixRejection(state, kind, out, text, vector, fixed)
+            if unusable is None:
+                log.info("slot %s review: fixed sentence (%s) app=%s", kind, result.reason, app.id)
+                text, vector = fixed, fixedVector or vector
+            elif unusable == "same":
+                # 어색하다면서 같은 글을 냄 = 다시 보기도 고칠 곳을 찾지 못함 → 약한 판정이라 받는다 (사용자 2026-11-23, c37 4번)
+                log.info("slot %s review: awkward, same text kept (%s) app=%s", kind, result.reason, app.id)
+            elif state["attempt"] >= AWKWARD_TOLERATED_FROM_ATTEMPT:
+                # 두 번째 시도부터는 어색해도 원래 질문을 받는다 (사용자 2026-11-23: AI 가 만든 글이라 어색함은 어느 정도 감수)
+                log.info("slot %s review: awkward, kept original [%s] (%s) app=%s", kind, unusable, result.reason, app.id)
+            else:
+                log.info("slot %s review: awkward, fix unusable [%s] (%s) app=%s", kind, unusable, result.reason, app.id)
                 return "awkward_sentence", text, vector
-            if "질문" in fixed and "질문" not in text:
-                return "awkward_sentence", text, vector
-            try:
-                fixedVector = (await rag.embed([fixed], timeoutSec=max(min(rag.EMBED_TIMEOUT_SEC, remaining()), 1)))[0]
-            except rag.EmbedUnavailable:
-                fixedVector = None
-            if fixedVector is not None and rag.maxSimilarity(fixedVector, [vector]) < REVIEW_FIX_SIMILARITY:
-                log.info("slot %s review: fix drifted (%s) app=%s", kind, result.reason, app.id)
-                return "awkward_sentence", text, vector
-            log.info("slot %s review: fixed sentence (%s) app=%s", kind, result.reason, app.id)
-            text, vector = fixed, fixedVector or vector
         if kind == "job" and reviewedPoints(result):
             state["record"]["key_points"] = reviewedPoints(result)
         return None, text, vector
@@ -1141,6 +1182,9 @@ async def addKeyPoints(app: Application, chosen: list[dict]) -> None:
 REVIEW_TIMEOUT_SEC = 10
 REVIEW_MIN_LEFT_SEC = 4  # 예산이 이만큼도 안 남으면 다시 보기를 건너뛴다 (질문은 규칙 검사만으로 받는다)
 REVIEW_FIX_SIMILARITY = 0.8  # 고친 질문이 원래 질문과 이만큼 가까워야 쓴다 (다른 질문이 되면 다시 만든다)
+# 이 시도부터는 어색하다는 판정에 고친 글을 못 써도 원래 질문을 받는다 (0 = 첫 시도). 첫 시도는 다른 자료로 한 번 더 만든다
+# (사용자 2026-11-23: 어색함은 어느 정도 감수, c35 어색 31번 중 11번이 둘째 시도)
+AWKWARD_TOLERATED_FROM_ATTEMPT = 1
 
 
 class QuestionReview(BaseModel):
@@ -1309,7 +1353,7 @@ async def composeNow(applicationId: str, budgetSec: float | None = None) -> bool
         ctx = {"ragOn": ragOn, "usedGroups": set(), "usedIds": set(), "exampleIds": set(),
                "company": fence(companyText(app.posting)), "companyBrief": fence(companyText(app.posting, brief=True)),
                "resume": fence(resumeText(app.resume_snapshot or {})),
-               "skills": fence(skillsText(app.resume_snapshot or {})),
+               "skills": fence(skillsText(app.resume_snapshot or {})), "requiredSkills": requiredSkillsOf(app.posting),
                "experience": fence(experienceText(app.resume_snapshot or {})), "anchors": experienceAnchors(app.resume_snapshot or {}),
                "experienceGround": fence(experienceText(app.resume_snapshot or {}, (app.resume_snapshot or {}).get("cover_letter") or "")),
                "cover": CoverIndex((app.resume_snapshot or {}).get("cover_letter") or ""),
