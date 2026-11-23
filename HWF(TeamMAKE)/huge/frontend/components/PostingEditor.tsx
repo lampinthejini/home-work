@@ -345,7 +345,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
             {step === 2 && (
                 <div className="card stack">
                     <div className="notice notice-info small">
-                        <strong>판정 방식</strong> — AI가 항목별로 평가 → 시스템이 가중치로 합산 → 종합 총점이 합격 기준 이상이면 시스템이 1차 합격으로 판정합니다.
+                        <strong>판정 방식</strong> — AI가 항목별로 평가 → 시스템이 가중치로 합산 → 종합 총점이 합격 기준 이상이면 시스템이 합격으로 판정합니다.
                         AI는 항목별 점수와 판정 이유만 씁니다. 판정 결과는 관리자를 포함해 누구도 바꿀 수 없습니다.
                     </div>
                     {criteriaLocked && <div className="notice notice-warn small">🔒 첫 응시가 시작되어 평가 기준을 바꿀 수 없습니다.</div>}
@@ -385,13 +385,13 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                         </div>
                     )}
 
-                    <h3>③ 1차 합격 기준 점수</h3>
+                    <h3>③ 합격 기준 점수</h3>
                     <div className="row" style={{ gap: 8 }}>
                         <input className="input" style={{ width: 100 }} type="number" min={0} max={100} value={Number.isNaN(form.pass_score) ? "" : form.pass_score} disabled={criteriaLocked}
                             onChange={(e) => set("pass_score", e.target.value === "" ? NaN : Math.max(0, Math.min(100, Number(e.target.value))))} aria-label="합격 기준 점수" /> 점 (0~100)
                     </div>
                     {Number.isNaN(form.pass_score) && <p className="small" style={{ color: "var(--color-danger)" }}>합격 기준 점수를 입력해 주세요</p>}
-                    <p className="tiny muted">ⓘ 종합 총점이 이 점수 이상이면 1차 합격으로 판정합니다.</p>
+                    <p className="tiny muted">ⓘ 종합 총점이 이 점수 이상이면 합격으로 판정합니다.</p>
                     <p className="tiny muted">ⓘ 면접 질문은 시스템이 자동으로 구성합니다 (인성 2 · 이력서 기반 2 · 기업 관련 2 · 직무 4 = 10문항)</p>
 
                     <h3>④ 서류 평가</h3>

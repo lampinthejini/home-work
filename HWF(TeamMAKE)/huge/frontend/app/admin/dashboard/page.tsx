@@ -100,7 +100,7 @@ function Dashboard() {
     if (!stats || !ops) return <Loading />;
     const empty = stats.taken === 0;
     const cards = [
-        ["이번 달 응시", `${stats.taken_this_month}명`], ["1차 합격률", stats.pass_rate === null ? "—" : `${stats.pass_rate}%`],
+        ["이번 달 응시", `${stats.taken_this_month}명`], ["합격률", stats.pass_rate === null ? "—" : `${stats.pass_rate}%`],
         ["평균 종합 점수", stats.average_total ? `${stats.average_total}점` : "—"], ["장애 이어가기", `${stats.resumed}건`],
         ["부정행위 취소", `${stats.cheating_cancelled}건`],
     ];
@@ -123,7 +123,7 @@ function Dashboard() {
                     </div>
                     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                         <table className="table">
-                            <thead><tr><th>공고별</th><th>응시자</th><th>1차 합격률</th><th>평균 점수</th></tr></thead>
+                            <thead><tr><th>공고별</th><th>응시자</th><th>합격률</th><th>평균 점수</th></tr></thead>
                             <tbody>{stats.postings.map((p) => (
                                 <tr key={p.posting_id}><td>{p.title}</td><td>{p.taken}</td><td>{p.pass_rate === null ? "—" : `${p.pass_rate}%`}</td><td>{p.average_total ?? "—"}</td></tr>
                             ))}</tbody>

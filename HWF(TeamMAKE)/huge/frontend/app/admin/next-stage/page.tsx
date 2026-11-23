@@ -64,7 +64,7 @@ function NextStage() {
             )}
             {!data && <Loading />}
             {data && data.items.length === 0 && (
-                <Empty title={data.undecided > 0 ? "아직 1차 판정이 끝나지 않았습니다" : "이 공고의 1차 합격자가 없습니다"} />
+                <Empty title={data.undecided > 0 ? "아직 합격 여부가 정해지지 않았습니다" : "이 공고의 합격자가 없습니다"} />
             )}
             {shown.length > 0 && (
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -89,5 +89,5 @@ function NextStage() {
 }
 
 export default function NextStagePage() {
-    return <AdminShell title="다음 전형 대상자 (1차 합격자)"><Suspense><NextStage /></Suspense></AdminShell>;
+    return <AdminShell title="다음 전형 대상자 (합격자)"><Suspense><NextStage /></Suspense></AdminShell>;
 }

@@ -55,7 +55,7 @@ function Compare() {
     if (error) return <ErrorBox message={error} />;
     if (!data) return <Loading />;
     const rows: [string, (it: Item) => React.ReactNode][] = [
-        ["AI 1차 판정", (it) => it.decision === "pass" ? <span className="badge badge-green">1차 합격</span> : it.decision === "fail" ? <span className="badge badge-gray">1차 불합격</span> : "판정 전"],
+        ["합격 여부", (it) => it.decision === "pass" ? <span className="badge badge-green">합격</span> : it.decision === "fail" ? <span className="badge badge-gray">불합격</span> : "판정 전"],
         ["종합 총점", (it) => it.total_score ?? "—"],
         ["AI 면접", (it) => it.interview_score ?? "—"],
         ["코딩테스트", (it) => it.coding_score ?? "—"],

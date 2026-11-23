@@ -1,0 +1,70 @@
+{"id": "c38-r1-p1-1", "round": 1, "person": 1, "kind": "personality", "source": "ai", "reason": null, "text": "규정 문서를 검색하는 챗봇을 개발할 때 결과가 틀렸던 상황에서 문제를 해결하기 위해 어떤 절차를 따랐고, 그 과정에서 책임감을 어떻게 느꼈나요?"}
+{"id": "c38-r1-p1-2", "round": 1, "person": 1, "kind": "company", "source": "ai", "reason": null, "text": "고객 상담 챗봇에서 잘못된 답변이 생겼던 경우를 분석한 프로젝트에서, 답변 전에 관련도를 판단하는 절차가 중요한 이유는 무엇인가요?"}
+{"id": "c38-r1-p1-3", "round": 1, "person": 1, "kind": "resume", "source": "ai", "reason": null, "text": "리뷰 감성 분류 프로젝트에서 KoBERT를 선택한 이유는 무엇인가요?"}
+{"id": "c38-r1-p1-4", "round": 1, "person": 1, "kind": "resume", "source": "ai", "reason": null, "text": "입사하면 고객사 문서로 평가를 먼저 세우고 개선하게 된다면, 그 평가를 만드는 데 어떤 기준을 중심으로 삼으시겠나요?"}
+{"id": "c38-r1-p1-5", "round": 1, "person": 1, "kind": "job", "source": "ai", "reason": null, "text": "RAG 시스템에서 정확도가 떨어졌다면, 검색된 문서와 답변 간의 일치도 평가 단계부터 확인하시나요?"}
+{"id": "c38-r1-p1-6", "round": 1, "person": 1, "kind": "job", "source": "ai", "reason": null, "text": "데이터 파이프라인에서 AI 결과의 품질을 검증하는 과정이 어떻게 동작하는 원리를 설명해 주시겠어요?"}
+{"id": "c38-r1-p1-7", "round": 1, "person": 1, "kind": "job", "source": "ai", "reason": null, "text": "FAISS를 사용하여 사내 문서의 유사도 검색을 실시하게 된다면, 먼저 어떤 단계를 거쳐 검색 정확도를 높이시겠어요?"}
+{"id": "c38-r1-p1-8", "round": 1, "person": 1, "kind": "job", "source": "ai", "reason": null, "text": "AIIT-X가 생성한 답변의 정확도를 어떻게 품질 확인하거나 측정하시나요?"}
+{"id": "c38-r1-p1-9", "round": 1, "person": 1, "kind": "personality", "source": "ai", "reason": null, "text": "공유하는 지식을 기록하고 동료의 검토를 받아들이며 개선하는 과정에서, 어떤 경험을 통해 그 태도를 실천했는지 말씀해 주시겠어요?"}
+{"id": "c38-r1-p1-10", "round": 1, "person": 1, "kind": "company", "source": "ai", "reason": null, "text": "AI 윤리 원칙 중 '사람이 결정한다'는 원칙을 실천하기 위해 어떤 절차를 따르고 싶으신가요?"}
+{"id": "c38-r1-p2-1", "round": 1, "person": 2, "kind": "personality", "source": "ai", "reason": null, "text": "LLM을 처음 사용해 보았을 때 정확도가 낮아서 실패했던 경험에서 어떤 점을 배웠고, 그 경험을 바탕으로 어떻게 성장했나요?"}
+{"id": "c38-r1-p2-2", "round": 1, "person": 2, "kind": "company", "source": "ai", "reason": null, "text": "AIIT가 쇼핑 후 사용자가 다음에 하려는 일을 추천하는 데 AI를 적용한 경험에서 가장 끌리는 점은 무엇인가요?"}
+{"id": "c38-r1-p2-3", "round": 1, "person": 2, "kind": "resume", "source": "ai", "reason": null, "text": "고객 문의 자동 분류 프로젝트에서 12개 유형으로 분류를 결정했을 때 어떤 기준을 사용하셨나요?"}
+{"id": "c38-r1-p2-4", "round": 1, "person": 2, "kind": "resume", "source": "ai", "reason": null, "text": "AIIT에서 고객사 업무에 AI를 적용하게 된다면, 그 과정에서 가장 먼저 해야 할 일은 무엇인가요?"}
+{"id": "c38-r1-p2-5", "round": 1, "person": 2, "kind": "job", "source": "ai", "reason": null, "text": "AI 에이전트가 작업을 수행하면서 오류가 생기는 원인은 무엇이고, 이를 얼마나 효과적으로 줄일 수 있는지 생각하시나요?"}
+{"id": "c38-r1-p2-6", "round": 1, "person": 2, "kind": "job", "source": "ai", "reason": null, "text": "AI가 생성하는 답변의 정답률이 70%로 떨어졌을 때, 그 원인을 분석하고 개선하기 위해 어떤 순서로 진행하시겠어요?"}
+{"id": "c38-r1-p2-7", "round": 1, "person": 2, "kind": "job", "source": "ai", "reason": null, "text": "Spring을 사용하여 서비스를 설계할 때, 메서드 간 의존성을 줄이기 위해 어떤 방법을 쓰시나요?"}
+{"id": "c38-r1-p2-8", "round": 1, "person": 2, "kind": "job", "source": "reserve", "reason": "similar_same_kind", "text": "PyTorch가 AI 모델 학습과 서빙에서 동작하는 원리를 설명해 주시겠어요?"}
+{"id": "c38-r1-p2-9", "round": 1, "person": 2, "kind": "personality", "source": "ai", "reason": null, "text": "여러 일의 요청이 동시에 들어올 때, 어떤 기준으로 우선순위를 정하고, 그 기준이 어떻게 실행되는지 말씀해 주시나요?"}
+{"id": "c38-r1-p2-10", "round": 1, "person": 2, "kind": "company", "source": "ai", "reason": null, "text": "AI 윤리 원칙 중 '사람이 결정한다'는 원칙을 실천하기 위해 어떤 절차를 설계하고 싶으신가요?"}
+{"id": "c38-r1-p3-1", "round": 1, "person": 3, "kind": "personality", "source": "ai", "reason": null, "text": "다른 사람의 피드백을 받아들이고 실제로 적용한 경험에서 가장 큰 변화를 느꼈던 순간은 무엇인가요?"}
+{"id": "c38-r1-p3-2", "round": 1, "person": 3, "kind": "company", "source": "ai", "reason": null, "text": "LLM 기반 서비스를 설계할 때 사용자 행동 데이터를 중심으로 기능을 개선하고 싶은 점은 무엇인가요?"}
+{"id": "c38-r1-p3-3", "round": 1, "person": 3, "kind": "resume", "source": "ai", "reason": null, "text": "고객 이탈 예측 프로젝트에서 XGBoost를 사용한 이유는 무엇인가요?"}
+{"id": "c38-r1-p3-4", "round": 1, "person": 3, "kind": "resume", "source": "ai", "reason": null, "text": "자신이 설문 데이터를 분류하고 요약하는 경험에서 LLM을 활용할 때 어떤 기준으로 판단하셨나요?"}
+{"id": "c38-r1-p3-5", "round": 1, "person": 3, "kind": "job", "source": "ai", "reason": null, "text": "AI 에이전트가 업무를 자동화할 때 발생할 수 있는 오류가 생기는 원인은 무엇이고, 이를 어떻게 예방할 수 있나요?"}
+{"id": "c38-r1-p3-6", "round": 1, "person": 3, "kind": "job", "source": "ai", "reason": null, "text": "XGBoost를 사용해 사내 문서의 분류 정확도를 향상시키는 프로세스를 맡게 된다면 어떤 순서로 진행하시나요?"}
+{"id": "c38-r1-p3-7", "round": 1, "person": 3, "kind": "job", "source": "ai", "reason": null, "text": "RAG 시스템을 설계할 때 정보를 검색하고 정확하게 재구성하기 위한 방법은 무엇인가요?"}
+{"id": "c38-r1-p3-8", "round": 1, "person": 3, "kind": "job", "source": "ai", "reason": null, "text": "데이터 파이프라인을 통해 AI 모델의 정답률이 떨어졌을 때, 그 원인을 파악하고 품질을 개선하기 위한 절차를 말씀해 주시겠어요?"}
+{"id": "c38-r1-p3-9", "round": 1, "person": 3, "kind": "personality", "source": "ai", "reason": null, "text": "원칙과 일정이 충돌할 경우 정직하게 문제를 알려내고 규칙을 지키는 태도를 보였던 경험은 어떤 경우였나요?"}
+{"id": "c38-r1-p3-10", "round": 1, "person": 3, "kind": "company", "source": "ai", "reason": null, "text": "2004년 지식 문답 서비스의 경험을 기반으로 한 서비스 기획 방식이, 현재 LLM 기반 서비스 설계에 어떤 영향을 미치고 싶으신가요?"}
+{"id": "c38-r1-p4-1", "round": 1, "person": 4, "kind": "personality", "source": "ai", "reason": null, "text": "팀 프로젝트에서 기능이 제대로 동작하지 않았던 상황에서 실수를 인정하고 개선한 경험은 무엇인가요?"}
+{"id": "c38-r1-p4-2", "round": 1, "person": 4, "kind": "company", "source": "ai", "reason": null, "text": "회사 기술 블로그에 소개된 사용자 행동을 연결하는 추천 모델 개발 경험에서, 어떤 부분이 실제 업무 자동화에 유용하게 적용될 수 있을 것 같으신가요?"}
+{"id": "c38-r1-p4-3", "round": 1, "person": 4, "kind": "resume", "source": "ai", "reason": null, "text": "여행 일정 추천 챗봇 프로젝트에서 프롬프트를 작성할 때 어떤 기준을 사용하시나요?"}
+{"id": "c38-r1-p4-4", "round": 1, "person": 4, "kind": "resume", "source": "ai", "reason": null, "text": "경영학 학부 때 반복 업무를 줄이는 도구에 관심을 갖게 된 계기가 있었는데, 그 경험을 바탕으로 업무를 이해하는 개발자가 되고 싶은 마음을 갖게 된 이유는 무엇인가요?"}
+{"id": "c38-r1-p4-5", "round": 1, "person": 4, "kind": "job", "source": "ai", "reason": null, "text": "RAG를 통해 사내 문서를 검색할 때 검색 결과의 신뢰성을 높이기 위한 구현 방법은 무엇인가요?"}
+{"id": "c38-r1-p4-6", "round": 1, "person": 4, "kind": "job", "source": "ai", "reason": null, "text": "Streamlit를 이용한 내부 데이터 분석 인터페이스에서 정답률이 떨어졌다면, 사용자 입력의 정확성을 개선하기 위한 접근은 어떻게 하시겠어요?"}
+{"id": "c38-r1-p4-7", "round": 1, "person": 4, "kind": "job", "source": "ai", "reason": null, "text": "AIIT-X가 사용자 질문에 답변을 생성할 때, 답변의 일관성과 사실성의 균형을 어떻게 고려하시나요?"}
+{"id": "c38-r1-p4-8", "round": 1, "person": 4, "kind": "job", "source": "ai", "reason": null, "text": "AI 에이전트가 사내 업무 흐름을 자동화할 때, 정책 문서 검색에 실패하는 경우가 증가한다면, 먼저 어떤 시스템에서 어떤 문제를 확인하시겠어요?"}
+{"id": "c38-r1-p4-9", "round": 1, "person": 4, "kind": "personality", "source": "ai", "reason": null, "text": "여러 업무가 동시에 요청될 때 우선순위를 정하는 데 가장 중요한 기준은 무엇인가요?"}
+{"id": "c38-r1-p4-10", "round": 1, "person": 4, "kind": "company", "source": "ai", "reason": null, "text": "사용자 중심의 접근에서 실제 사용자가 먼저 경험하는 기능을 설계할 때, 그 기준에 따라 어떤 업무 자동화를 먼저 시도하고 싶으신가요?"}
+{"id": "c38-r1-p5-1", "round": 1, "person": 5, "kind": "personality", "source": "ai", "reason": null, "text": "맡은 일의 마무리 과정에서 책임감을 느꼈던 상황이라면 어떻게 하시나요?"}
+{"id": "c38-r1-p5-2", "round": 1, "person": 5, "kind": "company", "source": "ai", "reason": null, "text": "회사 기술 블로그에서 언급한 사용자 행동을 연결하는 모델 개발에 관심을 갖게 된 계기는 무엇인가요?"}
+{"id": "c38-r1-p5-3", "round": 1, "person": 5, "kind": "resume", "source": "ai", "reason": null, "text": "한국어 질의응답 검색기 연구에서 한국어 법률 문서에 맞게 대조 학습을 적용했을 때 어떤 판단 기준을 세우셨나요?"}
+{"id": "c38-r1-p5-4", "round": 1, "person": 5, "kind": "resume", "source": "ai", "reason": null, "text": "그 일을 하게 된다면 실제 사용자의 속도와 비용을 함께 고려하는 서비스 설계에 어떤 접근을 하시겠어요?"}
+{"id": "c38-r1-p5-5", "round": 1, "person": 5, "kind": "job", "source": "ai", "reason": null, "text": "AIIT-X가 생성하는 답변과 사내 문서 검색 결과를 활용할 때, 각각의 정보를 기반으로 문제 해결에 적용하는 원리의 차이는 무엇인가요?"}
+{"id": "c38-r1-p5-6", "round": 1, "person": 5, "kind": "job", "source": "ai", "reason": null, "text": "AI 에이전트가 사내 문서 검색 시 정답률이 떨어졌다면, 먼저 확인하시겠어요?"}
+{"id": "c38-r1-p5-7", "round": 1, "person": 5, "kind": "job", "source": "ai", "reason": null, "text": "데이터 파이프라인에서 AI 출력의 품질이 저하되는 원인은 무엇이고, 이를 예방하기 위한 접근 방식을 생각하시나요?"}
+{"id": "c38-r1-p5-8", "round": 1, "person": 5, "kind": "job", "source": "ai", "reason": null, "text": "Python으로 개발하는 사내 문서 검색 시스템을 운영하게 된다면 어떤 순서로 진행하시나요?"}
+{"id": "c38-r1-p5-9", "round": 1, "person": 5, "kind": "personality", "source": "ai", "reason": null, "text": "사용자가 불편을 느끼는 상황에서 서비스를 개선하려는 의지를 갖게 된 경험은 어떤 것이었나요?"}
+{"id": "c38-r1-p5-10", "round": 1, "person": 5, "kind": "company", "source": "ai", "reason": null, "text": "고객 상담 챗봇이 잘못된 답변을 내는 경우 중, 관련도가 낮은 문서를 기반으로 답변한 사례를 분석하면서, 답변을 내기 전에 관련도를 판단하는 방식이 본인에게 어떤 인상을 주셨나요?"}
+{"id": "c38-r1-p8-1", "round": 1, "person": 8, "kind": "personality", "source": "ai", "reason": null, "text": "다른 사람의 피드백을 받고 그에 따라 개선한 경험에서 가장 큰 변화를 느꼈던 순간은 무엇인가요?"}
+{"id": "c38-r1-p8-2", "round": 1, "person": 8, "kind": "company", "source": "ai", "reason": null, "text": "AIIT-X 프로젝트에서 모델을 기능별로 고정해 사용하는 방식에 대해 어떻게 생각하시나요?"}
+{"id": "c38-r1-p8-3", "round": 1, "person": 8, "kind": "resume", "source": "ai", "reason": null, "text": "사내 LLM 게이트웨이 프로젝트에서 캐시를 도입했을 때 어떤 판단 기준을 사용하셨나요?"}
+{"id": "c38-r1-p8-4", "round": 1, "person": 8, "kind": "resume", "source": "ai", "reason": null, "text": "고객사마다 다른 환경에 AI를 안정적으로 올리는 일을 하게 된다면, 그 과정에서 어떤 지표를 중심으로 운영을 관리하시겠나요?"}
+{"id": "c38-r1-p8-5", "round": 1, "person": 8, "kind": "job", "source": "ai", "reason": null, "text": "RAG를 통해 문서를 검색할 때 검색 결과의 관련성과 정확성을 높이기 위해 어떤 결합 전략을 쓰시나요?"}
+{"id": "c38-r1-p8-6", "round": 1, "person": 8, "kind": "job", "source": "reserve", "reason": "job_asks_experience", "text": "모델 미세 조정 중 학습 데이터의 편향이 생기는 원인은 무엇이고, 이를 줄일 수 있는 방법이 있나요?"}
+{"id": "c38-r1-p8-7", "round": 1, "person": 8, "kind": "job", "source": "ai", "reason": null, "text": "데이터 파이프라인에서 입력 데이터를 정제하고 처리하는 과정의 장점과 단점을 설명해 주실 수 있나요?"}
+{"id": "c38-r1-p8-8", "round": 1, "person": 8, "kind": "job", "source": "ai", "reason": null, "text": "Spring 기반 서비스에서 vLLM과의 통합 시 응답 지연이 발생한다면, 우선적으로 확인하시겠어요?"}
+{"id": "c38-r1-p8-9", "round": 1, "person": 8, "kind": "personality", "source": "ai", "reason": null, "text": "규칙과 원칙이 충돌할 때 정직하게 행동하고자 하는 이유는 무엇인가요?"}
+{"id": "c38-r1-p8-10", "round": 1, "person": 8, "kind": "company", "source": "ai", "reason": null, "text": "AIIT가 2028년까지 모든 업무에 AI를 기본으로 도입한다는 비전에 따라, 이 과정에서 가장 먼저 실천하고 싶은 일은 무엇인가요?"}
+{"id": "c38-r1-p10-1", "round": 1, "person": 10, "kind": "personality", "source": "ai", "reason": null, "text": "팀 내에서 의견이 달라지는 상황에서 어떻게 조율을 시도하셨나요?"}
+{"id": "c38-r1-p10-2", "round": 1, "person": 10, "kind": "company", "source": "ai", "reason": null, "text": "사내 문서 검색 비서 프로젝트에서 문서를 효율적으로 검색하고 정확한 답변을 내는 데 어떤 접근이 중요한가요?"}
+{"id": "c38-r1-p10-3", "round": 1, "person": 10, "kind": "resume", "source": "ai", "reason": null, "text": "테스트 케이스 초안 생성기에서 중복 케이스를 임베딩 유사도로 걸렀을 때 그 기준을 선택한 이유는 무엇인가요?"}
+{"id": "c38-r1-p10-4", "round": 1, "person": 10, "kind": "resume", "source": "ai", "reason": null, "text": "AI 서비스의 품질을 재고 지키고자 한다면, 그 일을 하게 되면 어떤 체계를 통해 품질을 지속적으로 관리하시겠나요?"}
+{"id": "c38-r1-p10-5", "round": 1, "person": 10, "kind": "job", "source": "ai", "reason": null, "text": "RAG 시스템에서 정확도가 떨어졌다면 첫 번째로 확인하시겠어요?"}
+{"id": "c38-r1-p10-6", "round": 1, "person": 10, "kind": "job", "source": "ai", "reason": null, "text": "Python에서 객체의 메모리 관리가 동작하는 원리를 설명해 주시겠어요?"}
+{"id": "c38-r1-p10-7", "round": 1, "person": 10, "kind": "job", "source": "ai", "reason": null, "text": "정답률이 떨어지기 시작한 AI/AX 시스템에서 정답률을 측정하고 평가하기 위해 어떤 지표와 절차를 먼저 적용하시겠어요?"}
+{"id": "c38-r1-p10-8", "round": 1, "person": 10, "kind": "job", "source": "ai", "reason": null, "text": "AI가 생성한 답변의 근거가 실제 내용과 일치하는 정도를 어떻게 측정하시나요?"}
+{"id": "c38-r1-p10-9", "round": 1, "person": 10, "kind": "personality", "source": "ai", "reason": null, "text": "새로운 AI 기술을 처음 접했을 때 어떻게 스스로 학습하고 이해하려고 노력하시나요?"}
+{"id": "c38-r1-p10-10", "round": 1, "person": 10, "kind": "company", "source": "ai", "reason": null, "text": "카페 관리도구 개편 프로젝트에서 기획과 개발의 협업을 경험하면서 AI를 활용한 업무 자동화에 관심을 갖게 되었나요?"}

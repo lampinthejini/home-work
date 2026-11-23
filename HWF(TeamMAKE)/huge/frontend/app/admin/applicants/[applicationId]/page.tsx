@@ -160,11 +160,11 @@ function ManualDecision({ deadline, onDecide, busy }: { deadline: string | null;
             <strong className="small">직접 결정{deadline && ` · ${longDateTime(deadline)}까지 결정하지 않으면 재채점 실패 시 평가 미완료로 불합격 처리됩니다`}</strong>
             <textarea rows={3} maxLength={1000} aria-label="결정 사유" placeholder="응시 자료를 확인한 내용과 결정 사유를 10자 이상 적어 주세요. 관리자에게만 보입니다." value={reason} onChange={(e) => setReason(e.target.value)} />
             <div className="row">
-                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("pass")}>1차 합격으로 결정</Button>
-                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("fail")}>1차 불합격으로 결정</Button>
+                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("pass")}>합격으로 결정</Button>
+                <Button kind="secondary" busy={busy} disabled={!ready} onClick={() => setConfirm("fail")}>불합격으로 결정</Button>
             </div>
             {confirm && (
-                <Modal title={`1차 ${confirm === "pass" ? "합격" : "불합격"}으로 결정할까요?`} onClose={() => setConfirm(null)}
+                <Modal title={`${confirm === "pass" ? "합격" : "불합격"}으로 결정할까요?`} onClose={() => setConfirm(null)}
                     actions={<><Button kind="secondary" onClick={() => setConfirm(null)}>취소</Button><Button busy={busy} onClick={() => { onDecide(confirm, reason.trim()); setConfirm(null); }}>결정</Button></>}>
                     <p>결정하면 바꿀 수 없습니다. 담당자가 정한 결과로 기록되고 지원자에게도 그렇게 안내됩니다.</p>
                 </Modal>
@@ -180,9 +180,9 @@ function DecisionCard({ d, onReprocess, onDecide, busy }: { d: Detail; onReproce
     return (
         <div className="card stack" style={{ gap: 8 }}>
             <div className="row">
-                <strong>AI 1차 판정</strong>
-                {r?.decision === "pass" && <span className="badge badge-green">1차 합격</span>}
-                {r?.decision === "fail" && <span className="badge badge-gray">1차 불합격</span>}
+                <strong>합격 여부</strong>
+                {r?.decision === "pass" && <span className="badge badge-green">합격</span>}
+                {r?.decision === "fail" && <span className="badge badge-gray">불합격</span>}
                 {!r && d.analysis_status === "needs_review" && <span className="badge badge-orange">평가 지연</span>}
                 {!r && d.analysis_status !== "needs_review" && <span className="badge badge-gray">판정 전</span>}
                 {r?.decision_check === "manual" && <span className="badge badge-orange">담당자 결정</span>}

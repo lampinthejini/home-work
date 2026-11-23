@@ -86,9 +86,9 @@ function Applicants() {
                         {Object.entries(ATTEMPT_LABEL).filter(([k]) => k !== "drafting").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                 </label>
-                <label className="row small" style={{ gap: 6 }}>1차 결과
+                <label className="row small" style={{ gap: 6 }}>합격 여부
                     <select className="input" style={{ width: 130 }} value={decision} onChange={(e) => setDecision(e.target.value)}>
-                        <option value="">전체</option><option value="pass">1차 합격</option><option value="fail">1차 불합격</option><option value="undecided">판정 전</option>
+                        <option value="">전체</option><option value="pass">합격</option><option value="fail">불합격</option><option value="undecided">판정 전</option>
                     </select>
                 </label>
                 <label className="row small" style={{ gap: 6 }}>정렬
@@ -106,7 +106,7 @@ function Applicants() {
                     {missing === "draft" ? "찾으시는 공고는 아직 게시 전(임시저장)이라 지원자가 없습니다." : "찾으시는 공고는 삭제되어 볼 수 없습니다."} 다른 공고의 지원자를 보여 드립니다.
                 </div>
             )}
-            <div className="notice notice-info small">ⓘ 1차 결과는 AI가 정한 점수로 “총점 ≥ 합격 기준”이면 합격입니다. 이 화면에서는 결과를 바꿀 수 없습니다.</div>
+            <div className="notice notice-info small">ⓘ 합격 여부는 AI가 정한 점수로 “총점 ≥ 합격 기준”이면 합격입니다. 이 화면에서는 결과를 바꿀 수 없습니다.</div>
             {!rows && <Loading />}
             {rows && rows.length === 0 && <Empty title="아직 지원자가 없습니다" />}
             {rows && rows.length > 0 && shown.length === 0 && (
@@ -116,7 +116,7 @@ function Applicants() {
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <table className="table">
                         <thead><tr>
-                            <th aria-label="비교 선택" style={{ width: 36 }} /><th>이름</th><th>지원일</th><th>응시 상태</th><th>AI 면접</th>{posting?.has_coding_test && <th>코딩</th>}<th>종합</th><th>AI 1차 판정</th><th>기록</th>
+                            <th aria-label="비교 선택" style={{ width: 36 }} /><th>이름</th><th>지원일</th><th>응시 상태</th><th>AI 면접</th>{posting?.has_coding_test && <th>코딩</th>}<th>종합</th><th>합격 여부</th><th>기록</th>
                         </tr></thead>
                         <tbody>
                             {shown.map((r) => {
@@ -136,8 +136,8 @@ function Applicants() {
                                         {posting?.has_coding_test && <td>{r.coding_score ?? "—"}</td>}
                                         <td>{r.total_score ?? "—"}</td>
                                         <td>
-                                            {r.decision === "pass" && <span className="badge badge-green">1차 합격</span>}
-                                            {r.decision === "fail" && <span className="badge badge-gray">1차 불합격</span>}
+                                            {r.decision === "pass" && <span className="badge badge-green">합격</span>}
+                                            {r.decision === "fail" && <span className="badge badge-gray">불합격</span>}
                                             {!r.decision && (
                                                 <span className={`badge ${r.analysis_status === "needs_review" ? "badge-orange" : "badge-gray"}`}>
                                                     {r.attempt_status === "not_taken_closed" ? "평가 없음" : ANALYSIS_LABEL[r.analysis_status] ?? "판정 전"}
