@@ -174,6 +174,9 @@ def test_awkwardEndingInsideTwoSentenceQuestionIsRejected():
     ("어떻게 기여하고 싶은가요?", "어떻게 기여하고 싶으신가요?"),
     ("무엇을 배웠는가요? 솔직히 말씀해 주시겠어요?", "무엇을 배웠나요? 솔직히 말씀해 주시겠어요?"),
     ("어떤 점이 중요하다고 생각하시나요?", "어떤 점이 중요하다고 생각하시나요?"),
+    # 실측 c38(2026-11-23): '…삼으시겠는가요?' 가 '…삼으시겠나요?' 로 고쳐져 4B 가 1/1점, '겠습니까' 는 3/4점
+    ("무엇을 우선 기준으로 삼으시겠는가요?", "무엇을 우선 기준으로 삼으시겠습니까?"),
+    ("어떻게 대응하겠는가요? 구체적으로 말씀해 주세요.", "어떻게 대응하겠습니까? 구체적으로 말씀해 주세요."),
 ])
 def test_fixableAwkwardEndingIsFixed(raw, fixed):
     assert qt.cleanQuestion(raw) == fixed and qt.textProblem(qt.cleanQuestion(raw)) is None
