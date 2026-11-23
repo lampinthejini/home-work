@@ -82,8 +82,11 @@ services:
         limits: { memory: 5g }
 
   # 한국어 TTS (Supertonic 2, CPU)
+  # cpus: 코어 제한이 없으면 음성 하나 만들 때 CPU 12개 중 11개를 써서 PC 가 100% 가 되고 카메라·녹화가 끊긴다 (2026-11-22 실측:
+  # 제한 없음 2.1초·100% / 6개 4.3초·68% / 4개 6.4초·59%). 꼬리질문 목표 20초 안이다
   tts:
     restart: unless-stopped
+    cpus: ${TTS_CPUS:-6}
     build: ./ai/tts
     environment:
       HF_HOME: /hf

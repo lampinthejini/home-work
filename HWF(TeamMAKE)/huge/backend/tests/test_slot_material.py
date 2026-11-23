@@ -94,6 +94,9 @@ def test_jobPromptTopicComesFromPieces(sessionFactory, world):  # noqa: F811
 def test_unusedMaterialRetriesWithAnotherFieldAndLastTryIsKept(sessionFactory, world, monkeypatch):  # noqa: F811
     fake = world()
     monkeypatch.setattr(slot_material, "grounded", lambda piece, question, vector: (False, 0.1))  # 늘 자료를 안 씀
+    with sessionFactory() as db:  # 칸 3개 (인재상은 2026-11-22 부터 회사 자료가 아니라 회사 소개·경영 이념뿐이라 프로젝트를 더한다)
+        db.add(CompanyProject(title="쇼핑 AI 에이전트", period="2025", summary="상품을 대신 찾아 주는 에이전트"))
+        db.commit()
     appId = makeApplication(sessionFactory)
     asyncio.run(question_compose.compose(appId))
     rows = composed(sessionFactory, appId)

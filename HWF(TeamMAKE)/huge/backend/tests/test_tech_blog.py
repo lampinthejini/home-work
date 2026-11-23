@@ -113,7 +113,18 @@ def test_companyPiecesHaveTechPostAsCompanyAndNoStack(sessionFactory):
         pieces = slot_material.companyPieces(db)
     assert "AIIT GPU 노드를 VM으로 격리하기: AIIT 의 Kubernetes GPU 노드" in [p.text for p in pieces if p.field == "post"]
     assert not any("네이버" in p.text or "NAVER" in p.text for p in pieces)
-    assert {"intro", "mission", "talent", "post"} <= {p.field for p in pieces} and "tech_stack" not in {p.field for p in pieces}
+    assert {"intro", "mission", "post"} <= {p.field for p in pieces} and not {"tech_stack", "talent"} & {p.field for p in pieces}
+
+
+def test_companyQuestionsDoNotGetTalentLines(sessionFactory):
+    """2026-11-22 사용자: 회사 질문에서는 인재상을 묻지 말자 (인성 질문이 묻는다). '일하는 방식' 은 회사 소개 칸에 남긴다."""
+    with sessionFactory() as db:
+        pieces = slot_material.companyPieces(db)
+        context = company.questionContext(db, None)
+    talent = ("사용자의 문제에서 시작하는 사람", "측정하고 판단하는 사람", "모르는 것을 모른다고", "함께 더 나아지는 사람")
+    assert not any(t in p.text for p in pieces for t in talent) and not any(t in context for t in talent)
+    workWay = [p for p in pieces if p.label == "일하는 방식"]
+    assert workWay and all(p.field == "intro" for p in workWay) and "일하는 방식:" in context
 
 
 def test_eachCompanyQuestionGetsDifferentPost(sessionFactory):

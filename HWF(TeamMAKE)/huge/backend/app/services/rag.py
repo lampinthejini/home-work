@@ -24,6 +24,9 @@ COPY_SIMILARITY = 0.9
 # 예시로 보여 줄 최소 유사도 (2026-11-16 사용자 결정). 가장 가까운 것도 이보다 멀면 예시 없이 주제만으로 만든다.
 # 실측(같은 날, 기본 예비 40개 + AI 질문): 주제와 상관없는 예시는 0.40~0.47, 맞는 예시는 0.5 이상
 EXAMPLE_MIN_SIMILARITY = 0.5
+# 예시로 보여 줄 최대 유사도 (2026-11-22 사용자: '예시가 정답처럼 주어지지 않게, 0.7 이상은 빼자').
+# c33: 회사 질문이 예시를 베낀 14번이 모두 같은 회사 자료로 앞서 만든 AI 질문(예비 질문)이었다 — 만든 질문과 0.92~1.0
+EXAMPLE_MAX_SIMILARITY = 0.7
 DUPLICATE_SIMILARITY = 0.9
 RESERVE_DUPLICATE_SIMILARITY = 0.7  # 예비 질문에 넣을 때 (11-16 0.7→0.8, 11-19 C-28 다시 0.7: 같은 뜻 다른 표현이 0.7~0.8. 면접 안 중복은 위 0.9)
 EMBED_TIMEOUT_SEC = 10
@@ -173,8 +176,8 @@ def similar(db: Session, slotKind: str, vector: list[float], count: int, exclude
 
 
 def closeExamples(examples: list[Example]) -> list[Example]:
-    """뜻이 너무 먼 예시는 뺀다 (먼 예시를 보여 주면 작은 모델이 그 주제로 끌려간다)."""
-    return [e for e in examples if e.similarity >= EXAMPLE_MIN_SIMILARITY]
+    """뜻이 너무 먼 예시(작은 모델이 그 주제로 끌려간다)와 너무 가까운 예시(정답처럼 베낀다)는 뺀다."""
+    return [e for e in examples if EXAMPLE_MIN_SIMILARITY <= e.similarity < EXAMPLE_MAX_SIMILARITY]
 
 
 def maxStoredSimilarity(db: Session, kind: str, vector: list[float]) -> float:

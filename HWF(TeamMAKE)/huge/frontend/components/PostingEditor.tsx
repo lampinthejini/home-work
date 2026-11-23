@@ -7,7 +7,7 @@ import { PostingBody, type PostingDetail } from "@/components/PostingBody";
 import { useApp } from "@/components/Providers";
 import { Button, Field, Modal } from "@/components/Ui";
 import { api, ApiError } from "@/lib/api";
-import { type AdminPosting, DEFAULT_WEIGHTS, type DraftStatus, fitWeights } from "@/lib/admin";
+import { type AdminPosting, DEFAULT_WEIGHTS, type DraftStatus, suggestSkills } from "@/lib/admin";
 import { fromLocalInput, toLocalInput } from "@/lib/format";
 import { EMPLOYMENT_LABEL, EVAL_LABEL } from "@/lib/status";
 
@@ -79,7 +79,7 @@ function weightSum(w: Record<string, number>): number {
 function weightError(w: Record<string, number>): string | null {
     if (Object.values(w).some((v) => v < 5 || v % 5)) return "비율은 5% 단위, 항목마다 5% 이상이어야 합니다";
     const sum = weightSum(w);
-    return sum === 100 ? null : `합계가 ${sum}%입니다. [다음]이나 [임시저장]을 누르면 비율대로 100%로 맞춥니다`;
+    return sum === 100 ? null : `합계가 ${sum}%입니다. 남은 ${100 - sum}%를 다른 항목에 나눠 주세요`;
 }
 
 /** 2단계(평가 기준)에서 다음·저장을 막는 사유. 합격 기준 칸을 비우면 0점이 아니라 입력 요청 */
@@ -171,6 +171,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
     const { toast } = useApp();
     const [id, setId] = useState(posting?.posting_id ?? null);
     const [form, setForm] = useState<Form>(() => toForm(posting));
+    const [skillsFilled, setSkillsFilled] = useState(false);
     const [saved, setSaved] = useState<Form>(() => toForm(posting));
     const [step, setStep] = useState(1);
     const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
@@ -178,7 +179,6 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
     const [busy, setBusy] = useState<"save" | "publish" | null>(null);
     const [leaving, setLeaving] = useState(false);
     const [confirmPublish, setConfirmPublish] = useState(false);
-    const [fitted, setFitted] = useState<{ before: Record<string, number>; after: Record<string, number> } | null>(null);
     const published = posting?.status === "published";
     const criteriaLocked = Boolean(posting?.criteria?.locked);
     const dirty = JSON.stringify(form) !== JSON.stringify(saved);
@@ -216,17 +216,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
         return body;
     }
 
-    /** 합계만 100%가 아니면 비율대로 맞추고 알린다 (2026-11-17 사용자 요청). 맞췄으면 true — 관리자가 확인한 뒤 다시 누른다 */
-    function fitIfNeeded(): boolean {
-        if (criteriaLocked || weightSum(form.weights) === 100 || Object.values(form.weights).some((v) => v < 5 || v % 5)) return false;
-        const after = fitWeights(form.weights);
-        setFitted({ before: form.weights, after });
-        set("weights", after);
-        return true;
-    }
-
     async function save(quiet = false): Promise<string | null> {
-        if (step === 2 && fitIfNeeded()) return null;
         setBusy("save");
         try {
             const res = id
@@ -247,14 +237,22 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
         }
     }
 
+    /** 서류 평가 기술을 공고 글에서 채운다 (2026-11-22 사용자). force 가 아니면 두 칸이 다 비었을 때만 — 관리자가 고친 값은 덮지 않는다 */
+    function fillSkills(force: boolean) {
+        if (criteriaLocked || (!force && (form.screening_required.trim() || form.screening_preferred.trim()))) return;
+        const found = suggestSkills(form.requirements, form.duties, form.preferred);
+        setForm((f) => ({ ...f, screening_required: found.required.join(", "), screening_preferred: found.preferred.join(", ") }));
+        setSkillsFilled(true);
+    }
+
     function next() {
         if (step === 1) {
             const e = step1Errors(form, published);
             setErrors(e);
             const first = Object.keys(e)[0];
             if (first) { document.getElementById(`f-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+            fillSkills(false);
         }
-        if (step === 2 && fitIfNeeded()) return;
         if (step === 2 && !criteriaLocked && criteriaError(form)) return;
         setStep((s) => s + 1);
         window.scrollTo(0, 0);
@@ -286,7 +284,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
     const wErr = weightError(form.weights);
     const cErr = criteriaError(form);
     const sum = weightSum(form.weights);
-    const nextBlocked = step === 2 && !criteriaLocked && Boolean(cErr) && !(wErr && sum !== 100 && cErr === wErr);
+    const nextBlocked = step === 2 && !criteriaLocked && Boolean(cErr);
 
     return (
         <div className="stack">
@@ -361,7 +359,7 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                             <button type="button" className="btn btn-secondary btn-sm" aria-label={`${EVAL_LABEL[k]} 5% 줄이기`} disabled={criteriaLocked || form.weights[k] <= 5}
                                 onClick={() => set("weights", { ...form.weights, [k]: form.weights[k] - 5 })}>−</button>
                             <strong style={{ width: 48, textAlign: "center" }} aria-live="polite">{form.weights[k]}%</strong>
-                            <button type="button" className="btn btn-secondary btn-sm" aria-label={`${EVAL_LABEL[k]} 5% 늘리기`} disabled={criteriaLocked || form.weights[k] >= 80}
+                            <button type="button" className="btn btn-secondary btn-sm" aria-label={`${EVAL_LABEL[k]} 5% 늘리기`} disabled={criteriaLocked || form.weights[k] >= 80 || sum >= 100}
                                 onClick={() => set("weights", { ...form.weights, [k]: form.weights[k] + 5 })}>+</button>
                             <div className="level" style={{ flex: 1, maxWidth: 240 }}><div style={{ width: `${form.weights[k]}%` }} /></div>
                         </div>
@@ -399,6 +397,10 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                     <h3>④ 서류 평가</h3>
                     <p className="tiny muted" style={{ marginTop: 0 }}>ⓘ 모든 공고에 적용됩니다. AI가 서류를 먼저 평가하고, 서류 합격자만 AI 면접을 봅니다.</p>
                     <div className="stack" style={{ gap: 8 }}>
+                        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <span className="tiny muted">{skillsFilled ? "ⓘ 공고의 자격 요건·우대 사항에 적힌 기술로 채웠습니다. 고쳐 쓸 수 있습니다." : "ⓘ 공고 글에 적힌 기술로 채울 수 있습니다."}</span>
+                            <button type="button" className="btn btn-text btn-sm" disabled={criteriaLocked} onClick={() => fillSkills(true)}>공고 글에서 다시 채우기</button>
+                        </div>
                         <Field label="필수 기술" required hint="쉼표로 나눠 적습니다. 예: Python, SQL, PyTorch">
                             <input id="f-screening_required" className="input" value={form.screening_required} disabled={criteriaLocked}
                                 onChange={(e) => set("screening_required", e.target.value)} />
@@ -454,22 +456,6 @@ export function PostingEditor({ posting }: { posting: AdminPosting | null }) {
                 <Modal title="저장하지 않은 내용이 있습니다" onClose={() => setLeaving(false)} actions={(
                     <><button type="button" className="btn btn-secondary" onClick={() => setLeaving(false)}>계속 작성</button><button type="button" className="btn btn-danger" onClick={() => router.push("/admin/postings")}>나가기</button></>
                 )}><p>저장하지 않은 내용이 있습니다. 나갈까요?</p></Modal>
-            )}
-            {fitted && (
-                <Modal title="가중치 합계를 100%로 맞췄습니다" onClose={() => setFitted(null)} actions={(
-                    <Button onClick={() => setFitted(null)}>확인</Button>
-                )}>
-                    <p>합계가 {weightSum(fitted.before)}%여서 비율을 지켜 100%로 다시 나눴습니다. 5% 단위라 비율은 가장 가깝게 맞춥니다.</p>
-                    <table className="table">
-                        <thead><tr><th>항목</th><th>입력</th><th>맞춘 값</th></tr></thead>
-                        <tbody>
-                            {Object.keys(fitted.after).map((k) => (
-                                <tr key={k}><td>{EVAL_LABEL[k] ?? k}</td><td>{fitted.before[k]}%</td><td><strong>{fitted.after[k]}%</strong></td></tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <p className="small muted">확인한 뒤 [다음]이나 [임시저장]을 다시 눌러 주세요. 값은 −/+ 로 더 고칠 수 있습니다.</p>
-                </Modal>
             )}
             {confirmPublish && (
                 <Modal title="공고를 게시할까요?" onClose={() => setConfirmPublish(false)} actions={(

@@ -4,7 +4,7 @@
 직무 주제를 공고 줄에서만 뽑으니 지원자가 달라도 같은 주제(LangChain·벡터 DB, RAG …)만 되풀이됐다.
 
 - 자료를 '칸'으로 나눈다.
-  회사 자리: 회사 소개 · 경영 이념 · 인재상 · 회사 프로젝트 · 기술 블로그 최신 글
+  회사 자리: 회사 소개(일하는 방식 포함) · 경영 이념 · 회사 프로젝트 · 기술 블로그 최신 글 (인재상은 인성 질문, 2026-11-22)
   직무 자리: 공고 · 직무 소개 · 사내 기술 스택 · AI/AX 가 하는 일 · 최근 소식(질문 만들기 전에 찾은 임시 자료)
 - 자리마다 칸을 무작위로 뽑고, 그 칸 안에서는 이력서와 가까운 위 3개 항목 가운데 무작위로 하나를 쓴다 (이미 쓴 항목은 뺀다).
   가장 가까운 하나만 쓰면 비슷한 이력서끼리 늘 같은 항목이 됐다 (실측: 같은 블로그 글 10번, 사용자 결정 같은 날).
@@ -28,7 +28,10 @@ from . import company, job_news, rag, tech_blog
 
 log = logging.getLogger("huge.compose")
 
-COMPANY_FIELDS = (("intro", "회사 소개"), ("mission", "경영 이념"), ("talent", "인재상과 일하는 방식"))
+# 회사 질문 자료 칸. 인재상 줄('- …')은 인성 질문이 묻는다 (2026-11-22 사용자: 회사 질문에서는 인재상을 묻지 말자).
+# 남는 '일하는 방식' 한 줄은 칸 하나로 두면 지원자마다 같은 줄이 나오므로 회사 소개 칸에 넣는다 (칸은 intro, 이름은 일하는 방식)
+COMPANY_FIELDS = (("intro", "회사 소개"), ("mission", "경영 이념"), ("work_way", "일하는 방식"))
+FIELD_INTO = {"work_way": "intro"}
 JOB_PROFILE_FIELDS = (("jobs_intro", "직무 소개"), ("ai_ax_role", "AI/AX 가 하는 일"))
 PROJECT_FIELD, POST_FIELD = ("project", "회사가 진행한 프로젝트"), ("post", "회사 기술 블로그 최신 글")
 POSTING_FIELD, STACK_FIELD, NEWS_FIELD = ("posting", "공고"), ("tech_stack", "사내 기술 스택"), ("news", "직무 관련 최근 소식")
@@ -105,7 +108,8 @@ def stackTerms(text: str) -> list[tuple[str, str]]:
 
 def companyPieces(db: Session) -> list[Piece]:
     profile = company.getProfile(db)
-    pieces = [Piece("company", key, label, t) for key, label in COMPANY_FIELDS for t in splitPieces(getattr(profile, key) or "")]
+    pieces = [Piece("company", FIELD_INTO.get(key, key), label, t)
+              for key, label in COMPANY_FIELDS for t in splitPieces(company.fieldText(profile, key))]
     pieces += [Piece("company", *PROJECT_FIELD, company.projectLine(p)[2:]) for p in company.listProjects(db)]
     pieces += [Piece("company", *POST_FIELD, tech_blog.promptLine(p, profile)[2:]) for p in tech_blog.listPosts(db)[:LATEST_POST_COUNT]]
     return pieces

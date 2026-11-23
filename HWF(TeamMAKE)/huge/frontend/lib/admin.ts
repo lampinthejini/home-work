@@ -23,25 +23,27 @@ export type DraftStatus = {
 
 export const DEFAULT_WEIGHTS: Record<string, number> = { expertise: 30, logic: 25, relevance: 25, delivery: 5, culture_fit: 15 };
 
-const WEIGHT_STEP = 5;
-const WEIGHT_UNITS = 100 / WEIGHT_STEP;
+
+// 기술 이름이 아닌 영문 약어 (공고 글에서 기술을 뽑을 때 뺀다)
+const NOT_SKILLS = new Set(["ai", "ax", "it", "db", "api", "ui", "ux", "os", "pc", "sw", "hw", "kpi", "poc", "b2b", "b2c", "saas", "qa", "pm", "cs", "ml", "dl"]);
 
 /**
- * 합계가 100%가 아닌 가중치를 비율을 지켜 100%로 맞춘다 (2026-11-17 사용자 요청).
- * 5% 단위·항목당 5% 이상 규칙 때문에 비율은 가장 가깝게만 맞는다: 내림한 뒤 남는 칸은 소수점이 큰 항목부터,
- * 같으면 원래 값이 큰 항목, 그다음 화면 순서로 준다.
+ * 공고 글에서 기술 이름(영문 표기)을 뽑는다 (2026-11-22 사용자: 서류 평가 필수 기술을 자동으로 채우고 고칠 수 있게).
+ * LLM 을 쓰지 않는다 — 공고에 적힌 영문 기술 이름을 그대로 옮기고, 같은 이름은 한 번만 쓴다.
  */
-export function fitWeights(weights: Record<string, number>): Record<string, number> {
-    const keys = Object.keys(weights);
-    const sum = keys.reduce((a, k) => a + weights[k], 0);
-    if (sum <= 0) return { ...weights };
-    const raw = keys.map((k) => (weights[k] / sum) * WEIGHT_UNITS);
-    const units = raw.map((r) => Math.max(1, Math.floor(r)));
-    const order = keys.map((_, i) => i).sort((a, b) => (raw[b] - units[b]) - (raw[a] - units[a]) || weights[keys[b]] - weights[keys[a]] || a - b);
-    let left = WEIGHT_UNITS - units.reduce((a, b) => a + b, 0);
-    for (let i = 0; left > 0; i = (i + 1) % order.length, left--) units[order[i]]++;
-    for (let i = order.length - 1; left < 0; i = (i - 1 + order.length) % order.length) {
-        if (units[order[i]] > 1) { units[order[i]]--; left++; }
+export function skillsInText(text: string): string[] {
+    const found: string[] = [];
+    for (const m of text.matchAll(/(?<![A-Za-z0-9.+#-])[A-Za-z][A-Za-z0-9.+#-]*[A-Za-z0-9+#]|(?<![A-Za-z0-9])[CR](?![A-Za-z0-9])/g)) {
+        const name = m[0];
+        if (NOT_SKILLS.has(name.toLowerCase()) || found.some((f) => f.toLowerCase() === name.toLowerCase())) continue;
+        found.push(name);
     }
-    return Object.fromEntries(keys.map((k, i) => [k, units[i] * WEIGHT_STEP]));
+    return found;
+}
+
+/** 필수 기술 = 자격 요건(없으면 주요 업무)의 기술, 우대 기술 = 우대 사항의 기술 가운데 필수가 아닌 것 */
+export function suggestSkills(requirements: string, duties: string, preferred: string): { required: string[]; preferred: string[] } {
+    const required = skillsInText(requirements).length ? skillsInText(requirements) : skillsInText(duties);
+    const lower = new Set(required.map((s) => s.toLowerCase()));
+    return { required: required.slice(0, 20), preferred: skillsInText(preferred).filter((s) => !lower.has(s.toLowerCase())).slice(0, 20) };
 }

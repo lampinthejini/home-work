@@ -1,0 +1,197 @@
+
+> huge-e2e@0.1.0 pretest:full
+> cd .. && docker compose -f compose.app.yml build frontend && docker compose -f compose.app.yml up -d frontend && node -e "setTimeout(()=>{},20000)"
+
+ Image huge-app-frontend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 998B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 573B 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:24-alpine
+#3 DONE 1.3s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 73B done
+#4 DONE 0.0s
+
+#5 [build 1/6] FROM docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
+#5 resolve docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 158.57kB 0.0s done
+#6 DONE 0.0s
+
+#7 [build 2/6] WORKDIR /app
+#7 CACHED
+
+#8 [build 3/6] COPY package.json package-lock.json ./
+#8 CACHED
+
+#9 [build 4/6] RUN npm ci --no-audit --no-fund
+#9 CACHED
+
+#10 [build 5/6] COPY . .
+#10 DONE 0.1s
+
+#11 [build 6/6] RUN npm run build
+#11 1.262 
+#11 1.262 > huge-frontend@0.1.0 prebuild
+#11 1.262 > node scripts/copy-monaco.mjs
+#11 1.262 
+#11 1.500 
+#11 1.500 > huge-frontend@0.1.0 build
+#11 1.500 > next build
+#11 1.500 
+#11 2.202 ▲ Next.js 16.4.3 (Turbopack)
+#11 2.393 ✓ Running next.config.ts took 189ms
+#11 2.417 
+#11 2.477   Creating an optimized production build ...
+#11 6.875 ✓ Compiled successfully in 4.4s
+#11 6.880   Running TypeScript ...
+#11 6.898 
+#11 6.898   We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+#11 6.898   The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+#11 6.898 
+#11 6.898   	- include was updated to add '.next/dev/types/**/*.ts'
+#11 6.898 
+#11 16.16   Finished TypeScript in 9.3s ...
+#11 16.17   Collecting page data using 11 workers ...
+#11 17.58   Generating static pages using 11 workers (0/23) ...
+#11 17.65 ⚠ metadataBase property in metadata export is not set for resolving social open graph or twitter images, using "http://localhost:3000". See https://nextjs.org/docs/app/api-reference/functions/generate-metadata#metadatabase
+#11 18.03   Generating static pages using 11 workers (5/23) 
+#11 18.16   Generating static pages using 11 workers (11/23) 
+#11 18.44   Generating static pages using 11 workers (17/23) 
+#11 18.45 ✓ Generating static pages using 11 workers (23/23) in 873ms
+#11 18.46   Finalizing page optimization ...
+#11 18.91 
+#11 18.91 Route (app)
+#11 18.91 ┌ ○ /
+#11 18.91 ├ ○ /_not-found
+#11 18.91 ├ ○ /admin/applicants
+#11 18.91 ├ ƒ /admin/applicants/[applicationId]
+#11 18.91 ├ ○ /admin/company
+#11 18.91 ├ ○ /admin/compare
+#11 18.91 ├ ○ /admin/dashboard
+#11 18.91 ├ ○ /admin/next-stage
+#11 18.91 ├ ○ /admin/postings
+#11 18.91 ├ ƒ /admin/postings/[postingId]/edit
+#11 18.91 ├ ○ /admin/postings/ai
+#11 18.91 ├ ○ /admin/postings/new
+#11 18.91 ├ ○ /admin/questions
+#11 18.91 ├ ○ /admin/settings
+#11 18.91 ├ ○ /apple-icon.png
+#11 18.91 ├ ƒ /apply/[applicationId]/consent
+#11 18.91 ├ ƒ /apply/[applicationId]/documents
+#11 18.91 ├ ƒ /apply/[applicationId]/precheck
+#11 18.91 ├ ƒ /apply/[applicationId]/resume
+#11 18.91 ├ ƒ /apply/[applicationId]/resume/confirm
+#11 18.91 ├ ƒ /apply/[applicationId]/rules
+#11 18.91 ├ ƒ /exam/[applicationId]
+#11 18.91 ├ ƒ /exam/[applicationId]/resume
+#11 18.91 ├ ○ /icon.png
+#11 18.91 ├ ○ /jobs
+#11 18.91 ├ ƒ /jobs/[postingId]
+#11 18.91 ├ ○ /login
+#11 18.91 ├ ○ /mypage
+#11 18.91 ├ ƒ /mypage/results/[applicationId]
+#11 18.91 ├ ƒ /mypage/screening/[applicationId]
+#11 18.91 ├ ○ /password/change
+#11 18.91 ├ ○ /password/forgot
+#11 18.91 ├ ○ /password/reset
+#11 18.91 └ ○ /signup
+#11 18.91 
+#11 18.91 
+#11 18.91 ƒ Proxy (Middleware)
+#11 18.91 
+#11 18.91 ○  (Static)   prerendered as static content
+#11 18.91 ƒ  (Dynamic)  server-rendered on demand
+#11 18.91 
+#11 18.99 npm notice
+#11 18.99 npm notice New major version of npm available! 11.19.1 -> 12.2.3
+#11 18.99 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+#11 18.99 npm notice To update run: npm install -g npm@12.2.3
+#11 18.99 npm notice
+#11 DONE 19.1s
+
+#7 [build 2/6] WORKDIR /app
+#7 CACHED
+
+#12 [stage-1 3/5] COPY --from=build /app/.next/standalone ./
+#12 DONE 0.6s
+
+#13 [stage-1 4/5] COPY --from=build /app/.next/static ./.next/static
+#13 DONE 0.1s
+
+#14 [stage-1 5/5] COPY --from=build /app/public ./public
+#14 DONE 0.1s
+
+#15 exporting to image
+#15 exporting layers
+#15 exporting layers 1.5s done
+#15 exporting manifest sha256:f443b96cf10e3cabf2a0f2f19fa710c982c58fe8d69171841245b209069f3efe 0.0s done
+#15 exporting config sha256:cc990c2dcfe0a548b4cf62e7a8c871734499e040626e9da6f12c9d78737e40d2 0.0s done
+#15 exporting attestation manifest sha256:c5800235db76dc6520eabd5be96fd7721500c14701a952714a04d6e823e360be 0.0s done
+#15 exporting manifest list sha256:7e97473400dbe79fc17e310abc70b0b55b544389d156db964521907d81b833af
+#15 exporting manifest list sha256:7e97473400dbe79fc17e310abc70b0b55b544389d156db964521907d81b833af 0.0s done
+#15 naming to docker.io/library/huge-app-frontend:latest done
+#15 unpacking to docker.io/library/huge-app-frontend:latest
+#15 unpacking to docker.io/library/huge-app-frontend:latest 1.6s done
+#15 DONE 3.4s
+
+#16 resolving provenance for metadata file
+#16 DONE 0.0s
+ Image huge-app-frontend Built 
+ Container huge-app-api-1 Running 
+ Container huge-app-frontend-1 Recreate 
+ Container huge-app-frontend-1 Recreated 
+ Container huge-app-frontend-1 Starting 
+ Container huge-app-frontend-1 Started 
+
+> huge-e2e@0.1.0 test:full
+> playwright test
+
+
+Running 28 tests using 1 worker
+
+  ✓   1 [chromium] › tests\access.spec.ts:6:5 › 로그인하지 않으면 전용 화면은 로그인으로 보내고 API 는 401 이다 (1.6s)
+  ✓   2 [chromium] › tests\access.spec.ts:17:5 › 다른 지원자의 지원 건은 화면도 API 도 없는 것처럼 404 이다 (1.8s)
+  ✓   3 [chromium] › tests\access.spec.ts:45:5 › 지원자가 관리자 경로에 가면 API 는 403, 화면은 공고 목록과 안내다 (1.3s)
+  ✓   4 [chromium] › tests\auth.spec.ts:6:5 › 회원가입 → 로그인 → 비밀번호 찾기 메일 → 새 비밀번호로 로그인 → 탈퇴 (7.0s)
+  ✓   5 [chromium] › tests\auth.spec.ts:90:5 › 로그인하면 가려던 화면(next)으로 가고, 이미 로그인했으면 /login 에서 홈으로 간다 (2.9s)
+  ✓   6 [chromium] › tests\capacity.spec.ts:23:5 › 자리가 없으면 안내 모달만 뜨고, 자리가 나면 다시 시도로 시작한다 (4.8m)
+  ✓   7 [chromium] › tests\closing.spec.ts:27:5 › 마감하면 진행 중 면접은 바로 끝나고, 시작 전 지원자는 시작할 수 없다 (5.9m)
+  ✓   8 [chromium] › tests\closing.spec.ts:67:5 › 장애 중단 상태에서 마감되면 이어가기가 마감 안내로 바뀐다 (3.9m)
+  ✓   9 [chromium] › tests\coding-timeout.spec.ts:19:5 › 끊긴 코딩테스트는 저장된 코드부터 이어 가고, 시간이 끝나면 자동 제출된다 (3.8m)
+  ✓  10 [chromium] › tests\device-failure.spec.ts:63:5 › 지원자: 마이크 녹음기를 열 수 없으면 장애 중단 (32.9s)
+  ✓  11 [chromium] › tests\device-failure.spec.ts:67:5 › 지원자: 카메라 녹화기를 만들 수 없으면 장애 중단 (33.5s)
+  ✓  12 [chromium] › tests\device-failure.spec.ts:71:5 › 지원자: 면접 화면에 녹화 기능이 없으면 녹화 없이 진행하지 않고 장애 중단 (29.1s)
+  ✓  13 [chromium] › tests\device-failure.spec.ts:75:5 › 지원자: 카메라 녹화를 할 수 없는 브라우저는 환경 점검을 통과하지 못한다 (30.2s)
+  ✓  14 [chromium] › tests\device-failure.spec.ts:98:5 › 지원자: 마이크를 여는 도중 면접 화면을 벗어나면 면접 연결을 만들지 않는다 (2.8m)
+  ✓  15 [chromium] › tests\exit.spec.ts:36:5 › 뒤로가기는 화면을 그대로 두고, 새로고침하면 이어가기 없이 응시 종료다 (2.9m)
+  ✓  16 [chromium] › tests\exit.spec.ts:59:5 › 창을 닫으면 이어가기 없이 응시 종료다 (3.0m)
+  ✓  17 [chromium] › tests\full.spec.ts:86:9 › @slow 끝까지 응시 › 코딩테스트 없는 공고: 마지막 질문 뒤 바로 응시 완료 → 채점 → 결과 공개 (11.0m)
+  ✓  18 [chromium] › tests\full.spec.ts:125:9 › @slow 끝까지 응시 › 코딩테스트 있는 공고: 면접 → 코딩 2문항 실행·제출 → 채점(코딩 점수 포함) → 결과 공개 (10.8m)
+  ✓  19 [chromium] › tests\interview.spec.ts:32:5 › 지원자: 지원부터 면접 중 화면 이탈 2회 취소까지 (3.0m)
+  ✓  20 [chromium] › tests\interview.spec.ts:63:5 › 관리자: 녹화 재생과 메모 (2.4s)
+  ✓  21 [chromium] › tests\interview.spec.ts:102:5 › 지원자: 탈퇴하면 지원 데이터도 지워진다 (2.6s)
+  ✓  22 [chromium] › tests\login-block.spec.ts:18:5 › 지원자: 같은 IP 에서 5번 틀리면 차단되고, 관리자가 해제하면 다시 로그인한다 (5.9s)
+  ✓  23 [chromium] › tests\login-block.spec.ts:60:5 › 이 PC(차단 제외)에서는 여러 번 틀려도 막히지 않는다 (2.0s)
+  ✓  24 [chromium] › tests\outage.spec.ts:24:5 › 지원자: 면접 중 연결이 끊기면 장애 중단, 마이페이지에서 이어간다 (3.1m)
+  ✓  25 [chromium] › tests\resume-upload.spec.ts:24:5 › 지원자: 이력서 PDF 를 별도 프로세스로 읽어 정리하고, 깨진 PDF 는 거부한다 (8.4s)
+  ✓  26 [chromium] › tests\resume-upload.spec.ts:49:5 › 지원자: 못 읽는 파일은 이유를 알려 주고 직접 입력으로 넘어간다 (3.2s)
+  ✓  27 [chromium] › tests\resume-upload.spec.ts:75:5 › 지원자: 서버 문제로 추출이 끊기면 파일 탓이 아닌 안내를 보여 준다 (3.3s)
+  ✓  28 [chromium] › tests\review-decision.spec.ts:10:5 › 관리자: 평가 지연 건을 직접 결정하고, 지원자는 담당자 결정임을 본다 (7.9s)
+남은 E2E 지원자 25명을 지웠습니다
+E2E 가 만든 질문 후보 2개를 지웠습니다
+뒷정리 확인: 질문 DB 181개 (시작 때와 같음)
+
+  Slow test file: [chromium] › tests\full.spec.ts (21.8m)
+  Slow test file: [chromium] › tests\closing.spec.ts (9.9m)
+  Slow test file: [chromium] › tests\exit.spec.ts (5.8m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  28 passed (58.5m)

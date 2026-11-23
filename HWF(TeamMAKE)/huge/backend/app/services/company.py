@@ -146,14 +146,25 @@ def relatedProjects(db: Session, vector: list[float] | None, count: int) -> list
 
 # 프롬프트에 넣는 칸 (라벨, 칸). 회사 질문과 공고 초안이 쓰는 칸이 다르다.
 # llm-rt 는 요청 하나에 4,096 토큰이라(8,192 를 2개가 나눠 씀) 칸마다 앞부분만 넣는다.
-QUESTION_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("경영 이념", "mission"), ("인재상과 일하는 방식", "talent"),
+# 회사 질문에는 인재상 줄('- …')을 넣지 않고 '일하는 방식' 만 (2026-11-22 사용자: 인재상은 인성 질문이 묻는다)
+QUESTION_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("경영 이념", "mission"), ("일하는 방식", "work_way"),
                    ("AI/AX 가 하는 일", "ai_ax_role"))
 POSTING_FIELDS = (("기본 정보", "basics"), ("회사 소개", "intro"), ("직무 소개", "jobs_intro"), ("AI/AX 가 하는 일", "ai_ax_role"),
                   ("인재상과 일하는 방식", "talent"), ("사내 기술 스택", "tech_stack"))
 
 
+def workWay(talent: str) -> str:
+    """인재상 칸에서 인재상 줄('- …')과 '인재상' 제목을 뺀 나머지 ('일하는 방식: …')."""
+    lines = [line for line in (talent or "").splitlines() if line.strip() and not line.strip().startswith("-") and line.strip() != "인재상"]
+    return "\n".join(lines).strip()
+
+
+def fieldText(profile: CompanyProfile, key: str) -> str:
+    return workWay(profile.talent) if key == "work_way" else (getattr(profile, key) or "")
+
+
 def profileText(profile: CompanyProfile, fields=QUESTION_FIELDS, chars: int = CONTEXT_TEXT_CHARS) -> str:
-    parts = [f"회사 이름: {profile.name}"] + [f"{label}: {(getattr(profile, key) or '')[:chars]}" for label, key in fields]
+    parts = [f"회사 이름: {profile.name}"] + [f"{label}: {fieldText(profile, key)[:chars]}" for label, key in fields]
     return "\n".join(p for p in parts if not p.endswith(": "))
 
 

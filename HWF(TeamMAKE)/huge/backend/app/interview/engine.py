@@ -662,8 +662,14 @@ class LiveSession:
                 if criteria is not None:
                     criteria.locked = True  # 첫 응시가 시작되면 평가 기준 잠금 (JOB-07)
             row = db.get(InterviewQuestion, rowId)
+            needsAudio = row.kind == "base" and row.audio_key is None
             row.asked_at = now()
             db.commit()
+        if needsAudio:  # 첫 질문 뒤 음성은 뒤에서 만든다 — 아직이면 잠깐 기다렸다 다시 읽는다
+            from ..services import question_compose
+            await question_compose.waitAudio(self.appId)
+            with dbSession() as db:
+                row = db.get(InterviewQuestion, rowId)
         await self.ackEvent.wait()
         self.enter("answering")
         self.current = {"row": row, "seq": row.seq, "answer_no": row.answer_order, "answer_sec": row.answer_sec}

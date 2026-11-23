@@ -1,0 +1,688 @@
+2026-11-22 18:02:09,835 compose start budget=180s app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:02:09,884 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:02:12,072 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:12,546 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:02:12,587 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:02:13,052 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:02:13,060 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:02:13,127 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:02:14,118 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:14,120 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.0s
+2026-11-22 18:02:17,981 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:02:17,995 job news fit: 3 of 10 kept
+2026-11-22 18:02:30,829 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:36,328 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:37,099 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:37,400 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:37,409 slot personality: no example in 0.50~0.70, generating from topic only app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:02:43,469 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:02:43,722 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:46,702 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:02:46,711 slot personality generated with examples [] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:02:47,294 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:54,057 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:02:54,364 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:02:54,366 slot company material project sim=0.70 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:02:57,229 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:02:57,324 slot company generated with examples [6946, 6923, 6995] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:02:57,588 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:03,266 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:03,447 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:07,566 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:07,568 slot resume generated with examples [6780, 6787, 6781] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:07,841 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:13,551 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:13,794 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:18,353 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:18,370 slot resume generated with examples [6780, 6787, 6781] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:18,607 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:24,734 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:24,966 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:24,968 slot job material tech_stack sim=0.44 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:29,185 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:29,188 slot job generated with examples [6954, 6917, 6799] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:29,386 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:34,202 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:34,466 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:34,469 slot job material news sim=0.57 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:37,790 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:37,792 slot job generated with examples [6920, 6894, 6896] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:38,064 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:43,471 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:43,712 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:43,714 slot job material jobs_intro sim=0.56 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:47,950 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:47,953 slot job review: awkward, fix unusable (질문은 AIIT-X에 대한 답변의 일관성과 사실성 검증) app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:47,953 slot job attempt 1 failed: awkward_sentence app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:53,434 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:53,635 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:03:53,637 slot job material posting sim=0.71 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:57,135 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:03:57,138 slot job generated with examples [6987, 6981, 6961] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:03:57,478 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:03,072 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:03,290 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:03,293 slot job material ai_ax_role sim=0.55 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:07,309 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:07,311 slot job review: awkward, fix unusable (질문은 자연스러운 문장 구조를 갖추고 있으며, 직무와도) app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:07,312 slot job attempt 1 failed: awkward_sentence app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:12,931 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:13,161 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:13,163 slot job material jobs_intro sim=0.54 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:17,195 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:17,198 slot job generated with examples [6975, 6963, 6921] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:17,497 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:17,507 slot personality: no example in 0.50~0.70, generating from topic only app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:24,899 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:25,171 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:25,173 slot personality attempt 1 failed: similar_same_kind app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:26,656 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:26,868 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:29,537 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:29,740 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:29,741 slot personality review: fix drifted (질문의 앞부분과 뒷부분이 논리적으로 연결되지 않으며,두) app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:29,741 slot personality attempt 2 failed: awkward_sentence app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:31,216 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:31,432 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:33,804 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:33,807 slot personality generated with examples [] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:34,300 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:43,507 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:43,730 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:43,731 slot company attempt 1 failed: copied_example app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:50,420 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:50,657 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:04:50,659 slot company material post sim=0.73 used=True app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:04:53,496 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:04:53,499 slot company generated with examples [6986, 6930] app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:05:00,264 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:00,447 composed questions generated=10 reserve=0 sec=170.6 app=55c81736-d453-4632-a49e-75b12536435f
+2026-11-22 18:05:00,468 compose start budget=180s app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:00,503 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:05:03,681 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:04,408 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:05:04,430 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:05:04,480 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:05:04,557 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:05:04,675 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:05:06,123 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:06,126 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.4s
+2026-11-22 18:05:09,723 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:09,729 job news fit: 4 of 10 kept
+2026-11-22 18:05:10,057 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:10,482 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:10,492 slot personality: no example in 0.50~0.70, generating from topic only app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:11,188 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:16,102 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:16,428 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:18,053 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:19,331 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:19,334 slot personality review: awkward, fix unusable (질문의 앞부분(상황·조건)과 뒷부분(물음)이 의미적으로) app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:19,334 slot personality attempt 1 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:20,997 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:21,345 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:24,245 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:24,247 slot personality review: awkward, fix unusable (질문의 앞부분(상황·조건)과 뒷부분(물음)이 논리적으로) app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:24,248 slot personality attempt 2 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:24,581 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:25,807 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:26,155 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:29,166 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:29,169 slot personality generated with examples [] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:29,983 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:34,357 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:38,279 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:38,593 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:38,595 slot company material project sim=0.66 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:38,867 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:41,402 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:41,405 slot company review: awkward, fix unusable (질문은 인성·회사 관련 질문으로, 지원자가 한 적 없는) app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:41,405 slot company attempt 1 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:43,351 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:46,846 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:47,220 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:05:47,221 slot company material intro sim=0.72 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:49,929 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:49,932 slot company review: awkward, fix unusable (질문의 앞부분(상황·조건)과 뒷부분(물음)이 논리적으로) app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:49,932 slot company attempt 2 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:54,908 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:05:54,911 slot company attempt 3 failed: meta_phrase app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:05:55,151 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:05:55,313 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:01,208 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:01,502 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:02,358 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:06:06,227 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:06,230 slot resume generated with examples [6781, 6780, 6787] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:06,565 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:12,162 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:06:12,458 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:12,721 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:17,375 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:17,377 slot resume generated with examples [6781, 6780, 6787] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:17,773 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:24,314 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:24,658 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:24,662 slot job material ai_ax_role sim=0.76 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:28,312 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:28,315 slot job generated with examples [6799, 6938, 6954] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:28,547 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:34,049 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:34,286 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:34,288 slot job material jobs_intro sim=0.57 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:38,569 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:38,586 slot job review: awkward, fix unusable (질문은 AIIT-X와 관련된 실제 기술적 맥락을 전제로) app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:38,586 slot job attempt 1 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:44,220 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:44,532 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:44,535 slot job material tech_stack sim=0.75 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:48,087 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:48,090 slot job generated with examples [6987, 6981, 6961] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:48,325 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:53,523 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:53,698 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:53,699 slot job attempt 1 failed: copied_example app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:06:58,949 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:06:59,142 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:06:59,145 slot job material posting sim=0.77 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:02,716 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:02,719 slot job generated with examples [6983, 6896] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:02,957 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:08,566 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:08,842 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:08,844 slot job material jobs_intro sim=0.49 used=False app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:08,844 slot job attempt 1 failed: material_unused app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:15,474 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:15,478 slot job attempt 2 failed: job_asks_experience app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:21,693 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:21,697 slot job attempt 3 failed: job_asks_experience app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:22,001 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:22,008 slot personality: no example in 0.50~0.70, generating from topic only app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:29,011 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:29,236 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:32,069 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:32,072 slot personality generated with examples [] app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:32,636 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:42,185 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:42,190 slot company attempt 1 failed: overused_phrase app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:49,354 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:49,623 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:07:49,626 slot company material post sim=0.66 used=True app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:53,092 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:53,109 slot company review: awkward, fix unusable (질문의 앞부분과 뒷부분이 자연스럽게 연결되지 않음. ') app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:53,110 slot company attempt 2 failed: awkward_sentence app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:07:59,441 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:07:59,445 slot company attempt 3 failed: meta_phrase app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:08:01,187 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:07,768 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:07,816 composed questions generated=7 reserve=3 sec=187.4 app=0b4960fe-335d-49a4-be30-4e1c70a0240a
+2026-11-22 18:08:07,836 compose start budget=180s app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:07,871 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:08:10,426 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:10,907 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:08:10,963 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:08:11,062 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:08:11,064 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:08:11,079 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:08:12,718 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:12,721 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.3s
+2026-11-22 18:08:14,141 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:16,143 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:16,154 job news fit: 2 of 10 kept
+2026-11-22 18:08:16,529 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:17,003 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:17,012 slot personality: no example in 0.50~0.70, generating from topic only app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:22,250 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:22,488 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:22,587 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:25,427 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:25,430 slot personality generated with examples [] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:25,868 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:29,788 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:30,109 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:30,111 slot company material mission sim=0.69 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:32,778 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:32,788 slot company generated with examples [6775, 6771] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:33,168 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:34,143 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:38,112 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:38,390 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:42,097 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:42,099 slot resume generated with examples [6787, 6781] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:42,542 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:42,965 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:48,270 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:48,594 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:52,368 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:52,626 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:52,629 slot resume review: awkward, fix unusable (질문의 앞부분(상황·조건)과 뒷부분(물음)이 논리적으로) app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:52,629 slot resume attempt 1 failed: awkward_sentence app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:54,987 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:55,284 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:08:57,544 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:08:59,034 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:08:59,040 slot resume generated with examples [6787, 6781] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:08:59,450 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:01,687 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:09:05,249 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:05,583 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:05,585 slot job material ai_ax_role sim=0.70 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:09,039 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:09:09,279 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:09,282 slot job generated with examples [6924, 6896, 6904] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:09,566 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:09,587 slot job: no example in 0.50~0.70, generating from topic only app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:14,088 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:14,430 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:14,432 slot job material posting sim=0.66 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:18,041 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:09:18,207 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:18,210 slot job generated with examples [] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:18,426 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:23,168 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:23,359 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:23,361 slot job material tech_stack sim=0.69 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:26,742 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:26,746 slot job generated with examples [6944, 6903, 6798] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:27,030 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:32,791 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:33,053 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:33,056 slot job material jobs_intro sim=0.55 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:37,247 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:37,250 slot job generated with examples [6987, 6981, 6961] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:37,519 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:37,525 slot personality: no example in 0.50~0.70, generating from topic only app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:43,790 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:44,060 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:46,616 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:46,619 slot personality generated with examples [] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:47,108 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:55,485 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:55,724 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:09:55,727 slot company material post sim=0.65 used=True app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:09:58,386 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:09:58,388 slot company generated with examples [6804, 6901] app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:10:03,349 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:03,393 composed questions generated=10 reserve=0 sec=115.6 app=79d6bfc4-971f-4676-917d-4217e535eb01
+2026-11-22 18:10:03,411 compose start budget=180s app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:03,444 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:10:06,252 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:06,697 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:10:06,820 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:10:06,854 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:10:07,246 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:10:07,841 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:10:09,304 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:09,306 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 3.1s
+2026-11-22 18:10:11,644 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:12,464 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:12,479 job news fit: 3 of 10 kept
+2026-11-22 18:10:12,723 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:13,246 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:13,260 slot personality: no example in 0.50~0.70, generating from topic only app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:17,884 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:18,128 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:18,430 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:21,390 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:21,694 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:21,696 slot personality review: fixed sentence (질문의 앞부분과 뒷부분이 자연스럽게 연결되지 않으며,두) app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:21,697 slot personality generated with examples [] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:22,283 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:23,942 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:26,180 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:26,518 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:26,520 slot company material post sim=0.71 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:29,214 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:29,216 slot company generated with examples [6953] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:29,640 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:30,652 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:35,586 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:35,919 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:39,818 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:39,841 slot resume generated with examples [6787, 6780, 6781] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:40,208 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:40,734 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:44,943 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:45,483 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:45,769 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:49,524 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:49,527 slot resume generated with examples [6787, 6780, 6781] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:49,918 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:54,859 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:10:55,577 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:55,834 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:10:55,836 slot job material news sim=0.64 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:59,390 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:10:59,393 slot job generated with examples [6956, 6951, 6947] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:10:59,799 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:03,251 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:11:05,471 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:05,804 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:05,807 slot job material ai_ax_role sim=0.68 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:09,719 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:09,722 slot job generated with examples [6924, 6896, 6904] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:10,036 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:13,750 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:11:14,657 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:14,997 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:14,999 slot job material tech_stack sim=0.76 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:19,172 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:19,175 slot job generated with examples [6984, 6944] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:19,421 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:25,104 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:25,360 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:25,363 slot job material jobs_intro sim=0.49 used=False app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:25,363 slot job attempt 1 failed: material_unused app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:31,454 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:31,457 slot job attempt 2 failed: job_asks_experience app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:37,708 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:37,944 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:37,947 slot job material news sim=0.50 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:42,004 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:42,007 slot job generated with examples [6987, 6981, 6961] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:42,280 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:42,286 slot personality: no example in 0.50~0.70, generating from topic only app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:48,351 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:48,573 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:11:51,327 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:11:51,330 slot personality generated with examples [] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:11:51,795 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:00,641 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:00,883 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:00,886 slot company material intro sim=0.68 used=True app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:12:03,804 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:03,807 slot company generated with examples [6770, 6941, 6803] app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:12:05,291 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:10,272 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:10,312 composed questions generated=10 reserve=0 sec=126.9 app=a13639b1-eb53-49c4-a33f-70b0aa4a7269
+2026-11-22 18:12:10,332 compose start budget=180s app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:10,364 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:12:12,563 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:13,062 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:12:13,103 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:12:13,115 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:12:13,122 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:12:13,146 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:12:14,601 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:14,603 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.0s
+2026-11-22 18:12:17,930 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:17,943 job news fit: 4 of 10 kept
+2026-11-22 18:12:18,189 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:18,605 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:18,613 slot personality: no example in 0.50~0.70, generating from topic only app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:20,875 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:23,697 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:23,970 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:26,774 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:26,777 slot personality generated with examples [] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:27,480 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:29,770 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:31,185 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:31,520 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:31,521 slot company material intro sim=0.66 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:34,235 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:34,619 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:34,620 slot company review: fixed sentence (질문의 앞부분(상황·조건)과 뒷부분(물음)이 논리적으로) app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:34,620 slot company generated with examples [6770, 6941, 6803] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:34,858 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:35,223 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:40,624 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:40,696 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:40,702 slot resume attempt 1 failed: junk_text app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:43,004 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:43,357 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:47,410 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:47,413 slot resume generated with examples [6787, 6780, 6781] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:47,782 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:50,232 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:53,523 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:53,838 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:12:56,034 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:12:57,674 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:12:57,677 slot resume generated with examples [6787, 6780, 6781] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:12:57,925 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:03,379 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:03,620 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:03,623 slot job material news sim=0.65 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:05,348 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:13:06,950 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:06,953 slot job review: inaccurate (관리형 RAG는 실제 기술 문서나 학술 자료에서 명확히) app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:06,954 slot job attempt 1 failed: inaccurate_premise app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:12,428 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:12,455 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:13:12,811 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:12,815 slot job material ai_ax_role sim=0.75 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:16,468 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:16,474 slot job review: inaccurate (AIIT-X와 고객 상담 챗봇의 근거 선택 방식에 대한) app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:16,474 slot job attempt 2 failed: inaccurate_premise app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:21,534 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:21,860 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:21,865 slot job material jobs_intro sim=0.53 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:22,259 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:13:25,646 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:25,649 slot job review: inaccurate (AIIT-X와 사내 문서 기반 검색 시스템의 정보 활용) app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:25,649 slot job attempt 3 failed: inaccurate_premise app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:25,905 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:30,850 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:31,047 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:31,049 slot job material jobs_intro sim=0.47 used=False app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:31,049 slot job attempt 1 failed: material_unused app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:36,504 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:36,508 slot job attempt 2 failed: job_asks_experience app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:42,421 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:42,629 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:42,631 slot job material ai_ax_role sim=0.55 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:46,511 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:46,514 slot job generated with examples [6977, 6987, 6983] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:46,737 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:51,945 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:51,949 slot job attempt 1 failed: awkward_ending app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:57,265 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:13:57,467 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:13:57,469 slot job material jobs_intro sim=0.45 used=False app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:13:57,469 slot job attempt 2 failed: material_unused app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:03,078 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:03,310 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:03,313 slot job material posting sim=0.60 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:07,127 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:07,130 slot job generated with examples [6938, 6921, 6916] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:07,335 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:12,858 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:13,069 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:13,071 slot job material news sim=0.58 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:16,740 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:16,742 slot job generated with examples [6956, 6951, 6947] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:17,048 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:17,056 slot personality: no example in 0.50~0.70, generating from topic only app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:23,779 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:24,013 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:26,692 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:26,921 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:26,922 slot personality review: fixed sentence (질문의 앞부분(상황·조건)과 뒷부분(물음)이 논리적으로) app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:26,923 slot personality generated with examples [] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:27,347 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:35,751 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:36,014 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:36,017 slot company material mission sim=0.60 used=True app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:38,956 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:38,959 slot company generated with examples [6919, 6804, 6966] app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:40,596 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:44,628 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:14:44,692 composed questions generated=9 reserve=1 sec=154.4 app=2847d7e2-3f56-448a-b7f2-661cee3e6aa5
+2026-11-22 18:14:44,710 compose start budget=180s app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:14:44,748 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,065 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,514 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,584 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,618 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,627 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:14:48,643 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:14:50,707 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:50,709 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.6s
+2026-11-22 18:14:53,125 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:14:54,282 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:14:54,289 job news fit: 2 of 10 kept
+2026-11-22 18:14:54,600 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:55,242 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:14:55,254 slot personality: no example in 0.50~0.70, generating from topic only app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:00,767 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:01,119 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:03,917 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:04,044 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:04,051 slot personality generated with examples [] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:04,715 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:09,638 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:09,992 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:09,993 slot company attempt 1 failed: copied_example app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:11,742 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:15,232 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:15,587 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:15,588 slot company material intro sim=0.73 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:18,426 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:18,429 slot company generated with examples [6933, 6775] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:18,461 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:18,926 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:23,861 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:24,133 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:24,835 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:28,119 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:28,126 slot resume generated with examples [6780, 6781, 6787] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:28,615 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:34,240 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:34,645 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:35,826 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:39,137 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:39,142 slot resume generated with examples [6780, 6781, 6787] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:39,460 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:41,054 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:45,266 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:45,587 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:45,589 slot job material posting sim=0.64 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:48,715 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:15:49,720 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:50,030 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:50,032 slot job review: fixed sentence (질문의 전제는 현실적인 직무 내용과 일치하며, '요구사) app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:50,032 slot job generated with examples [6896, 6934, 6947] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:15:50,492 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:56,297 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:15:56,719 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:15:56,722 slot job material ai_ax_role sim=0.70 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:00,551 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:00,554 slot job generated with examples [6924, 6904, 6977] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:00,768 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:16:00,925 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:06,177 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:06,434 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:06,437 slot job material jobs_intro sim=0.44 used=False app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:06,437 slot job attempt 1 failed: material_unused app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:12,168 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:12,404 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:12,406 slot job material tech_stack sim=0.61 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:16,278 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:16,281 slot job generated with examples [6956, 6987, 6914] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:16,552 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:21,970 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:21,974 slot job attempt 1 failed: job_asks_experience app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:28,485 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:28,714 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:28,718 slot job material news sim=0.50 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:32,728 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:32,732 slot job generated with examples [6951, 6954, 6894] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:32,994 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:33,002 slot personality: no example in 0.50~0.70, generating from topic only app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:39,785 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:40,012 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:42,592 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:42,595 slot personality generated with examples [] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:43,187 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:53,183 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:53,187 slot company attempt 1 failed: too_long app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:16:59,569 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:16:59,768 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:16:59,770 slot company material post sim=0.68 used=True app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:17:02,465 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:02,468 slot company generated with examples [6941, 6952] app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:17:08,551 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:08,593 composed questions generated=10 reserve=0 sec=143.9 app=f8d7aa34-f48c-4e3e-a010-1d8a473d975e
+2026-11-22 18:17:08,614 compose start budget=180s app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:08,654 HTTP Request: GET http://embed:9003/health "HTTP/1.1 200 OK"
+2026-11-22 18:17:11,725 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:12,180 HTTP Request: GET https://news.google.com/rss/search?q=RAG+%EA%B2%80%EC%83%89+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:17:12,250 HTTP Request: GET https://news.google.com/rss/search?q=LLM+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:17:12,287 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%A0%84%ED%99%98+AX+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:17:12,304 HTTP Request: GET https://news.google.com/rss/search?q=AI+%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:17:12,358 HTTP Request: GET https://news.google.com/rss/search?q=%EC%83%9D%EC%84%B1%ED%98%95+AI+when%3A30d&hl=ko&gl=KR&ceid=KR%3Ako "HTTP/1.1 200 OK"
+2026-11-22 18:17:13,784 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:13,786 job news AI_AX: 5 searches done, 0 timed out, 0 failed, 10 relevant kept, 2.1s
+2026-11-22 18:17:17,156 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:17,164 job news fit: 3 of 10 kept
+2026-11-22 18:17:17,327 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:17,586 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:18,188 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:18,196 slot personality: no example in 0.50~0.70, generating from topic only app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:23,336 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:23,560 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:23,900 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:26,648 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:26,660 slot personality generated with examples [] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:27,337 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:31,622 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:32,221 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:32,585 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:32,587 slot company material intro sim=0.67 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:35,374 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:35,381 slot company generated with examples [6770, 6941, 6803] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:35,740 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:39,229 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:40,899 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:41,384 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:45,997 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:46,000 slot resume generated with examples [6787, 6780] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:46,439 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:51,392 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:51,793 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:17:53,040 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:17:56,033 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:17:56,037 slot resume generated with examples [6787, 6780] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:17:56,685 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:01,908 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:18:03,160 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:03,451 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:03,454 slot job material ai_ax_role sim=0.56 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:07,437 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:07,440 slot job generated with examples [6799, 6938, 6954] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:07,724 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:12,733 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:13,107 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:13,110 slot job material news sim=0.53 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:13,917 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:18:17,095 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:17,099 slot job generated with examples [6920, 6894, 6896] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:17,626 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:20,515 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:18:23,136 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:23,499 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:23,501 slot job material jobs_intro sim=0.50 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:27,118 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:18:27,732 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:27,737 slot job generated with examples [6956, 6947, 6987] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:27,965 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:32,957 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:33,194 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:33,197 slot job material tech_stack sim=0.61 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:36,769 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:36,776 slot job generated with examples [6970, 6965, 6988] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:37,065 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:37,074 slot personality: no example in 0.50~0.70, generating from topic only app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:43,670 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:43,900 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:46,549 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:46,552 slot personality generated with examples [] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:46,896 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:55,283 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:55,537 HTTP Request: POST http://embed:9003/embed "HTTP/1.1 200 OK"
+2026-11-22 18:18:55,540 slot company material mission sim=0.73 used=True app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:18:58,153 HTTP Request: POST http://llm-rt:8080/v1/chat/completions "HTTP/1.1 200 OK"
+2026-11-22 18:18:58,156 slot company generated with examples [6775] app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5
+2026-11-22 18:19:02,106 HTTP Request: POST http://tts:9001/synthesize "HTTP/1.1 200 OK"
+2026-11-22 18:19:02,162 composed questions generated=10 reserve=0 sec=113.6 app=d9aff2d3-425c-4ca0-9aeb-dfc48cc3c4e5

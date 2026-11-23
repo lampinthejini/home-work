@@ -24,6 +24,8 @@ log = logging.getLogger("huge.posting_questions")
 
 CATEGORY = "공고 기반"
 WEB_CATEGORY = "인터넷 참고"
+# 예비 질문 후보만 연결 말 두 번을 다시 만든다 (면접 질문은 다시 보기에서 고친다, 2026-11-22)
+REPEATED_CONNECTIVE_TEXT = "한 문장에 '~할 때'·'~에서' 같은 연결 말이 두 번 나옴 — 한 번만 쓰고 짧게 줄일 것"
 JOB_TOPIC_LIMIT = 6  # 직무 질문 후보 수 상한 (공고 줄 수가 많아도)
 COMPANY_ANGLES = qc.COMPANY_ANGLES  # 회사 질문 자리마다 다른 초점 (면접 질문 만들기와 같은 것)
 COMPANY_COUNT = len(COMPANY_ANGLES)
@@ -72,6 +74,8 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
             return None, None
         text = question_text.cleanQuestion(out.question)
         code = qc.checkGenerated(kind, out, "", previous=[t for t, _, _ in made])
+        if code is None and qc.repeatedConnective(text):  # 예비 질문 후보는 다시 보기가 없어 연결 말 두 번은 여기서 다시 만든다
+            code = "repeated_connective"
         if code is None and question_bank.excludedReason(text):
             code = "other_company"
         if code is None and (question_bank.isKnown(db, text) or qc.isRepeat(text, [{"text": t} for t, _, _ in made])):
@@ -87,7 +91,7 @@ async def makeOne(db: Session, posting: JobPosting, kind: str, topic: str | None
                 code = "duplicate"
         if code is None:
             return text, vector
-        problem = qc.PROBLEM_TEXT.get(code, code) + (f' — 이전 질문: "{fence(text)}"' if text else "")
+        problem = {**qc.PROBLEM_TEXT, "repeated_connective": REPEATED_CONNECTIVE_TEXT}.get(code, code) + (f' — 이전 질문: "{fence(text)}"' if text else "")
     return None, None
 
 

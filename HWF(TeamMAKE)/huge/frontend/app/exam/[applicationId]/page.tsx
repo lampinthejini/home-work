@@ -15,7 +15,7 @@ import { loadExamSession, sendUnloadBeacon, type ExamSession } from "@/lib/exam"
 import { longDateTime, mmss } from "@/lib/format";
 import { loadDeviceChoice, openStream, stopStream, routeToSpeaker } from "@/lib/media";
 import { PcmRecorder } from "@/lib/pcm";
-import { CameraRecorder } from "@/lib/recording";
+import { CameraRecorder, canRecord } from "@/lib/recording";
 
 type Phase = "connecting" | "preparing" | "interview" | "coding-intro" | "coding" | "done";
 type Step = "reading" | "countdown" | "answering" | "processing";
@@ -65,6 +65,7 @@ function Exam() {
     const stream = useRef<MediaStream | null>(null);
     const recorder = useRef<PcmRecorder | null>(null);
     const camera = useRef<CameraRecorder | null>(null);
+    const pendingCamera = useRef<CameraRecorder | null>(null); // 질문 준비가 끝나면 켤 녹화 (2026-11-22)
     const phaseRef = useRef<"interview" | "coding">("interview");
     const audio = useRef<HTMLAudioElement | null>(null);
     const video = useRef<HTMLVideoElement>(null);
@@ -98,9 +99,35 @@ function Exam() {
         audio.current?.pause();
         recorder.current?.close();
         camera.current?.stop(); // 트랙을 끄기 전에 멈춰야 마지막 조각이 나온다
+        pendingCamera.current = null;
         setRecordingOn(false);
         stopStream(stream.current);
     }, [clearTimers]);
+
+    /** 녹화는 질문 준비('질문 준비 중')가 끝난 뒤 켠다 (2026-11-22 사용자). 준비 중에는 질문 만들기가 CPU·GPU 를 써서 녹화가 끊겼다 */
+    const startCamera = useCallback(() => {
+        const cam = pendingCamera.current;
+        if (!cam || camera.current || !stream.current) return;
+        pendingCamera.current = null;
+        let started = false;
+        try {
+            started = cam.start(stream.current);
+        } catch {
+            started = false;
+        }
+        if (started) {
+            camera.current = cam;
+            setRecordingOn(true);
+        } else if (ws.current?.readyState === WebSocket.OPEN) {
+            send({ type: "device_error", device: "camera", kind: "open_failed" });
+        } else {
+            failedDevice.current ??= "camera";
+        }
+    }, [send]);
+
+    useEffect(() => {
+        if (phase === "interview" || phase === "coding-intro" || phase === "coding") startCamera();
+    }, [phase, startCamera]);
 
     /** 상태가 바뀐 뒤에 전체 화면을 푼다 (해제가 이탈로 잡히지 않게, §7.5) */
     const finish = useCallback((next: Overlay | null, toPhase?: Phase) => {
@@ -307,16 +334,11 @@ function Exam() {
             }
             if (stream.current) {
                 phaseRef.current = session.phase ?? "interview";
-                const cam = new CameraRecorder(session.session_id, session.recording_segment, () => phaseRef.current,
-                    () => { if (watching.current) send({ type: "upload_failed" }); });
-                try {
-                    if (cam.start(stream.current)) {
-                        camera.current = cam;
-                        setRecordingOn(true);
-                    } else {
-                        failedDevice.current ??= "camera";
-                    }
-                } catch {
+                // 녹화를 할 수 있는지는 지금 확인하고(장치 오류는 준비 중에도 바로 알린다, 논의사항 E1), 켜는 것은 준비가 끝난 뒤
+                if (canRecord(stream.current)) {
+                    pendingCamera.current = new CameraRecorder(session.session_id, session.recording_segment, () => phaseRef.current,
+                        () => { if (watching.current) send({ type: "upload_failed" }); });
+                } else {
                     failedDevice.current ??= "camera";
                 }
             }
