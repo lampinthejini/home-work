@@ -1,0 +1,44 @@
+
+> huge-e2e@0.1.0 test:full
+> playwright test
+
+
+Running 28 tests using 1 worker
+
+  ✓   1 [chromium] › tests\access.spec.ts:6:5 › 로그인하지 않으면 전용 화면은 로그인으로 보내고 API 는 401 이다 (866ms)
+  ✓   2 [chromium] › tests\access.spec.ts:17:5 › 다른 지원자의 지원 건은 화면도 API 도 없는 것처럼 404 이다 (1.9s)
+  ✓   3 [chromium] › tests\access.spec.ts:45:5 › 지원자가 관리자 경로에 가면 API 는 403, 화면은 공고 목록과 안내다 (1.6s)
+  ✓   4 [chromium] › tests\auth.spec.ts:6:5 › 회원가입 → 로그인 → 비밀번호 찾기 메일 → 새 비밀번호로 로그인 → 탈퇴 (7.5s)
+  ✓   5 [chromium] › tests\auth.spec.ts:90:5 › 로그인하면 가려던 화면(next)으로 가고, 이미 로그인했으면 /login 에서 홈으로 간다 (3.0s)
+  ✓   6 [chromium] › tests\capacity.spec.ts:23:5 › 자리가 없으면 안내 모달만 뜨고, 자리가 나면 다시 시도로 시작한다 (4.8m)
+  ✓   7 [chromium] › tests\closing.spec.ts:27:5 › 마감하면 진행 중 면접은 바로 끝나고, 시작 전 지원자는 시작할 수 없다 (5.4m)
+  ✓   8 [chromium] › tests\closing.spec.ts:67:5 › 장애 중단 상태에서 마감되면 이어가기가 마감 안내로 바뀐다 (3.9m)
+  ✓   9 [chromium] › tests\coding-timeout.spec.ts:19:5 › 끊긴 코딩테스트는 저장된 코드부터 이어 가고, 시간이 끝나면 자동 제출된다 (3.8m)
+  ✓  10 [chromium] › tests\device-failure.spec.ts:63:5 › 지원자: 마이크 녹음기를 열 수 없으면 장애 중단 (32.4s)
+  ✓  11 [chromium] › tests\device-failure.spec.ts:67:5 › 지원자: 카메라 녹화기를 만들 수 없으면 장애 중단 (30.3s)
+  ✓  12 [chromium] › tests\device-failure.spec.ts:71:5 › 지원자: 면접 화면에 녹화 기능이 없으면 녹화 없이 진행하지 않고 장애 중단 (29.1s)
+  ✓  13 [chromium] › tests\device-failure.spec.ts:75:5 › 지원자: 카메라 녹화를 할 수 없는 브라우저는 환경 점검을 통과하지 못한다 (30.1s)
+  ✓  14 [chromium] › tests\device-failure.spec.ts:98:5 › 지원자: 마이크를 여는 도중 면접 화면을 벗어나면 면접 연결을 만들지 않는다 (2.4m)
+  ✓  15 [chromium] › tests\exit.spec.ts:36:5 › 뒤로가기는 화면을 그대로 두고, 새로고침하면 이어가기 없이 응시 종료다 (2.7m)
+  ✓  16 [chromium] › tests\exit.spec.ts:59:5 › 창을 닫으면 이어가기 없이 응시 종료다 (2.8m)
+  ✓  17 [chromium] › tests\full.spec.ts:86:9 › @slow 끝까지 응시 › 코딩테스트 없는 공고: 마지막 질문 뒤 바로 응시 완료 → 채점 → 결과 공개 (10.9m)
+  ✓  18 [chromium] › tests\full.spec.ts:125:9 › @slow 끝까지 응시 › 코딩테스트 있는 공고: 면접 → 코딩 2문항 실행·제출 → 채점(코딩 점수 포함) → 결과 공개 (11.2m)
+  ✓  19 [chromium] › tests\interview.spec.ts:32:5 › 지원자: 지원부터 면접 중 화면 이탈 2회 취소까지 (2.9m)
+  ✓  20 [chromium] › tests\interview.spec.ts:63:5 › 관리자: 녹화 재생과 메모 (2.3s)
+  ✓  21 [chromium] › tests\interview.spec.ts:102:5 › 지원자: 탈퇴하면 지원 데이터도 지워진다 (2.7s)
+  ✓  22 [chromium] › tests\login-block.spec.ts:18:5 › 지원자: 같은 IP 에서 5번 틀리면 차단되고, 관리자가 해제하면 다시 로그인한다 (4.4s)
+  ✓  23 [chromium] › tests\login-block.spec.ts:60:5 › 이 PC(차단 제외)에서는 여러 번 틀려도 막히지 않는다 (1.8s)
+  ✓  24 [chromium] › tests\outage.spec.ts:24:5 › 지원자: 면접 중 연결이 끊기면 장애 중단, 마이페이지에서 이어간다 (3.1m)
+  ✓  25 [chromium] › tests\resume-upload.spec.ts:24:5 › 지원자: 이력서 PDF 를 별도 프로세스로 읽어 정리하고, 깨진 PDF 는 거부한다 (8.2s)
+  ✓  26 [chromium] › tests\resume-upload.spec.ts:49:5 › 지원자: 못 읽는 파일은 이유를 알려 주고 직접 입력으로 넘어간다 (3.2s)
+  ✓  27 [chromium] › tests\resume-upload.spec.ts:75:5 › 지원자: 서버 문제로 추출이 끊기면 파일 탓이 아닌 안내를 보여 준다 (3.1s)
+  ✓  28 [chromium] › tests\review-decision.spec.ts:10:5 › 관리자: 평가 지연 건을 직접 결정하고, 지원자는 담당자 결정임을 본다 (7.9s)
+남은 E2E 지원자 25명을 지웠습니다
+E2E 가 만든 질문 후보 4개를 지웠습니다
+뒷정리 확인: 질문 DB 185개 (시작 때와 같음)
+
+  Slow test file: [chromium] › tests\full.spec.ts (22.2m)
+  Slow test file: [chromium] › tests\closing.spec.ts (9.3m)
+  Slow test file: [chromium] › tests\exit.spec.ts (5.5m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  28 passed (57.5m)
